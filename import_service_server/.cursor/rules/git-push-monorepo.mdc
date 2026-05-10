@@ -1,0 +1,33 @@
+---
+description: Как отправлять изменения в монорепозиторий заказчика (GitHub)
+alwaysApply: false
+---
+
+# Пуш в репозиторий заказчика
+
+Рабочая копия — **монорепозиторий**: корень `D:\Projects\import_servis`. Remote организации: `import-service/App_Import-Service` (ветка `main`).
+
+После изменений в **любом** из трёх проектов (`import_service_app`, `import_service_server`, `import_service_admin`) нужно коммитить и пушить **весь** репозиторий из корня.
+
+## Рекомендуемый способ
+
+В PowerShell:
+
+```powershell
+cd D:\Projects\import_servis
+.\scripts\push-monorepo.ps1 -Message "Краткое описание на русском"
+```
+
+Без `-Message` будет использовано сообщение по умолчанию.
+
+## Вручную
+
+```powershell
+cd D:\Projects\import_servis
+git add -A
+git status
+git commit -m "Ваше сообщение на русском"
+git push origin main
+```
+
+Сообщения коммитов — **на русском**.

@@ -1,0 +1,24 @@
+---
+description: Логирование — ошибки через easylogger, короткий trace через AppLog
+globs: ["lib/**/*.dart"]
+alwaysApply: true
+---
+
+# Logging
+
+## Библиотеки
+- **Ошибки и сбои** — `flutter_easylogger`: `Logger.e` не вызывай напрямую из фич, используй **`AppLog.error`** (`lib/core/logging/app_log.dart`).
+- **Отладочные короткие сообщения** — **`AppLog.trace`** (пакет `logger` с компактным `SimplePrinter`, в release отключено).
+
+## Инициализация
+- В `main` вызывается **`bootstrapLogger()`** до `runApp` (`lib/core/logging/bootstrap_logger.dart`). В **release** easylogger выключен (`!kReleaseMode`).
+
+## Где логировать
+- **Remote data source**: в `catch` после `ErrorHandler.handle` или при логировании входа в метод — **`AppLog.error`** с контекстом (endpoint, без тел запросов с паролями).
+- **Репозиторий**: при отлове `ServerException` перед `Left(ServerFailure(...))` — по желанию **`AppLog.error`** с кратким сообщением.
+- **BLoC / Cubit**: необработанные сбои или неожиданные ветки — **`AppLog.error`**.
+- **Временные трассы на новой фиче** (с тегами, снятие после подтверждения) — см. **`feature-trace-logs.mdc`**.
+
+## Запрещено
+- Не логировать **токены**, **пароли**, **полные** тела ответов с PII.
+- Не использовать `print` для ошибок — только **`AppLog`**.

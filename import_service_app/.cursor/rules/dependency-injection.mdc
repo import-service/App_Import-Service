@@ -1,0 +1,26 @@
+---
+description: Только GetIt (sl) — вся DI в initDependencies, репо и Bloc/Cubit
+globs: ["lib/**/*.dart"]
+alwaysApply: true
+---
+
+# Dependency Injection (жёстко)
+
+## Единый контейнер
+- **Пакет**: только **`get_it`**, алиас **`sl`** = `GetIt.instance` в `lib/core/di/injection_container.dart`.
+- **GetX** (`get.find`, `Get.put`) **не использовать** в этом репо — дублирует DI и ломает единый стиль.
+- Точка входа: **`initDependencies()`** (вызывается из `main` после `SharedPreferences`).
+
+## Что регистрировать и чем
+| Сущность | Метод | Примечание |
+|----------|--------|------------|
+| `SharedPreferences` | `registerSingleton` | один раз после `getInstance` |
+| Репозитории, data source, `Dio`, `AuthService` | `registerLazySingleton` | один на приложение |
+| **Cubit / BLoC с общим app-состоянием** (список на главной, драфты и т.д.) | `registerSingleton` | один инстанс, `sl<ThatCubit>()` в UI |
+| **BLoC «на экран»** (если появится) | `registerFactory` | новый на каждый `sl<>`; сейчас в проекте превалируют **singleton** cubit'ы в DI |
+
+- Зависимости в конструктор: **только** через `sl<...>()` и явные аргументы, не «синглтон снаружи».
+- **Нет** «ленивой» регистрации по месту в фиче — все типы, которые тянутся из `sl`, перечислены в `injection_container.dart`.
+
+## Репозитории
+- `CarsRepository` и остальные **только** через `registerLazySingleton`, в конструктор передавать **абстракции domain/data** (интерфейсы репозитория, `CarInventoryStateHolder` и т.д.), **не** импорт presentation в `data` без согласованного интерфейса в `lib/data` или `lib/domain`.

@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import Service API Docs</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f3f4f6; color: #111827; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 12px; }
+    h2 { margin: 20px 0 10px; font-size: 20px; }
+    .hint { color: #4b5563; margin-bottom: 10px; }
+    .base-url { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab { border: 1px solid #d1d5db; background: #fff; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .tab.active { background: #111827; color: #fff; border-color: #111827; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .group { margin-bottom: 18px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 14px; }
+    .summary { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; }
+    .summary::-webkit-details-marker { display: none; }
+    .summary::after { content: "▾"; margin-left: auto; color: #6b7280; }
+    details[open] .summary::after { transform: rotate(180deg); }
+    .method { color: #fff; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 700; }
+    .method.get { background: #2563eb; }
+    .method.post { background: #16a34a; }
+    .method.put { background: #0d9488; }
+    .method.patch { background: #d97706; }
+    .method.delete { background: #dc2626; }
+    .method.ws { background: #7c3aed; }
+    .path { background: #f9fafb; padding: 4px 8px; border-radius: 6px; }
+    .desc { color: #374151; }
+    .body { padding: 0 16px 16px; border-top: 1px solid #f3f4f6; }
+    pre { margin: 8px 0; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+    code { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1px 6px; }
+  </style>
+</head>
+<body>
+  <!-- DOCS_FORMAT_LOCK: tabs + details; DOCS_JSON_RULE: без заглушек и троеточий, только полноценные JSON-примеры -->
+  <div class="wrap">
+    <h1>API документация</h1>
+    <p class="hint">Краткий обзор эндпоинтов приложения и интеграции 1С.</p>
+    <p class="base-url"><b>Базовый URL:</b> <code>{{BASE_URL}}</code></p>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="app">API приложения</button>
+      <button class="tab" data-tab="onec">API 1С</button>
+    </div>
+
+    <section id="panel-app" class="panel active">
+
+      <section class="group">
+        <h2>Авторизация</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/version</code><span class="desc">Проверка версии и имени backend.</span></summary>
+          <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>{}</pre><p><b>Success:</b></p><pre>{
+  "name": "import-service-server",
+  "version": "0.1.0",
+  "timestamp": "2026-04-27T09:00:00.000Z"
+}</pre><p><b>Errors:</b></p><ul></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/auth/login</code><span class="desc">Вход в приложение по логину и паролю.</span></summary>
+          <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>{
+  "login": "admin@gmail.com",
+  "password": "123456"
+}</pre><p><b>Success:</b></p><pre>{
+  "accessToken": "sample_access_token_value",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-05-27T09:00:00.000Z",
+  "role": "admin"
+}</pre><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/auth/logout</code><span class="desc">Выход из текущей сессии.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{}</pre><p><b>Success:</b></p><pre>{
+  "ok": true
+}</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>401 SESSION_REVOKED_OR_EXPIRED</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/auth/me</code><span class="desc">Профиль текущей организации.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{}</pre><p><b>Success:</b></p><pre>{
+  "id": 5,
+  "id_1c": "org-001",
+  "login": "mail@org.ru",
+  "role": "user",
+  "orgType": "ООО",
+  "companyName": "ООО Ромашка",
+  "inn": "7701234567",
+  "phone": "+79990000000",
+  "created_at": "2026-04-27T09:00:00.000Z",
+  "updated_at": "2026-04-27T09:00:00.000Z",
+  "deleted_at": null
+}</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>401 USER_NOT_FOUND</code></li></ul></div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Заявки на таможенное оформление</h2>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/upload</code><span class="desc">Загрузить один файл и получить fileUrl.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "multipart/form-data": {
+    "file": "passport.jpg",
+    "docType": "passport_front"
+  }
+}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "file": {
+    "docType": "passport_front",
+    "fileName": "passport.jpg",
+    "mimeType": "image/jpeg",
+    "fileSizeBytes": 12345,
+    "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests</code><span class="desc">Создать заявку и прикрепить файлы.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "legalEntityName": "ООО Вектор",
+  "legalEmail": "mail@example.com",
+  "legalPhone": "+79990000000",
+  "individualFullName": "Иванов Иван Иванович",
+  "individualPhone": "+79991112233",
+  "individualSnils": "123-456-789 00",
+  "carMake": "Toyota",
+  "carModel": "Crown",
+  "vin": "VIN12345678901234",
+  "isTest": false,
+  "files": [
+    {
+      "docType": "passport_front",
+      "fileName": "passport-front.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+    },
+    {
+      "docType": "passport_registration",
+      "fileName": "passport-reg.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "/api/customs-requests/files/e22d5de3-80d2-4ddc-9c0f-2fd3ac2a4480.jpg"
+    },
+    {
+      "docType": "inn",
+      "fileName": "inn.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/eeac7e05-a998-4861-b74b-4e93ca8e730c.pdf"
+    },
+    {
+      "docType": "snils",
+      "fileName": "snils.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/6f32e356-b3db-4f52-9a41-6bb1d9f9e615.pdf"
+    },
+    {
+      "docType": "contract",
+      "fileName": "contract.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/f82dd09b-f53f-4762-afbe-1882d1462233.pdf"
+    },
+    {
+      "docType": "payment_check",
+      "fileName": "check.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/13e2db52-b85e-4f36-a311-8a1d5f04c77f.pdf"
+    },
+    {
+      "docType": "title_doc",
+      "fileName": "title.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/2ef49408-abf8-4d6b-a3c1-7597a0386dd2.pdf"
+    },
+    {
+      "docType": "car_front_photo",
+      "fileName": "front.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "/api/customs-requests/files/6f718a95-90d3-43f8-a30c-f2f1e57f2bcb.jpg"
+    },
+    {
+      "docType": "car_back_photo",
+      "fileName": "back.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "/api/customs-requests/files/eaf35624-f2df-420f-a5cc-c7b83fd6888f.jpg"
+    }
+  ]
+}</pre><p><b>Success:</b></p><pre>{
+  "id": "1",
+  "ownerFullName": null,
+  "carMake": "Toyota",
+  "carModel": "Crown",
+  "vin": "VIN12345678901234",
+  "status": "new",
+  "engineSpec": null,
+  "engineVolume": null,
+  "statusSinceDateLabel": null,
+  "statusSubType": null,
+  "financeItems": [],
+  "vehiclePhotoUrls": [],
+  "deliveredDocuments": [],
+  "isTest": false,
+  "external1cId": null,
+  "managerExternal1cId": null,
+  "files": [
+    {
+      "id": 1,
+      "docType": "passport_front",
+      "fileName": "passport-front.jpg",
+      "mimeType": "image/jpeg",
+      "fileSizeBytes": 12345,
+      "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+    }
+  ]
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>500 INTERNAL_ERROR</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests</code><span class="desc">Получить список заявок.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "query": {
+    "limit": 20,
+    "offset": 0,
+    "status": "new",
+    "isTest": "false"
+  }
+}</pre><p><b>Success:</b></p><pre>{
+  "items": [
+    {
+      "id": "1",
+      "ownerFullName": null,
+      "carMake": "Toyota",
+      "carModel": "Crown",
+      "vin": "VIN12345678901234",
+      "status": "new",
+      "isTest": false
+    }
+  ],
+  "limit": 20,
+  "offset": 0
+}</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/:id</code><span class="desc">Получить заявку по ID вместе со списком файлов.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "params": { "id": 1 }
+}</pre><p><b>Success:</b></p><pre>{
+  "id": "1",
+  "ownerFullName": null,
+  "carMake": "Toyota",
+  "carModel": "Crown",
+  "vin": "VIN12345678901234",
+  "status": "new",
+  "engineSpec": null,
+  "engineVolume": null,
+  "statusSinceDateLabel": null,
+  "statusSubType": null,
+  "financeItems": [],
+  "vehiclePhotoUrls": [],
+  "deliveredDocuments": [],
+  "isTest": false,
+  "external1cId": null,
+  "managerExternal1cId": null,
+  "files": [
+    {
+      "id": 1,
+      "docType": "passport_front",
+      "fileName": "passport-front.jpg",
+      "mimeType": "image/jpeg",
+      "fileSizeBytes": 12345,
+      "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+    }
+  ]
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method patch">PATCH</span><code class="path">/api/customs-requests/:id</code><span class="desc">Обновить поля заявки.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "commentText": "Обновленный комментарий"
+}</pre><p><b>Success:</b></p><pre>{
+  "id": "1",
+  "ownerFullName": null,
+  "carMake": "Toyota",
+  "carModel": "Crown",
+  "vin": "VIN12345678901234",
+  "status": "new",
+  "commentText": "Обновленный комментарий",
+  "isTest": false
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id</code><span class="desc">Мягко удалить заявку.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>{ "ok": true }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/:id/files</code><span class="desc">Добавить файлы к существующей заявке.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "files": [
+    {
+      "docType": "additional_file",
+      "fileName": "doc.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/2502f5d0-66d6-4f1f-b21a-92322fe1e5fb.pdf"
+    },
+    {
+      "docType": "additional_file",
+      "fileName": "photo.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+    }
+  ]
+}</pre><p><b>Success:</b></p><pre>{
+  "id": "1",
+  "files": [
+    {
+      "id": 1,
+      "docType": "passport_front",
+      "fileName": "passport-front.jpg",
+      "mimeType": "image/jpeg",
+      "fileSizeBytes": 12345,
+      "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+    },
+    {
+      "id": 2,
+      "docType": "additional_file",
+      "fileName": "doc.pdf",
+      "mimeType": "application/pdf",
+      "fileSizeBytes": 34567,
+      "fileUrl": "/api/customs-requests/files/2502f5d0-66d6-4f1f-b21a-92322fe1e5fb.pdf"
+    }
+  ]
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id/files/:fileId</code><span class="desc">Мягко удалить файл заявки.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>{ "ok": true }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/files/:storedName</code><span class="desc">Скачать файл по сохраненной ссылке.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken or Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>binary</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Чат по заявке</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/:id/messages</code><span class="desc">История сообщений.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "query": {
+    "limit": 50,
+    "beforeId": null
+  }
+}</pre><p><b>Success:</b></p><pre>{
+  "items": [
+    {
+      "id": 9001,
+      "requestId": 123,
+      "senderType": "user",
+      "text": "Здравствуйте, уточните статус",
+      "attachments": [],
+      "createdAt": "2026-04-27T09:10:00.000Z"
+    },
+    {
+      "id": 9002,
+      "requestId": 123,
+      "senderType": "manager_1c",
+      "text": "Принято, проверяем документы",
+      "attachments": [
+        {
+          "fileUrl": "https://example.com/a.pdf",
+          "fileName": "a.pdf",
+          "mimeType": "application/pdf"
+        }
+      ],
+      "createdAt": "2026-04-27T09:11:00.000Z"
+    }
+  ],
+  "limit": 50,
+  "beforeId": null
+}</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/:id/messages</code><span class="desc">Отправить сообщение пользователем.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "text": "Здравствуйте, уточните статус",
+  "clientMessageId": "f14d9f58-f1c0-4f4d-b3ef-f92d0cc7077f",
+  "attachments": [
+    {
+      "fileUrl": "https://example.com/b.jpg",
+      "fileName": "b.jpg",
+      "mimeType": "image/jpeg"
+    }
+  ]
+}</pre><p><b>Success:</b></p><pre>{
+  "id": 9003,
+  "delivery_status": "delivered",
+  "oneC": {
+    "statusCode": 200,
+    "requestId": "onec-req-12345"
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li><li><code>500 INTERNAL_ERROR</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/:id/messages/read</code><span class="desc">Прочитанность входящих сообщений 1С у пользователя.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{ "upToMessageId": 9001 }</pre><p><b>Success:</b></p><pre>{ "ok": true, "updated": 12, "upToMessageId": 9001 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method ws">WS</span><code class="path">wss://&lt;host&gt;/ws/&lt;requestId&gt;/?token=&lt;accessToken&gt;</code><span class="desc">Realtime события чата.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken (query token)</p><p><b>Request:</b></p><pre>{
+  "wsUrl": "wss://157-22-173-7.sslip.io/ws/123/?token=sample_access_token_value"
+}</pre><p><b>Success:</b></p><pre>{
+  "type": "message_created",
+  "payload": {
+    "id": 9003,
+    "requestId": 123,
+    "senderType": "user",
+    "text": "Здравствуйте, уточните статус"
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>401 (handshake)</code></li></ul></div>
+        </details>
+      </section>
+    </section>
+
+    <section id="panel-onec" class="panel">
+
+      <section class="group">
+        <h2>Организации (интеграция 1С)</h2>
+        <details class="card">
+          <summary class="summary"><span class="method post">AUTH</span><code class="path">Bearer token for 1C</code><span class="desc">Токен для заголовка Authorization.</span></summary>
+          <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>Authorization: Bearer {{INTEGRATION_BEARER_TOKEN}}</pre><p><b>Success:</b></p><pre>Скопируйте токен и используйте в запросах 1С.</pre><p><b>Errors:</b></p><ul></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/organizations</code><span class="desc">Создать/обновить одну организацию из 1С.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>{
+  "id_1c": "org-001",
+  "login": "mail@org.ru",
+  "password": "StrongPass123",
+  "role": "user",
+  "orgType": "ООО",
+  "companyName": "ООО Ромашка",
+  "inn": "7701234567",
+  "phone": "+79990000000"
+}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "item": {
+    "id": 10,
+    "id_1c": "org-001",
+    "login": "mail@org.ru",
+    "role": "user",
+    "orgType": "ООО",
+    "companyName": "ООО Ромашка",
+    "inn": "7701234567",
+    "phone": "+79990000000",
+    "created_at": "2026-04-27T09:00:00.000Z",
+    "updated_at": "2026-04-27T09:00:00.000Z",
+    "deleted_at": null
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-requests/link-1c</code><span class="desc">Проставить external1cId и managerExternal1cId.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>{
+  "requestId": 123,
+  "external1cId": "GUID-REQUEST-1C",
+  "managerExternal1cId": "GUID-MANAGER-1C"
+}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "item": {
+    "id": "123",
+    "status": "in_progress",
+    "external1cId": "GUID-REQUEST-1C",
+    "managerExternal1cId": "GUID-MANAGER-1C"
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-requests/state</code><span class="desc">Обновить 1С-часть заявки по external1cId.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>{
+  "external1cId": "GUID-REQUEST-1C",
+  "status": "in_transit",
+  "ownerFullName": "Иванов Иван Иванович",
+  "engineSpec": "Бензин, 2.5L",
+  "engineVolume": "2494 см3",
+  "statusSinceDateLabel": "С 27.04.2026",
+  "statusSubType": "in_transit_loading",
+  "financeItems": [
+    {
+      "lineType": "duty",
+      "amountText": "120 000 ₽",
+      "title": "Таможенная пошлина",
+      "paymentQrUrl": "https://example.com/qr-duty.png",
+      "receiptUrl": "https://example.com/receipt-duty.pdf"
+    }
+  ],
+  "vehiclePhotoUrls": [
+    "https://example.com/car1.jpg",
+    "https://example.com/car2.jpg"
+  ],
+  "deliveredDocuments": [
+    {
+      "title": "ЭПТС",
+      "downloadUrl": "https://example.com/epts.pdf"
+    }
+  ]
+}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "item": {
+    "id": "123",
+    "status": "in_transit",
+    "statusSubType": "in_transit_loading",
+    "financeItems": [
+      {
+        "lineType": "duty",
+        "amountText": "120 000 ₽",
+        "title": "Таможенная пошлина",
+        "paymentQrUrl": "https://example.com/qr-duty.png",
+        "receiptUrl": "https://example.com/receipt-duty.pdf"
+      }
+    ]
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-requests/purge-test</code><span class="desc">Удалить из БД все тестовые заявки.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>{ "ok": true, "deletedRows": 12 }</pre><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-request-messages</code><span class="desc">Сообщение от 1С/менеджера в чат заявки.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>{
+  "external1cId": "GUID-REQUEST-1C",
+  "message1cId": "GUID-MSG-1C-0001",
+  "text": "Добрый день, документы приняты",
+  "sender1cId": "u-1",
+  "senderName": "Иванов",
+  "attachments": [
+    {
+      "fileUrl": "https://example.com/a.pdf",
+      "fileName": "a.pdf",
+      "mimeType": "application/pdf"
+    }
+  ]
+}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "id": 9001,
+  "requestId": 123,
+  "message": {
+    "id": 9001,
+    "message_1c_id": "GUID-MSG-1C-0001"
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+      </section>
+    </section>
+  </div>
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const panelApp = document.getElementById('panel-app');
+    const panelOneC = document.getElementById('panel-onec');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        const isApp = tab.dataset.tab === 'app';
+        panelApp.classList.toggle('active', isApp);
+        panelOneC.classList.toggle('active', !isApp);
+      });
+    });
+  </script>
+</body>
+</html>

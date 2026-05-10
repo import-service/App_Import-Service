@@ -1,0 +1,82 @@
+---
+description: Карта проекта для агента — слои, модели, тема, ключевые виджеты, локальные черновики
+alwaysApply: true
+---
+
+# Карта приложения (для агента)
+
+Краткий ориентир по коду. Детали слоёв — `architecture.mdc`; виджеты — `presentation-widgets.mdc`.
+
+## Стили и тема
+
+| Что | Где |
+|-----|-----|
+| Цвета, `ThemeData.light` | `lib/core/themes/app_theme.dart` |
+
+## Модели и локальные данные
+
+| Что | Где |
+|-----|-----|
+| Форма заявки (DTO + JSON) | `lib/data/models/request_form_model.dart` |
+| Черновик заявки | `lib/data/models/request_draft.dart` |
+| Хранилище черновиков (SharedPreferences) | `lib/data/local/request_draft_store.dart` |
+| Папка вложений на черновик (`request_draft_attachments/<id>/`) | `lib/data/local/request_draft_attachments_space.dart` |
+| Демо-авто | `lib/presentation/models/demo_car.dart`, `lib/data/demo/demo_cars_remote_mock.dart` |
+| Статусы фильтра (enum) | `lib/presentation/models/demo_car_filter_status.dart` |
+
+## DI и строки
+
+| Что | Где |
+|-----|-----|
+| GetIt | `lib/core/di/injection_container.dart` |
+| i18n JSON + геттеры | `assets/i18n/*.json`, `lib/core/i18n/json_strings_service.dart` |
+
+## Обратная связь (SnackBar)
+
+| Что | Где |
+|-----|-----|
+| Типы / сервис | `lib/core/ui/app_feedback_kind.dart`, `lib/core/ui/app_feedback_service.dart` |
+| Ключ messenger | `lib/core/ui/app_scaffold_messenger_key.dart` |
+
+Показ сообщений — только через **`AppFeedbackService`**.
+
+---
+
+## Реестр ключевых UI (`lib/presentation/widgets/`)
+
+Перед новым виджетом — поиск в дереве `widgets/**`. Новый файл — `snake_case.dart`, одна публичная сущность на файл (см. `presentation-widgets.mdc`).
+
+| Путь (от `lib/`) | Назначение |
+|------------------|------------|
+| `presentation/widgets/app_bar/brand_primary_app_bar.dart` | Синий AppBar |
+| `presentation/widgets/app_bar/settings_app_bar_action.dart` | Настройки / язык в AppBar |
+| `presentation/widgets/auth/login_brand_logo.dart` | Логотип на входе |
+| `presentation/widgets/bottom_sheets/app_modal_bottom_sheet.dart` | Общая модальная шторка |
+| `presentation/widgets/bottom_sheets/sheet_header.dart` | Заголовок шторки |
+| `presentation/widgets/bottom_sheets/language_selection_bottom_sheet.dart` | Выбор языка |
+| `presentation/widgets/bottom_sheets/registration_request_bottom_sheet.dart` | Заявка на регистрацию |
+| `presentation/widgets/bottom_sheets/request_drafts_bottom_sheet.dart` | Список черновиков заявки |
+| `presentation/widgets/buttons/app_primary_filled_wide_button.dart` | Синяя широкая CTA |
+| `presentation/widgets/buttons/app_primary_outlined_wide_button.dart` | Широкая outlined |
+| `presentation/widgets/buttons/app_logout_outlined_wide_button.dart` | Выход |
+| `presentation/widgets/buttons/app_accent_underlined_text_button.dart` | Подчёркнутый акцент |
+| `presentation/widgets/buttons/app_accent_filled_compact_button.dart` | Компактная красная кнопка |
+| `presentation/widgets/cards/car_card.dart` | Карточка авто в списке |
+| `presentation/widgets/requests/car_request_file_slot_row.dart` | Строка слота фото/файла на детализации (те же поля, что [RequestFilesUploadPage]) |
+| `presentation/widgets/requests/request_detail_finance_card.dart` | Финансы: сумма, заглушки квитанция/QR, кнопка (демо) |
+| `presentation/widgets/requests/request_detail_photo_placeholders_row.dart` | Ряд плиток-заглушек вместо фото авто |
+| `domain/entities/request_detail_finance_line.dart` | Строка суммы в «Финансах» на детализации |
+| `presentation/widgets/drafts/request_draft_list_tile.dart` | Строка черновика заявки |
+| `presentation/widgets/bottom_sheets/request_draft_delete_confirm_bottom_sheet.dart` | Подтверждение удаления черновика (шторка) |
+| `presentation/widgets/filters/car_status_chips_bar.dart` | Чипы статусов |
+| `presentation/widgets/filters/filter_status_checkbox_tile.dart` | Чек строки фильтра |
+| `presentation/widgets/forms/app_field_decoration.dart` | Обводка полей |
+| `presentation/widgets/forms/app_labeled_text_field.dart` | Подпись + поле (в т.ч. пароль) |
+| `presentation/widgets/forms/app_search_bar_field.dart` | Поиск |
+| `presentation/widgets/forms/request_*.dart` | Форма заявки (базовые поля и фото-ряды) |
+| `presentation/widgets/forms/input_formatters/*` | Маски (ИНН, телефон, VIN) |
+| `presentation/widgets/navigation/home_bottom_nav_bar.dart` | Нижняя навигация главной |
+| `presentation/widgets/tabs/cars_tab_view.dart` | Вкладка «Мои авто»: один UI для демо и прод (список из мока или пусто + черновики) |
+| `presentation/widgets/tabs/profile_tab_view.dart` | Вкладка профиля |
+| `presentation/pages/request_create_page.dart` | Создание / редактирование заявки |
+| `presentation/pages/cars_filters_page.dart` | Экран фильтров |

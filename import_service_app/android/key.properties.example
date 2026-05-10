@@ -1,0 +1,5 @@
+# Скопируйте в key.properties и заполните (файл key.properties в git не коммитится).
+storePassword=
+keyPassword=
+keyAlias=import_service_app
+storeFile=../import_service_app-release.keystore
