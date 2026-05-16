@@ -1,4 +1,6 @@
 node_modules/
+web/*
+!web/index.html
 tmp_*.json
 tmp_*.txt
 tmp*.html

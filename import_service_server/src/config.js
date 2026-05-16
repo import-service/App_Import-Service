@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 
 function required(name) {
   const v = process.env[name];
@@ -8,7 +9,20 @@ function required(name) {
   return v;
 }
 
+const SERVER_ROOT = path.join(__dirname, '..');
+
+function resolveAdminWebRoot() {
+  const raw = String(process.env.ADMIN_WEB_ROOT || 'web').trim() || 'web';
+  if (path.isAbsolute(raw)) {
+    return raw;
+  }
+  return path.join(SERVER_ROOT, raw);
+}
+
 module.exports = {
+  SERVER_ROOT,
+  /** Каталог Flutter Web (содержимое build/web) для GET /admin/ */
+  adminWebRoot: resolveAdminWebRoot(),
   /** База для абсолютных URL в API (fileUrl, vehiclePhotoUrls). Пример: https://example.com */
   publicBaseUrl: String(process.env.PUBLIC_BASE_URL || '')
     .trim()

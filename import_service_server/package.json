@@ -1,6 +1,6 @@
 {
   "name": "import-service-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "API для приложения и синхронизации пользователей из 1С",
   "main": "src/app.js",
