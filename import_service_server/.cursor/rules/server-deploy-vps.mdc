@@ -1,0 +1,36 @@
+---
+description: Обновление API на VPS после правок import_service_server (архив + перезапуск Node)
+globs: ["import_service_server/**"]
+alwaysApply: true
+---
+
+# Деплой сервера на VPS (прод)
+
+Прод: `https://157-22-173-7.sslip.io` — код **не** подтягивается с GitHub сам. После правок в `import_service_server` агент **обязан**:
+
+1. Закоммитить и запушить монорепо: `.\scripts\push-monorepo.ps1 -Message "..."` (из `D:\Projects\import_servis`).
+2. Собрать архив: `.\scripts\pack-server-update.ps1` → `import_service_server/import-service-update.tgz`.
+3. Напомнить пользователю залить архив на VPS **или** выполнить шаги ниже, если есть доступ.
+
+## На VPS
+
+В каталоге, где уже крутится Node (рядом лежат `package.json`, `.env`, часто `src/`):
+
+1. Распаковать `import-service-update.tgz` **поверх** (`.env` не перезаписывать).
+2. `npm install --omit=dev`
+3. Перезапуск процесса Node (`pm2 restart …` / systemd / панель ISPmanager).
+
+Проверка:
+
+- `curl -s https://157-22-173-7.sslip.io/api/version`
+- `curl -sI https://157-22-173-7.sslip.io/admin/` → **200** и `text/html` (не JSON 404).
+
+## Веб-админка `/admin`
+
+- Статика: `import_service_server/web/` (в архиве есть `web/index.html`).
+- Маршруты: `src/routes/adminWeb.js`, подключение из `src/routes/docs.js`.
+- Flutter: `.\scripts\deploy-admin-web.ps1` → копирует `build/web` в `web/`, затем снова `pack-server-update.ps1`.
+
+## Типичная ошибка
+
+`{"message":"Route GET:/admin/ not found"}` — на VPS **старый** `src/` без `adminWeb.js`. Нужен новый `.tgz` и перезапуск Node, не только `git push` с локальной машины.

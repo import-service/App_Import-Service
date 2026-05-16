@@ -31,3 +31,15 @@ git push origin main
 ```
 
 Сообщения коммитов — **на русском**.
+
+## Обновление API на VPS (обязательно после правок сервера)
+
+Git push **не** обновляет прод. См. **`server-deploy-vps.mdc`**:
+
+```powershell
+cd D:\Projects\import_servis
+.\scripts\push-monorepo.ps1 -Message "Описание"
+.\scripts\pack-server-update.ps1
+```
+
+Далее — залить `import_service_server/import-service-update.tgz` на VPS, распаковать, `npm install --omit=dev`, перезапуск Node.
