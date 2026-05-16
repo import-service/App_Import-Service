@@ -70,7 +70,6 @@ async function buildApp() {
     await instance.register(require('./routes/customsRequestChat'));
   }, { prefix: '/api' });
   await fastify.register(require('./routes/docs'));
-  await fastify.register(require('./routes/adminWeb'));
 
   fastify.log.info({ adminWebRoot: config.adminWebRoot }, 'Админка: каталог статики');
 
