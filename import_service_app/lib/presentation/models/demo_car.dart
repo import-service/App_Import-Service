@@ -10,6 +10,8 @@ class DemoCar {
     required this.vin,
     required this.statusLabel,
     required this.requestStatus,
+    this.managerFullName,
+    this.external1cId,
   });
 
   final String id;
@@ -19,6 +21,8 @@ class DemoCar {
   final String vin;
   final String statusLabel;
   final RequestStatus requestStatus;
+  final String? managerFullName;
+  final String? external1cId;
 
   String get displayCarLine {
     final a = carMake.trim();

@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "id": "req-001",
+      "ownerFullName": "Иванов Иван Иванович",
+      "carMake": "Toyota",
+      "carModel": "Crown",
+      "vin": "JTDBR32E720001234",
+      "status": "in_progress",
+      "statusSinceDateLabel": "12.04.2026",
+      "isTest": false,
+      "managerFullName": "Петров Пётр Петрович"
+    },
+    {
+      "id": "req-002",
+      "ownerFullName": "Сидорова Анна Сергеевна",
+      "carMake": "BMW",
+      "carModel": "X5",
+      "vin": "WBAFR9C50DD123456",
+      "status": "new",
+      "statusSinceDateLabel": "15.05.2026",
+      "isTest": true,
+      "managerFullName": null
+    },
+    {
+      "id": "req-003",
+      "ownerFullName": "Козлов Дмитрий",
+      "carMake": "Mercedes-Benz",
+      "carModel": "E-Class",
+      "vin": "WDDHF8JB5CA123789",
+      "status": "delivered",
+      "statusSinceDateLabel": "01.03.2026",
+      "isTest": false,
+      "managerFullName": "Смирнов А.А."
+    }
+  ]
+}

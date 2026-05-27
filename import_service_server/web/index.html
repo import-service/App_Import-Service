@@ -1,40 +1,46 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/admin/">
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Импорт Сервис — админка</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .card {
-      max-width: 420px;
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 28px 32px;
-      box-shadow: 0 8px 32px rgba(0,0,0,.35);
-    }
-    h1 { margin: 0 0 8px; font-size: 1.35rem; color: #f8fafc; }
-    p { margin: 0 0 16px; line-height: 1.5; color: #94a3b8; font-size: 0.95rem; }
-    code { background: #334155; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
-    a { color: #60a5fa; }
-  </style>
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="import_service_admin">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>import_service_admin</title>
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <main class="card">
-    <h1>Веб-админка</h1>
-    <p>Заглушка. Сюда кладётся Flutter Web после <code>flutter build web --base-href=/admin/</code>.</p>
-    <p><a href="/docs">Документация API</a> · <a href="/api/health">/api/health</a></p>
-  </main>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -19,12 +19,15 @@ import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_state.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
+import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_line_labels.dart';
+import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_files_sections.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_deliverable_doc_row.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_finance_card.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_photo_urls_row.dart';
 
-/// Детализация заявки. Для [RequestStatus.newRequest] чат FAB не показывается.
+/// Детализация заявки. Чат — после появления [CarListItem.external1cId].
 class CarRequestDetailPage extends StatefulWidget {
   const CarRequestDetailPage({super.key, required this.requestId});
 
@@ -59,8 +62,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     required ThemeData theme,
     required CustomsRequestFile f,
     required VoidCallback? onTap,
+    bool highlight = false,
+    String? badge,
   }) {
-    final title = _docTypeLabel(f, sl<JsonStringsService>());
+    final title = docTypeLabel(f, sl<JsonStringsService>());
     final url = _resolveFileUrl(f.fileUrl);
     final tappable = url != null && url.isNotEmpty;
     final token = sl<AuthSessionController>().accessToken?.trim();
@@ -68,8 +73,13 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         ? <String, String>{'Authorization': 'Bearer $token'}
         : null;
 
+    final borderColor = highlight
+        ? AppTheme.accentRed.withValues(alpha: 0.55)
+        : AppTheme.requestCardBorder;
+    final bg = highlight ? AppTheme.accentRed.withValues(alpha: 0.06) : AppTheme.white;
+
     return Material(
-      color: AppTheme.white,
+      color: bg,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: tappable ? onTap : null,
@@ -86,7 +96,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                   height: 64,
                   decoration: BoxDecoration(
                     color: AppTheme.pageBackground,
-                    border: Border.all(color: AppTheme.requestCardBorder),
+                    border: Border.all(color: borderColor),
                   ),
                   child: tappable
                       ? Image.network(
@@ -122,7 +132,16 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                         height: 1.25,
                       ),
                     ),
-                    if (f.fileName != null && f.fileName!.trim().isNotEmpty) ...[
+                    if (badge != null && badge.isNotEmpty) ...[
+                      const Gap(4),
+                      Text(
+                        badge,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppTheme.accentRed,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ] else if (f.fileName != null && f.fileName!.trim().isNotEmpty) ...[
                       const Gap(4),
                       Text(
                         f.fileName!.trim(),
@@ -149,10 +168,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     required ThemeData theme,
     required CarListItem item,
   }) {
-    final st = item.statusSubType;
-    final chipText = (st != null && st.isNotEmpty)
-        ? s.requestDetailStatusSubTypeLabel(st)
-        : _statusLabel(item.status);
+    final chipText = requestStatusLabel(item.status, s);
     final statusDateText = _statusDateText(item);
 
     final out = <Widget>[
@@ -311,38 +327,20 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       out
         ..add(const Gap(24))
         ..add(
-          Container(
-            decoration: BoxDecoration(
-              color: AppTheme.primaryBlue.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppTheme.primaryBlue.withValues(alpha: 0.6)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Theme(
-              data: theme.copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                initiallyExpanded: false,
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(top: 8, bottom: 4),
-                title: Text(
-                  'Фото заявки',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                children: [
-                  for (var i = 0; i < item.files.length; i++) ...[
-                    _buildServerFileRow(
-                      theme: theme,
-                      f: item.files[i],
-                      onTap: () => _openFilesCarousel(item.files, i),
-                    ),
-                    if (i < item.files.length - 1) const Gap(8),
-                  ],
-                ],
-              ),
-            ),
+          RequestDetailFilesSections(
+            item: item,
+            buildFileRow: (f, {required highlight, badge}) {
+              final index = item.files.indexWhere(
+                (e) => e.docType == f.docType && e.fileUrl == f.fileUrl,
+              );
+              return _buildServerFileRow(
+                theme: theme,
+                f: f,
+                highlight: highlight,
+                badge: badge,
+                onTap: index >= 0 ? () => _openFilesCarousel(item.files, index) : null,
+              );
+            },
           ),
         );
     }
@@ -364,7 +362,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       prepared.add(
         _CarouselPhotoItem(
           url: url,
-          title: _docTypeLabel(f, sl<JsonStringsService>()),
+          title: docTypeLabel(f, sl<JsonStringsService>()),
           sourceIndex: i,
         ),
       );
@@ -414,7 +412,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final s = sl<JsonStringsService>();
     final theme = Theme.of(context);
     final title = item.displayCarLine;
-    final showChatFab = item.status != RequestStatus.newRequest;
+    final showChatFab = requestChatAvailable(item.external1cId);
     return Scaffold(
       backgroundColor: AppTheme.pageBackground,
       appBar: BrandPrimaryAppBar(title: title),
@@ -452,33 +450,6 @@ String? _resolveFileUrl(String? rawUrl) {
   final normalized = base.endsWith('/') ? base : '$base/';
   final apiUri = Uri.parse(normalized);
   return apiUri.resolve(value.startsWith('/') ? value.substring(1) : value).toString();
-}
-
-String _docTypeLabel(CustomsRequestFile file, JsonStringsService s) {
-  switch ((file.docType ?? '').trim().toLowerCase()) {
-    case 'passport_front':
-      return s.text('reqPassportFrontLabel');
-    case 'passport_registration':
-      return s.text('reqPassportAddressLabel');
-    case 'inn':
-      return s.text('reqInnFileLabel');
-    case 'snils':
-      return s.text('reqSnilsFileLabel');
-    case 'title_doc':
-      return s.text('reqInvoiceFileLabel');
-    case 'contract':
-      return s.text('reqContractFileLabel');
-    case 'payment_check':
-      return s.text('reqPaymentReceiptFileLabel');
-    case 'car_front_photo':
-      return s.text('reqCarFrontFileLabel');
-    case 'car_back_photo':
-      return s.text('reqCarRearFileLabel');
-    case 'additional_file':
-      return s.text('reqAdditionalFile1Label');
-    default:
-      return file.fileName?.trim().isNotEmpty == true ? file.fileName!.trim() : 'Файл';
-  }
 }
 
 String? _statusDateText(CarListItem item) {
@@ -779,16 +750,3 @@ CarListItem? _findItem(List<CarListItem> items, String id) {
   return null;
 }
 
-String _statusLabel(RequestStatus status) {
-  final s = sl<JsonStringsService>();
-  switch (status) {
-    case RequestStatus.newRequest:
-      return s.carStatusNew;
-    case RequestStatus.inProgress:
-      return s.carStatusInWork;
-    case RequestStatus.inTransit:
-      return s.carStatusOnWay;
-    case RequestStatus.delivered:
-      return s.carStatusDelivered;
-  }
-}

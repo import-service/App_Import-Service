@@ -1,0 +1,27 @@
+---
+description: Монорепо Import Service — где лежит концепция и границы каталогов
+alwaysApply: true
+---
+
+# Монорепо `import_servis`
+
+## Общая концепция (обязательно для всех агентов)
+
+**`.cursor/rules/project-concept.mdc`** — единый эталон: архитектура, статусы, документы, этапы, 1С.
+
+Открывайте workspace **корнем** `D:\Projects\import_servis`, иначе Cursor не подхватит `.cursor/rules/` из корня (при открытии только `import_service_server` видны только правила сервера).
+
+См. также `AGENTS.md` в корне.
+
+## Каталоги
+
+| Путь | Агент |
+|------|--------|
+| `import_service_server/` | Сервер |
+| `import_service_app/` | МП |
+| `import_service_admin/` | Админка |
+| `docs/` | Общие Markdown-спеки |
+
+## Запрет
+
+Агент **не выходит** за свой каталог без явной просьбы пользователя.

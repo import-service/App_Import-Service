@@ -23,6 +23,7 @@ final class DemoCarsRemoteMock {
             vin: e.vin,
             statusLabel: '',
             requestStatus: e.status,
+            external1cId: e.external1cId,
           ),
         )
         .toList(growable: false);

@@ -1,0 +1,13 @@
+{
+  "id": 1,
+  "id_1c": "admin-001",
+  "login": "admin",
+  "role": "admin",
+  "orgType": "Администрация",
+  "companyName": "Import Service Admin",
+  "inn": "0000000000",
+  "phone": "+79990000000",
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "updated_at": "2026-05-01T00:00:00.000Z",
+  "deleted_at": null
+}

@@ -30,6 +30,7 @@ final class CarListItem extends Equatable {
     this.statusSubType,
     this.external1cId,
     this.managerExternal1cId,
+    this.managerFullName,
     this.createdAt,
     this.updatedAt,
     this.financeItems = const [],
@@ -63,6 +64,8 @@ final class CarListItem extends Equatable {
   final String? statusSubType;
   final String? external1cId;
   final String? managerExternal1cId;
+  /// ФИО менеджера из 1С (после привязки заявки).
+  final String? managerFullName;
   final String? createdAt;
   final String? updatedAt;
 
@@ -139,6 +142,7 @@ final class CarListItem extends Equatable {
       statusSubType: _readStatusSubType(json),
       external1cId: _readId(json, 'external1cId', 'external_1c_id'),
       managerExternal1cId: _readId(json, 'managerExternal1cId', 'manager_external_1c_id'),
+      managerFullName: _readTrimmedString(json, 'managerFullName', 'manager_full_name'),
       createdAt: json['createdAt'] as String? ?? json['created_at'] as String?,
       updatedAt: json['updatedAt'] as String? ?? json['updated_at'] as String?,
       financeItems: fin,
@@ -150,6 +154,11 @@ final class CarListItem extends Equatable {
 
   static String? _readId(Map<String, dynamic> j, String a, String b) {
     return (j[a] ?? j[b])?.toString();
+  }
+
+  static String? _readTrimmedString(Map<String, dynamic> j, String a, String b) {
+    final raw = (j[a] ?? j[b])?.toString().trim() ?? '';
+    return raw.isEmpty ? null : raw;
   }
 
   static bool? _readBool(Map<String, dynamic> j, String camel, String snake) {
@@ -226,6 +235,7 @@ final class CarListItem extends Equatable {
         'statusSubType': statusSubType,
         if (external1cId != null) 'external1cId': external1cId,
         if (managerExternal1cId != null) 'managerExternal1cId': managerExternal1cId,
+        if (managerFullName != null) 'managerFullName': managerFullName,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
         'financeItems': financeItems.map((e) => e.toJson()).toList(),
@@ -259,6 +269,7 @@ final class CarListItem extends Equatable {
         statusSubType,
         external1cId,
         managerExternal1cId,
+        managerFullName,
         createdAt,
         updatedAt,
         financeItems,

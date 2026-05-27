@@ -1,0 +1,33 @@
+---
+description: Агент мобильного приложения — зона import_service_app
+globs: import_service_app/**
+alwaysApply: false
+---
+
+# Агент: `import_service_app`
+
+**Сначала сверься с общей концепцией:** `.cursor/rules/project-concept.mdc` (статусы, docType, этапы, запреты).
+
+## Зона
+
+- Правки **только** в `import_service_app/`.
+- **Не трогать** `import_service_server/`, `import_service_admin/`.
+
+## Спеки
+
+- `docs/api-app.md` — API приложения  
+- `docs/TZ-zayavka-mp-server-1c.md` — детали ТЗ  
+- `docs/catalog-reference.md` — коды/подписи `statusSubType`, полный `docType`
+- `/docs` на проде → вкладка **ТЗ**
+
+## Фокус МП (кратко)
+
+- Создание заявки: поля и **11 обязательных** `docType` + опционально `add_doc1`/`add_doc2` — см. **project-concept.mdc §7**.  
+- Статусы в UI: `new`, `on_review`, `in_progress`, `in_transit`, `delivered`, `closed`.  
+- Подстатусы → подсказки и подсветка неподписанных документов, не отдельный верхний статус. Использовать коды из `catalog-reference.md` (`draft`, `manager_execution`, `primary_documents_sent`, `svh_*`, `ptd_*` и т.д.).  
+- Подпись, чеки, скачивание архива/итогов — по концепции §8–9.
+
+## Проверки
+
+- `flutter analyze` по задаче  
+- Коммит только по просьбе пользователя

@@ -14,6 +14,7 @@ import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/models/demo_car.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/request_drafts_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/cards/car_card.dart';
+import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/presentation/widgets/filters/car_status_chips_bar.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_search_bar_field.dart';
 
@@ -175,8 +176,10 @@ class _CarsTabViewState extends State<CarsTabView> {
           if (!_modelMatchesQuery(c.displayCarLine, searchQuery)) return false;
           // Первая вкладка: «В работе» = new + in_progress (разные подписи на карточке).
           if (selectedStatus == RequestStatus.inProgress) {
-            return c.status == RequestStatus.newRequest ||
-                c.status == RequestStatus.inProgress;
+            return requestStatusInWorkTab(c.status);
+          }
+          if (selectedStatus == RequestStatus.delivered) {
+            return requestStatusDeliveredTab(c.status);
           }
           return c.status == selectedStatus;
         })
@@ -189,6 +192,8 @@ class _CarsTabViewState extends State<CarsTabView> {
             vin: c.vin,
             statusLabel: _statusLabel(c.status),
             requestStatus: c.status,
+            managerFullName: c.managerFullName,
+            external1cId: c.external1cId,
           ),
         )
         .toList();
@@ -224,16 +229,6 @@ class _CarsTabViewState extends State<CarsTabView> {
   }
 
   String _statusLabel(RequestStatus status) {
-    final s = sl<JsonStringsService>();
-    switch (status) {
-      case RequestStatus.newRequest:
-        return s.carStatusNew;
-      case RequestStatus.inProgress:
-        return s.carStatusInWork;
-      case RequestStatus.inTransit:
-        return s.carStatusOnWay;
-      case RequestStatus.delivered:
-        return s.carStatusDelivered;
-    }
+    return requestStatusLabel(status, sl<JsonStringsService>());
   }
 }

@@ -1,0 +1,34 @@
+---
+description: Агент веб-админки — зона import_service_admin
+globs: import_service_admin/**
+alwaysApply: false
+---
+
+# Агент: `import_service_admin`
+
+**Сначала сверься с общей концепцией:** `.cursor/rules/project-concept.mdc`.
+
+## Зона
+
+- Правки **только** в `import_service_admin/`.
+- **Не трогать** сервер и МП без явной просьбы.
+
+## Спеки
+
+- `docs/api-app.md` (раздел админки)  
+- `docs/TZ-zayavka-mp-server-1c.md`  
+- `docs/catalog-reference.md`  
+- https://157-22-173-7.sslip.io/docs → **API админки**, **ТЗ**
+
+## Фокус админки
+
+- URL/Bearer исходящих вызовов в 1С (создание и update — **одни** настройки `one-c-request-create`)
+- Повторная отправка при статусе **`new`** — `POST …/resend-to-1c`
+- Повтор **update** при **`oneCUpdatePending: true`** — `POST …/resend-update-to-1c` (красная карточка + кнопка «Повторить update в 1С»)
+- Список: сначала `new`, затем `oneCUpdatePending`, поле в DTO — `oneCUpdatePending`
+- Просмотр организаций из 1С  
+- Показ `external1cId`, ошибки 1С, статусов `new` / `on_review` / `in_progress`
+
+## Деплой
+
+`scripts/deploy-admin-web.ps1` → затем `scripts/deploy-server-vps.ps1`

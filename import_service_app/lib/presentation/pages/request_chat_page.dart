@@ -12,7 +12,7 @@ import 'package:import_service_app/core/util/vin_display.dart';
 import 'package:import_service_app/data/websocket/chat_broadcast_wss_client.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
-import 'package:import_service_app/domain/entities/request_status.dart';
+import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_state.dart';
@@ -329,10 +329,7 @@ class _RequestChatViewState extends State<_RequestChatView> {
     CarListItem car,
     JsonStringsService s,
   ) {
-    final st = car.statusSubType;
-    final chip = (st != null && st.isNotEmpty)
-        ? s.requestDetailStatusSubTypeLabel(st)
-        : _statusLabel(car.status, s);
+    final chip = requestStatusLabel(car.status, s);
     final t = Theme.of(context);
     return Material(
       color: AppTheme.white,
@@ -362,6 +359,15 @@ class _RequestChatViewState extends State<_RequestChatView> {
                 color: AppTheme.textSecondary,
               ),
             ),
+            if (car.managerFullName != null && car.managerFullName!.trim().isNotEmpty) ...[
+              const Gap(4),
+              Text(
+                '${s.requestDetailManager}: ${car.managerFullName!.trim()}',
+                style: t.textTheme.labelSmall?.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
             const Gap(6),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -398,19 +404,6 @@ class _RequestChatViewState extends State<_RequestChatView> {
         ),
       ),
     );
-  }
-}
-
-String _statusLabel(RequestStatus status, JsonStringsService s) {
-  switch (status) {
-    case RequestStatus.newRequest:
-      return s.carStatusNew;
-    case RequestStatus.inProgress:
-      return s.carStatusInWork;
-    case RequestStatus.inTransit:
-      return s.carStatusOnWay;
-    case RequestStatus.delivered:
-      return s.carStatusDelivered;
   }
 }
 

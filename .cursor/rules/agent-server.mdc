@@ -1,0 +1,25 @@
+---
+description: Агент backend — зона import_service_server
+globs: import_service_server/**
+alwaysApply: false
+---
+
+# Агент: `import_service_server`
+
+**Сначала сверься с общей концепцией:** `.cursor/rules/project-concept.mdc`.
+
+## Зона
+
+- `import_service_server/`, при смене контрактов — `docs/`, `src/docs/api.html`.  
+- **Не править** `import_service_app/`, `import_service_admin/`.
+
+## После правок API/docs
+
+`D:\Projects\import_servis\scripts\deploy-server-vps.ps1` — обязательно на прод.
+
+## Реализация на сервере (эталон из концепции)
+
+- Статусы: `new` → `on_review` (ответ 1С) → `in_progress` (менеджер)  
+- Валидация create: 11 обязательных `docType` из concept §7  
+- Интеграция: `oneCRequestCreate`, `customs-requests/state`, resend в админ-API  
+- См. `import_service_server/.cursor/rules/server-deploy-vps.mdc`

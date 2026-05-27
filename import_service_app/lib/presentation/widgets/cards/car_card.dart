@@ -4,7 +4,7 @@ import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/util/vin_display.dart';
-import 'package:import_service_app/domain/entities/request_status.dart';
+import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/presentation/models/demo_car.dart';
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 
@@ -21,7 +21,7 @@ class CarCard extends StatelessWidget {
   final VoidCallback? onOpenDetails;
   final VoidCallback? onOpenChat;
 
-  bool get _showGoToChat => car.requestStatus != RequestStatus.newRequest;
+  bool get _showGoToChat => requestChatAvailable(car.external1cId);
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +85,18 @@ class CarCard extends StatelessWidget {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (car.managerFullName != null &&
+                                  car.managerFullName!.trim().isNotEmpty) ...[
+                                const Gap(4),
+                                Text(
+                                  '${sl<JsonStringsService>().requestDetailManager}: ${car.managerFullName!.trim()}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ],
                           ),
                         ),

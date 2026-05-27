@@ -1,0 +1,53 @@
+---
+description: Деплой веб-админки на прод через SSH — агент выполняет сам
+alwaysApply: true
+---
+
+# Деплой веб-админки на VPS (прод) — ОБЯЗАТЕЛЬНО для агента
+
+**Git push не обновляет `/admin/`.** После правок в `import_service_admin` (или после сборки статики в `import_service_server/web/`) агент **сам** собирает Flutter Web и **сам** выкладывает на VPS через SSH. **Не просить пользователя** залить файлы или перезапустить pm2 вручную.
+
+## Параметры (зафиксированы)
+
+| | |
+|---|---|
+| SSH | `root@157.22.173.7` (ключ в `~/.ssh`, `BatchMode=yes`) |
+| Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
+| pm2 | `import-service` |
+| URL админки | `https://157-22-173-7.sslip.io/admin/` → **200**, `text/html` |
+| API в билде | относительный `/api/` (`--dart-define=API_BASE_URL=/api/`) |
+| SPA base | `--base-href=/admin/` |
+
+`ssh-prod` в `~/.ssh/config` — **другой** сервер, **не** Import Service.
+
+## Полный цикл (Windows, корень монорепо)
+
+```powershell
+cd D:\Projects\import_servis
+.\scripts\deploy-admin-web.ps1
+.\scripts\deploy-server-vps.ps1
+```
+
+1. **`deploy-admin-web.ps1`** — `flutter build web --base-href=/admin/ --dart-define=API_BASE_URL=/api/`, копия `build/web/` → `import_service_server/web/`.
+2. **`deploy-server-vps.ps1`** — `pack-server-update.ps1` → `scp` `import-service-update.tgz` → на VPS: `tar`, `npm install --omit=dev`, `pm2 restart import-service` → `curl` и локальная проверка `/admin/`.
+
+Документация: `docs/api-app.md` (§ Веб-админка, § API веб-админки).
+
+## Только сервер (без Flutter)
+
+Если менялся только `import_service_server` — достаточно `.\scripts\deploy-server-vps.ps1` (см. `import_service_server/.cursor/rules/server-deploy-vps.mdc`).
+
+## Локальная разработка (не деплой)
+
+```powershell
+cd D:\Projects\import_servis\import_service_admin
+flutter run -d chrome
+# API по умолчанию — полный прод-URL; моки: USE_MOCK_API=true (дефолт)
+```
+
+## Запрещено агенту
+
+- Считать, что push в GitHub обновил `/admin/`.
+- Писать «перезапустите VPS» без попытки `deploy-server-vps.ps1`.
+- Собирать без `--base-href=/admin/` для прод.
+- Использовать `ssh-prod` для этого проекта.

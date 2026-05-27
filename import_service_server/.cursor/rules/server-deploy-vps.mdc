@@ -1,36 +1,55 @@
 ---
-description: Обновление API на VPS после правок import_service_server (архив + перезапуск Node)
+description: Деплой API на прод — агент выполняет сам, без вопросов пользователю
 globs: ["import_service_server/**"]
 alwaysApply: true
 ---
 
-# Деплой сервера на VPS (прод)
+# Деплой сервера на VPS (прод) — ОБЯЗАТЕЛЬНО для агента
 
-Прод: `https://157-22-173-7.sslip.io` — код **не** подтягивается с GitHub сам. После правок в `import_service_server` агент **обязан**:
+**Git push не обновляет прод.** После любых правок в `import_service_server` агент **сам** выполняет деплой и **сам** проверяет URL. **Не просить пользователя** «залить архив» / «перезапустите pm2» — делать через SSH.
 
-1. Закоммитить и запушить монорепо: `.\scripts\push-monorepo.ps1 -Message "..."` (из `D:\Projects\import_servis`).
-2. Собрать архив: `.\scripts\pack-server-update.ps1` → `import_service_server/import-service-update.tgz`.
-3. Напомнить пользователю залить архив на VPS **или** выполнить шаги ниже, если есть доступ.
+## Параметры (зафиксированы)
 
-## На VPS
+| | |
+|---|---|
+| SSH | `root@157.22.173.7` (ключ в `~/.ssh`, host в `known_hosts`) |
+| Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
+| pm2 | `import-service` |
+| Проверка | `https://157-22-173-7.sslip.io/admin/` → **200**, `text/html` (не JSON 404) |
 
-В каталоге, где уже крутится Node (рядом лежат `package.json`, `.env`, часто `src/`):
+`ssh-prod` в `~/.ssh/config` — **другой** сервер (joypick), **не** Import Service.
 
-1. Распаковать `import-service-update.tgz` **поверх** (`.env` не перезаписывать).
-2. `npm install --omit=dev`
-3. Перезапуск процесса Node (`pm2 restart …` / systemd / панель ISPmanager).
+## Одна команда (Windows, из корня монорепо)
 
-Проверка:
+```powershell
+cd D:\Projects\import_servis
+.\scripts\deploy-server-vps.ps1
+```
 
-- `curl -s https://157-22-173-7.sslip.io/api/version`
-- `curl -sI https://157-22-173-7.sslip.io/admin/` → **200** и `text/html` (не JSON 404).
+Скрипт: `pack-server-update.ps1` → `scp` архива → `tar` на VPS → `npm install --omit=dev` → `pm2 restart import-service` → `curl` + локальная проверка `/admin/`.
+
+## Если правки только в git (без сервера)
+
+Сначала при необходимости:
+
+```powershell
+.\scripts\push-monorepo.ps1 -Message "..."
+```
+
+Потом **всё равно** `.\scripts\deploy-server-vps.ps1`.
 
 ## Веб-админка `/admin`
 
-- Статика: `import_service_server/web/` (в архиве есть `web/index.html`).
-- Маршруты: `src/routes/adminWeb.js`, подключение из `src/routes/docs.js`.
-- Flutter: `.\scripts\deploy-admin-web.ps1` → копирует `build/web` в `web/`, затем снова `pack-server-update.ps1`.
+- Статика: `import_service_server/web/` (в `.tgz` есть `web/index.html`).
+- Код: `src/routes/adminWeb.js`, подключение в `src/routes/docs.js`.
+- Flutter: `.\scripts\deploy-admin-web.ps1`, затем снова `deploy-server-vps.ps1`.
 
-## Типичная ошибка
+## Ошибка `Route GET:/admin/ not found`
 
-`{"message":"Route GET:/admin/ not found"}` — на VPS **старый** `src/` без `adminWeb.js`. Нужен новый `.tgz` и перезапуск Node, не только `git push` с локальной машины.
+На VPS старый `src/` без `adminWeb.js` — нужен **deploy-server-vps.ps1**, не только push в GitHub.
+
+## Запрещено агенту
+
+- Писать «сделайте на VPS» без попытки `deploy-server-vps.ps1`.
+- Считать, что push в GitHub обновил прод.
+- Использовать `ssh-prod` для этого проекта.

@@ -1,0 +1,10 @@
+---
+description: Ссылка на общую концепцию монорепо (корень import_servis)
+alwaysApply: true
+---
+
+Перед задачами по заявкам, статусам и документам **обязательно** опирайся на общую концепцию:
+
+`D:\Projects\import_servis\.cursor\rules\project-concept.mdc`
+
+Промпт МП: `D:\Projects\import_servis\.cursor\rules\agent-mobile-app.mdc`

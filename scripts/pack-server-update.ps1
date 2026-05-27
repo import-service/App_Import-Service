@@ -25,7 +25,7 @@ try {
   if (Test-Path $OutFile) {
     Remove-Item $OutFile -Force
   }
-  & tar -czf $OutFile package.json package-lock.json sql src web
+  & tar -czf $OutFile package.json package-lock.json sql src web scripts
   if ($LASTEXITCODE -ne 0) {
     throw "tar failed with exit code $LASTEXITCODE"
   }

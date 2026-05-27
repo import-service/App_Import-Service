@@ -1,5 +1,5 @@
 const CUSTOMS_REQUEST_SELECT = `
-  id, external_1c_id, manager_external_1c_id,
+  id, external_1c_id, manager_external_1c_id, manager_full_name,
   legal_entity_name, legal_email, legal_phone,
   individual_full_name, individual_phone, individual_snils,
   owner_full_name,
@@ -7,6 +7,8 @@ const CUSTOMS_REQUEST_SELECT = `
   has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars, comment_text, is_test,
   status,
   engine_spec, engine_volume, status_since_date_label, status_sub_type,
+  status_sub_type_datetime, deal_type,
+  one_c_update_pending, one_c_update_last_error_json, one_c_update_last_attempt_at,
   finance_items_json, vehicle_photo_urls_json, delivered_documents_json,
   created_at, updated_at
 `.replace(/\s+/g, ' ');
@@ -166,6 +168,17 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
       row.status_sub_type != null && String(row.status_sub_type).trim() !== ''
         ? String(row.status_sub_type)
         : null,
+    statusSubTypeDateTime:
+      row.status_sub_type_datetime != null ? toIso(row.status_sub_type_datetime) : null,
+    dealType:
+      row.deal_type != null && String(row.deal_type).trim() !== ''
+        ? String(row.deal_type).trim()
+        : null,
+    oneCUpdatePending: Number(row.one_c_update_pending) === 1,
+    oneCUpdateLastAttemptAt:
+      row.one_c_update_last_attempt_at != null
+        ? toIso(row.one_c_update_last_attempt_at)
+        : null,
     financeItems: financeRef,
     vehiclePhotoUrls: vehicleRef,
     deliveredDocuments,
@@ -187,9 +200,18 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
     external1cId: row.external_1c_id != null ? String(row.external_1c_id) : null,
     managerExternal1cId:
       row.manager_external_1c_id != null ? String(row.manager_external_1c_id) : null,
+    managerFullName:
+      row.manager_full_name != null && String(row.manager_full_name).trim() !== ''
+        ? String(row.manager_full_name).trim()
+        : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
+
+  const lastErr = parseJsonCol(row.one_c_update_last_error_json);
+  if (lastErr && typeof lastErr === 'object') {
+    dto.oneCUpdateLastError = lastErr;
+  }
 
   if (includeFiles) {
     dto.files = (fileRows || []).map((f) => ({

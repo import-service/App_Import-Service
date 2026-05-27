@@ -28,6 +28,36 @@ async function buildApp() {
   fastify.decorate('config', config);
   fastify.decorate('pool', pool);
 
+  await fastify.register(require('@fastify/cors'), {
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      const allowed = config.corsOrigins;
+      if (allowed === '*') {
+        callback(null, true);
+        return;
+      }
+      if (Array.isArray(allowed) && allowed.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      if (config.isLocalDevOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      const publicBase = config.publicBaseUrl;
+      if (publicBase && origin === publicBase) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  });
+
   await fastify.register(require('@fastify/jwt'), {
     secret: config.jwtSecret,
   });
@@ -62,9 +92,38 @@ async function buildApp() {
     }
   });
 
+  fastify.decorate('authenticateAdmin', async function authenticateAdmin(request, reply) {
+    try {
+      await request.jwtVerify();
+    } catch {
+      return reply.code(401).send({ error: 'UNAUTHORIZED' });
+    }
+
+    if (request.user.aud !== 'admin') {
+      return reply.code(401).send({ error: 'INVALID_TOKEN' });
+    }
+
+    const sub = request.user.sub;
+    const jti = request.user.jti;
+    if (!sub || !jti) {
+      return reply.code(401).send({ error: 'INVALID_TOKEN' });
+    }
+
+    const [rows] = await fastify.pool.query(
+      `SELECT id FROM admin_sessions
+       WHERE admin_user_id = ? AND jti = ? AND revoked_at IS NULL AND expires_at > NOW(3)`,
+      [Number(sub), jti],
+    );
+
+    if (!rows.length) {
+      return reply.code(401).send({ error: 'SESSION_REVOKED_OR_EXPIRED' });
+    }
+  });
+
   await fastify.register(async function apiRoutes(instance) {
     await instance.register(require('./routes/integration'));
     await instance.register(require('./routes/auth'));
+    await instance.register(require('./routes/admin'));
     await instance.register(require('./routes/registration'));
     await instance.register(require('./routes/customsRequests'));
     await instance.register(require('./routes/customsRequestChat'));

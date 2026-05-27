@@ -4,6 +4,7 @@ const { URL } = require('url');
 const registerAdminWebRoutes = require('./adminWeb');
 
 const DOCS_HTML_PATH = path.join(__dirname, '..', 'docs', 'api.html');
+const DOCS_FAVICON_PATH = path.join(__dirname, '..', 'docs', 'favicon.png');
 
 function buildWsBaseUrl(apiBase) {
   try {
@@ -17,6 +18,11 @@ function buildWsBaseUrl(apiBase) {
 
 module.exports = async function docsRoutes(fastify) {
   await registerAdminWebRoutes(fastify);
+
+  fastify.get('/docs/favicon.png', async (_request, reply) => {
+    const buf = await fs.readFile(DOCS_FAVICON_PATH);
+    reply.header('Cache-Control', 'public, max-age=86400').type('image/png').send(buf);
+  });
 
   fastify.get('/docs', async (request, reply) => {
     const proto = String(request.headers['x-forwarded-proto'] || '')

@@ -12,6 +12,7 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@fastify/cors": "^11.0.0",
     "@fastify/multipart": "^9.2.1",
     "@fastify/jwt": "^9.0.0",
     "bcrypt": "^5.1.1",

@@ -19,8 +19,27 @@ function resolveAdminWebRoot() {
   return path.join(SERVER_ROOT, raw);
 }
 
+/** Разрешённые Origin для CORS (локальная веб-админка: flutter run -d chrome). */
+function parseCorsOrigins() {
+  const raw = String(process.env.CORS_ORIGINS || '').trim();
+  if (raw === '*') return '*';
+  if (raw) {
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return null;
+}
+
+function isLocalDevOrigin(origin) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+}
+
 module.exports = {
   SERVER_ROOT,
+  corsOrigins: parseCorsOrigins(),
+  isLocalDevOrigin,
   /** Каталог Flutter Web (содержимое build/web) для GET /admin/ */
   adminWebRoot: resolveAdminWebRoot(),
   /** База для абсолютных URL в API (fileUrl, vehiclePhotoUrls). Пример: https://example.com */

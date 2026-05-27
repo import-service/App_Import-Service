@@ -10,19 +10,27 @@ const {
   stringArrayToJsonPayload,
   deliveredDocsToJsonPayload,
 } = require('../util/customsRequestDto');
+const { submitCustomsRequestTo1CFromBody } = require('../services/oneCRequestCreate');
+const { pushCustomsRequestUpdateTo1C } = require('../services/oneCUpdateSync');
+const {
+  DEAL_TYPES,
+  REQUIRED_DOCUMENT_TYPES_ON_CREATE,
+  normalizeDocType,
+  normalizeStatusSubType,
+  suggestedStatusForSubType,
+  isKnownStatusSubType,
+} = require('../constants/customsCatalog');
 
-const REQUEST_STATUSES = ['new', 'in_progress', 'in_transit', 'delivered'];
-const REQUIRED_DOCUMENT_TYPES = [
-  'passport_front',
-  'passport_registration',
-  'inn',
-  'snils',
-  'contract',
-  'payment_check',
-  'title_doc',
-  'car_front_photo',
-  'car_back_photo',
+const REQUEST_STATUSES = [
+  'new',
+  'on_review',
+  'in_progress',
+  'in_transit',
+  'delivered',
+  'closed',
+  'cancelled',
 ];
+const REQUIRED_DOCUMENT_TYPES = REQUIRED_DOCUMENT_TYPES_ON_CREATE;
 
 const UPLOAD_ROOT = path.join(process.cwd(), 'uploads', 'customs-requests');
 
@@ -124,7 +132,7 @@ function validateCreateBody(body) {
     validateFileItem(item);
   }
 
-  const providedTypes = new Set(body.files.map((item) => normalize(item.docType)));
+  const providedTypes = new Set(body.files.map((item) => normalizeDocType(item.docType)));
   for (const requiredType of REQUIRED_DOCUMENT_TYPES) {
     if (!providedTypes.has(requiredType)) {
       throw new Error(
@@ -175,6 +183,34 @@ async function fetchRequestById(pool, id) {
   return { row, files: fileRows };
 }
 
+async function replaceRequestFilesByDocTypes(pool, requestId, files) {
+  for (const raw of files) {
+    const file = { ...raw, docType: normalizeDocType(raw.docType) };
+    validateFileItem(file);
+    await pool.query(
+      `UPDATE customs_request_files
+       SET deleted_at = CURRENT_TIMESTAMP(3)
+       WHERE request_id = ? AND doc_type = ? AND deleted_at IS NULL`,
+      [requestId, normalize(file.docType)],
+    );
+    const saved = await prepareFileForDb(file);
+    await pool.query(
+      `INSERT INTO customs_request_files
+         (request_id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        requestId,
+        normalize(file.docType),
+        saved.originalName,
+        saved.storedName,
+        saved.mimeType,
+        saved.fileSizeBytes,
+        saved.fileUrl,
+      ],
+    );
+  }
+}
+
 async function fetchRequestByExternal1cId(pool, external1cId) {
   const [rows] = await pool.query(
     `SELECT ${CUSTOMS_REQUEST_SELECT}
@@ -203,14 +239,16 @@ module.exports = async function customsRequestsRoutes(fastify) {
 
   fastify.post(
     '/customs-requests/upload',
-    { onRequest: [fastify.authenticate] },
+    { onRequest: [authenticateUserOrIntegrationBearer(fastify)] },
     async (request, reply) => {
       const mp = await request.file();
       if (!mp) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нужен multipart файл' });
       }
 
-      const docType = normalize(mp.fields?.docType?.value || request.query.docType || 'uploaded_file');
+      const docType = normalizeDocType(
+        mp.fields?.docType?.value || request.query.docType || 'uploaded_file',
+      );
       const originalName = sanitizeFileName(mp.filename || 'upload.bin');
       const ext = path.extname(originalName);
       const storedName = `${randomUUID()}${ext}`;
@@ -343,7 +381,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
               requestId,
-              normalize(file.docType),
+              normalizeDocType(file.docType),
               saved.originalName,
               saved.storedName,
               saved.mimeType,
@@ -354,6 +392,14 @@ module.exports = async function customsRequestsRoutes(fastify) {
         }
 
         await conn.commit();
+
+        const bodySnapshot = request.body;
+        setImmediate(() => {
+          submitCustomsRequestTo1CFromBody(fastify, requestId, bodySnapshot).catch((err) => {
+            fastify.log.error({ requestId, err: err.message }, 'ONE_C_CREATE background failed');
+          });
+        });
+
         const created = await fetchRequestById(fastify.pool, requestId);
         return reply
           .code(201)
@@ -542,9 +588,26 @@ module.exports = async function customsRequestsRoutes(fastify) {
             engineVolume: { type: 'string', maxLength: 128 },
             statusSinceDateLabel: { type: 'string', maxLength: 255 },
             statusSubType: { type: 'string', maxLength: 128 },
+            statusSubTypeDateTime: { type: 'string', maxLength: 64 },
+            dealType: { type: 'string', enum: DEAL_TYPES, maxLength: 32 },
+            signingFiles: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['docType', 'fileName', 'fileUrl'],
+                properties: {
+                  docType: { type: 'string', minLength: 1, maxLength: 64 },
+                  fileName: { type: 'string', minLength: 1, maxLength: 255 },
+                  mimeType: { type: 'string', maxLength: 128 },
+                  fileUrl: { type: 'string', minLength: 1, maxLength: 1024 },
+                },
+              },
+            },
             financeItems: { type: 'array' },
             vehiclePhotoUrls: { type: 'array' },
             deliveredDocuments: { type: 'array' },
+            managerExternal1cId: { type: 'string', maxLength: 255 },
+            managerFullName: { type: 'string', maxLength: 255 },
           },
         },
       },
@@ -607,8 +670,31 @@ module.exports = async function customsRequestsRoutes(fastify) {
         values.push(normalize(b.statusSinceDateLabel) || null);
       }
       if (b.statusSubType !== undefined) {
+        const sub = normalizeStatusSubType(b.statusSubType);
+        if (sub && !isKnownStatusSubType(sub)) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: `Неизвестный statusSubType: ${sub}`,
+          });
+        }
         fields.push('status_sub_type = ?');
-        values.push(normalize(b.statusSubType) || null);
+        values.push(sub || null);
+        if (b.status === undefined && sub) {
+          const suggested = suggestedStatusForSubType(sub);
+          if (suggested) {
+            fields.push('status = ?');
+            values.push(suggested);
+          }
+        }
+      }
+      if (b.statusSubTypeDateTime !== undefined) {
+        const dt = normalize(b.statusSubTypeDateTime);
+        fields.push('status_sub_type_datetime = ?');
+        values.push(dt || null);
+      }
+      if (b.dealType !== undefined) {
+        fields.push('deal_type = ?');
+        values.push(normalize(b.dealType) || null);
       }
       if (b.financeItems !== undefined) {
         fields.push('finance_items_json = ?');
@@ -622,64 +708,67 @@ module.exports = async function customsRequestsRoutes(fastify) {
         fields.push('delivered_documents_json = ?');
         values.push(deliveredDocsToJsonPayload(b.deliveredDocuments));
       }
-
-      if (!fields.length) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нет полей для обновления' });
+      if (b.managerExternal1cId !== undefined) {
+        const managerExternal1cId = normalize(b.managerExternal1cId);
+        fields.push('manager_external_1c_id = ?');
+        values.push(managerExternal1cId || null);
+        if (
+          b.status === undefined &&
+          managerExternal1cId &&
+          (data.row.status === 'new' || data.row.status === 'on_review')
+        ) {
+          fields.push('status = ?');
+          values.push('in_progress');
+        }
+      }
+      if (b.managerFullName !== undefined) {
+        fields.push('manager_full_name = ?');
+        values.push(normalize(b.managerFullName) || null);
       }
 
       const id = data.row.id;
-      values.push(id);
-      const [result] = await fastify.pool.query(
-        `UPDATE customs_requests SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
-        values,
-      );
-      if (!result.affectedRows) {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
+      let signingFilesAttached = false;
+
+      if (Array.isArray(b.signingFiles) && b.signingFiles.length > 0) {
+        try {
+          await replaceRequestFilesByDocTypes(fastify.pool, id, b.signingFiles);
+          signingFilesAttached = true;
+        } catch (e) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: e.message || 'Ошибка signingFiles',
+          });
+        }
+        if (b.statusSubType === undefined) {
+          fields.push('status_sub_type = ?');
+          values.push('primary_documents_sent');
+          const hasStatusField = fields.some((f) => f === 'status = ?');
+          if (b.status === undefined && !hasStatusField) {
+            fields.push('status = ?');
+            values.push('in_progress');
+          }
+        }
+      }
+
+      if (!fields.length && !signingFilesAttached) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нет полей для обновления' });
+      }
+
+      if (fields.length) {
+        values.push(id);
+        const [result] = await fastify.pool.query(
+          `UPDATE customs_requests SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
+          values,
+        );
+        if (!result.affectedRows) {
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
       }
 
       const updated = await fetchRequestById(fastify.pool, id);
       return reply.send({
         ok: true,
         item: toCustomsRequestDto(fastify, request, updated.row, updated.files, detailDtoOptions),
-      });
-    },
-  );
-
-  fastify.post(
-    '/integration/customs-requests/link-1c',
-    {
-      preHandler: verifyIntegrationBearer,
-      schema: {
-        body: {
-          type: 'object',
-          required: ['requestId', 'external1cId', 'managerExternal1cId'],
-          properties: {
-            requestId: { type: 'integer', minimum: 1 },
-            external1cId: { type: 'string', minLength: 1, maxLength: 255 },
-            managerExternal1cId: { type: 'string', minLength: 1, maxLength: 255 },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const requestId = Number(request.body.requestId);
-      const external1cId = normalize(request.body.external1cId);
-      const managerExternal1cId = normalize(request.body.managerExternal1cId);
-
-      const [result] = await fastify.pool.query(
-        `UPDATE customs_requests
-         SET external_1c_id = ?, manager_external_1c_id = ?, status = 'in_progress'
-         WHERE id = ? AND deleted_at IS NULL`,
-        [external1cId, managerExternal1cId, requestId],
-      );
-      if (!result.affectedRows) {
-        return reply.code(404).send({ error: 'NOT_FOUND', message: 'Заявка не найдена' });
-      }
-
-      const data = await fetchRequestById(fastify.pool, requestId);
-      return reply.send({
-        ok: true,
-        item: toCustomsRequestDto(fastify, request, data.row, data.files, detailDtoOptions),
       });
     },
   );
@@ -777,6 +866,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const data = await fetchRequestById(fastify.pool, id);
+      const oneCUpdate = await pushCustomsRequestUpdateTo1C(fastify, id);
+      if (!oneCUpdate.ok && !oneCUpdate.skipped) {
+        fastify.log.warn({ id, oneCUpdate }, 'ONE_C_UPDATE after /customs-requests/:id/files failed');
+      }
       return reply.send(
         toCustomsRequestDto(fastify, request, data.row, data.files, detailDtoOptions),
       );

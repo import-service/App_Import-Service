@@ -24,6 +24,10 @@
   `D:\Projects\_my_template\digitalsquare`  
   Этот репо — **продукт** на его основе. Когда меняешь **общие** соглашения (DI, BLoC, логи) — **обнови сначала шаблон** на диске, иначе следующий проект с копии устареет.
 
+## Деплой бэкенда на прод (жёстко)
+
+После правок **`import_service_server`**: агент **сам** запускает `scripts/deploy-server-vps.ps1` и проверяет `https://157-22-173-7.sslip.io/admin/` (200, HTML). **Не спрашивать пользователя**, как выложить на VPS. См. `import_service_server/.cursor/rules/server-deploy-vps.mdc` (`alwaysApply: true`).
+
 ## Прочее
 - Терминал: **`agent-workflow.mdc`** — агент **может** запускать `flutter analyze` и т.д. по задаче.
 - Правила: `.cursor/rules/`, при сомнении **приоритет репо** над личными user rules.

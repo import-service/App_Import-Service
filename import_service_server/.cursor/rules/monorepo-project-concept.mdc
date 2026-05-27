@@ -1,0 +1,10 @@
+---
+description: Ссылка на общую концепцию монорепо (корень import_servis)
+alwaysApply: true
+---
+
+Перед задачами по заявкам, 1С, статусам и документам **обязательно** опирайся на общую концепцию:
+
+`D:\Projects\import_servis\.cursor\rules\project-concept.mdc`
+
+Полное ТЗ: `D:\Projects\import_servis\docs\TZ-zayavka-mp-server-1c.md`

@@ -181,15 +181,15 @@ final class CustomsRequestsRemoteDataSource {
       (docType: 'passport_registration', paths: form.passportAddressPaths),
       (docType: 'inn', paths: form.innPaths),
       (docType: 'snils', paths: form.snilsPaths),
-      (docType: 'title_doc', paths: form.invoicePaths),
+      (docType: 'invoice', paths: form.invoicePaths),
       (docType: 'contract', paths: form.contractPaths),
       (docType: 'payment_check', paths: form.paymentReceiptPaths),
-      (docType: 'title_doc', paths: form.vinPlatePhotoPaths),
-      (docType: 'title_doc', paths: form.odometerPhotoPaths),
+      (docType: 'car_nameplate_photo', paths: form.vinPlatePhotoPaths),
+      (docType: 'car_mileage_photo', paths: form.odometerPhotoPaths),
       (docType: 'car_front_photo', paths: form.carFrontPhotoPaths),
       (docType: 'car_back_photo', paths: form.carRearPhotoPaths),
-      (docType: 'additional_file', paths: form.additionalFile1Paths),
-      (docType: 'additional_file', paths: form.additionalFile2Paths),
+      (docType: 'add_doc1', paths: form.additionalFile1Paths),
+      (docType: 'add_doc2', paths: form.additionalFile2Paths),
     ];
     final expanded = <({String docType, String source})>[];
     for (final bucket in sources) {

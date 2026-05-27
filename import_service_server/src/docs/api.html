@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/png" href="/docs/favicon.png">
+  <link rel="apple-touch-icon" href="/docs/favicon.png">
   <title>Import Service API Docs</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #f3f4f6; color: #111827; }
@@ -34,18 +36,27 @@
     .body { padding: 0 16px 16px; border-top: 1px solid #f3f4f6; }
     pre { margin: 8px 0; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; white-space: pre-wrap; }
     code { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1px 6px; }
+    .mermaid-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 12px 0; overflow-x: auto; }
+    table.enum { width: 100%; border-collapse: collapse; font-size: 14px; margin: 10px 0; }
+    table.enum th, table.enum td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; vertical-align: top; }
+    table.enum th { background: #f9fafb; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'neutral' });</script>
 </head>
 <body>
   <!-- DOCS_FORMAT_LOCK: tabs + details; DOCS_JSON_RULE: без заглушек и троеточий, только полноценные JSON-примеры -->
   <div class="wrap">
     <h1>API документация</h1>
-    <p class="hint">Краткий обзор эндпоинтов приложения и интеграции 1С.</p>
-    <p class="base-url"><b>Базовый URL:</b> <code>{{BASE_URL}}</code></p>
+    <p class="hint">Краткий обзор эндпоинтов приложения и интеграции 1С. Страница подставляет <code>{{BASE_URL}}</code> и WebSocket-базу <code>{{WS_BASE_URL}}</code> из текущего запроса.</p>
+    <p class="base-url"><b>Базовый URL API:</b> <code>{{BASE_URL}}</code></p>
+    <p class="base-url"><b>WebSocket (чат):</b> <code>{{WS_BASE_URL}}</code></p>
 
     <div class="tabs">
       <button class="tab active" data-tab="app">API приложения</button>
       <button class="tab" data-tab="onec">API 1С</button>
+      <button class="tab" data-tab="admin">API админки</button>
+      <button class="tab" data-tab="tz">ТЗ</button>
     </div>
 
     <section id="panel-app" class="panel active">
@@ -56,7 +67,7 @@
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/version</code><span class="desc">Проверка версии и имени backend.</span></summary>
           <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>{}</pre><p><b>Success:</b></p><pre>{
   "name": "import-service-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "timestamp": "2026-04-27T09:00:00.000Z"
 }</pre><p><b>Errors:</b></p><ul></ul></div>
         </details>
@@ -167,7 +178,7 @@
       "fileUrl": "/api/customs-requests/files/13e2db52-b85e-4f36-a311-8a1d5f04c77f.pdf"
     },
     {
-      "docType": "title_doc",
+      "docType": "invoice",
       "fileName": "title.pdf",
       "mimeType": "application/pdf",
       "fileUrl": "/api/customs-requests/files/2ef49408-abf8-4d6b-a3c1-7597a0386dd2.pdf"
@@ -202,6 +213,7 @@
   "isTest": false,
   "external1cId": null,
   "managerExternal1cId": null,
+  "managerFullName": null,
   "files": [
     {
       "id": 1,
@@ -212,7 +224,7 @@
       "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
     }
   ]
-}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>500 INTERNAL_ERROR</code></li></ul></div>
+}</pre><p>Ответ сразу со статусом <code>new</code>. Отправка в 1С — асинхронно (URL в админке).</p><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>500 INTERNAL_ERROR</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests</code><span class="desc">Получить список заявок.</span></summary>
@@ -232,7 +244,10 @@
       "carModel": "Crown",
       "vin": "VIN12345678901234",
       "status": "new",
-      "isTest": false
+      "isTest": false,
+      "external1cId": null,
+      "managerExternal1cId": null,
+      "managerFullName": null
     }
   ],
   "limit": 20,
@@ -260,6 +275,7 @@
   "isTest": false,
   "external1cId": null,
   "managerExternal1cId": null,
+  "managerFullName": null,
   "files": [
     {
       "id": 1,
@@ -284,7 +300,10 @@
   "vin": "VIN12345678901234",
   "status": "new",
   "commentText": "Обновленный комментарий",
-  "isTest": false
+  "isTest": false,
+  "external1cId": null,
+  "managerExternal1cId": null,
+  "managerFullName": null
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
         <details class="card">
@@ -404,9 +423,9 @@
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{ "upToMessageId": 9001 }</pre><p><b>Success:</b></p><pre>{ "ok": true, "updated": 12, "upToMessageId": 9001 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method ws">WS</span><code class="path">wss://&lt;host&gt;/ws/&lt;requestId&gt;/?token=&lt;accessToken&gt;</code><span class="desc">Realtime события чата.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken (query token)</p><p><b>Request:</b></p><pre>{
-  "wsUrl": "wss://157-22-173-7.sslip.io/ws/123/?token=sample_access_token_value"
+          <summary class="summary"><span class="method ws">WS</span><code class="path">{{WS_BASE_URL}}/ws/&lt;requestId&gt;/?token=&lt;accessToken&gt;</code><span class="desc">Realtime события чата (отдельный порт на сервере, проксируется с того же хоста).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken (query <code>token</code>)</p><p><b>Пример URL:</b></p><pre>{
+  "wsUrl": "{{WS_BASE_URL}}/ws/123/?token=sample_access_token_value"
 }</pre><p><b>Success:</b></p><pre>{
   "type": "message_created",
   "payload": {
@@ -423,10 +442,185 @@
     <section id="panel-onec" class="panel">
 
       <section class="group">
+        <h2>Исходящее создание заявки (HTTP на стороне 1С)</h2>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">URL из админки</code><span class="desc">Backend шлёт заявку после POST /api/customs-requests.</span></summary>
+          <div class="body"><p>URL и Bearer задаются в <code>PUT /api/admin/settings/one-c-request-create</code>. Тело — как у приложения + <code>requestId</code>.</p><p><b>Request (пример):</b></p><pre>{
+  "requestId": 123,
+  "legalEntityName": "ООО Вектор",
+  "legalEmail": "mail@example.com",
+  "legalPhone": "+79990000000",
+  "individualFullName": "Иванов Иван Иванович",
+  "individualPhone": "+79991112233",
+  "individualSnils": "123-456-789 00",
+  "carMake": "Toyota",
+  "carModel": "Crown",
+  "vin": "VIN12345678901234",
+  "hasSunroof": false,
+  "hasAllWheelDrive": false,
+  "importedLast12Months": false,
+  "ownsOtherCars": false,
+  "commentText": null,
+  "isTest": false,
+  "files": [
+    {
+      "docType": "passport_front",
+      "fileName": "passport-front.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+    }
+  ]
+}</pre><p><b>Success (ответ 1С):</b></p><pre>{
+  "requestId": 123,
+  "external1cId": "GUID-REQUEST-1C"
+}</pre><p>После успеха заявка у нас: <code>on_review</code>, сохраняется <code>external1cId</code>. После назначения менеджера — <code>in_progress</code> через <code>POST /api/integration/customs-requests/state</code>. При ошибке остаётся <code>new</code>; повтор — <code>POST /api/admin/customs-requests/:id/resend-to-1c</code>.</p></div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Исходящий update заявки (HTTP на стороне 1С)</h2>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">…/customs-request-update</code><span class="desc">Сервер шлёт изменения после state / подписи из МП.</span></summary>
+          <div class="body">
+            <p><b>Auth:</b> тот же Bearer, что для создания — из <code>PUT /api/admin/settings/one-c-request-create</code> (<code>oneCRequestCreateBearerToken</code>).</p>
+            <p><b>URL:</b> из <code>oneCRequestCreateUrl</code> в тех же настройках. Путь update:</p>
+            <ul>
+              <li>в админке <code>…/customs-request</code> → шлём на <code>…/customs-request-update</code></li>
+              <li>если уже <code>…/customs-request-update</code> — без изменений</li>
+            </ul>
+            <p><b>Когда вызываем:</b> после <code>POST /api/integration/customs-requests/state</code> (наша сторона) и после <code>POST /api/customs-requests/:id/files</code> (подпись <code>*_sign</code> из МП).</p>
+            <p><b>Request (пример, зеркало <code>state</code>):</b></p><pre>{
+  "requestId": 123,
+  "external1cId": "GUID-REQUEST-1C",
+  "status": "in_progress",
+  "statusSubType": "primary_documents_sent",
+  "statusSubTypeDateTime": "2026-05-27T10:00:00+03:00",
+  "dealType": "tripartite",
+  "managerExternal1cId": "GUID-MANAGER-1C",
+  "managerFullName": "Иванов Иван Иванович",
+  "signingFiles": [
+    {
+      "docType": "contract_sign",
+      "fileName": "contract_sign.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/uuid.pdf"
+    }
+  ],
+  "source": "import_service_server"
+}</pre>
+            <p>Минимум: <code>external1cId</code> + хотя бы одно изменённое поле. Полный список полей — как в <code>POST /api/integration/customs-requests/state</code> (см. ниже).</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Справочники для state (статусы, подстатусы, тип сделки)</h2>
+        <details class="card" open>
+          <summary class="summary"><span class="method get">ENUM</span><code class="path">status</code><span class="desc">Верхний уровень заявки (поле state).</span></summary>
+          <div class="body">
+            <table class="enum">
+              <tr><th>Код</th><th>В МП</th><th>Когда</th></tr>
+              <tr><td><code>new</code></td><td>Новая</td><td>Нет ответа 1С на создание</td></tr>
+              <tr><td><code>on_review</code></td><td>На рассмотрении</td><td>Есть <code>external1cId</code>, менеджера ещё нет</td></tr>
+              <tr><td><code>in_progress</code></td><td>В работе</td><td>Назначен менеджер; здесь задаётся <code>dealType</code></td></tr>
+              <tr><td><code>in_transit</code></td><td>В пути</td><td>Транзит / СВХ</td></tr>
+              <tr><td><code>delivered</code></td><td>Доставлено</td><td>Оформление после прибытия</td></tr>
+              <tr><td><code>closed</code></td><td>Закрыта</td><td>Заявка закрыта в 1С</td></tr>
+              <tr><td><code>cancelled</code></td><td>Отменена</td><td>По бизнес-процессу</td></tr>
+            </table>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">ENUM</span><code class="path">dealType</code><span class="desc">Тип сделки — задаёт менеджер при переводе в «В работе».</span></summary>
+          <div class="body">
+            <p>Один раз на заявку, далее не меняется. Определяет состав первичного пакета на подпись.</p>
+            <table class="enum">
+              <tr><th>Код</th><th>Название</th><th>Документы пакета (docType)</th></tr>
+              <tr><td><code>bilateral</code></td><td>Двухсторонняя сделка</td><td><code>recycling_fee_calc</code>, <code>kuts</code>, <code>explanatory_note</code>, <code>customs_rep_agreement</code>, <code>funds_transfer_application</code>, <code>passport_notarized_copy</code>, <code>contract</code></td></tr>
+              <tr><td><code>cash</code></td><td>Наличный расчёт</td><td>Как bilateral, но <b>без</b> <code>funds_transfer_application</code>; + <code>receipt</code>, <code>additional_agreement</code></td></tr>
+              <tr><td><code>tripartite</code></td><td>Трёхсторонняя сделка</td><td>Как bilateral + <code>tripartite_agreement</code></td></tr>
+              <tr><td><code>quadripartite</code></td><td>Четырёхсторонняя сделка</td><td>Как bilateral + <code>quadripartite_agreement</code></td></tr>
+            </table>
+            <p><code>funds_transfer_application</code> — заявление на <b>перевод остатков средств</b> после растаможивания (не перевоз авто).</p>
+            <p><b>Не выгружаются из 1С в МП</b> (только <code>*_sign</code> от клиента): <code>funds_transfer_application</code>, <code>passport_notarized_copy</code>.</p>
+          </div>
+        </details>
+        <details class="card" open>
+          <summary class="summary"><span class="method get">ENUM</span><code class="path">statusSubType</code><span class="desc">Подстатусы 1С — как на скрине настройки.</span></summary>
+          <div class="body">
+            <p>1С передаёт <b>код</b> в <code>state.statusSubType</code>. Полный справочник: <code>docs/catalog-reference.md</code>.</p>
+            <table class="enum">
+              <tr><th>Группа</th><th>Код</th><th>Название в 1С</th><th>status</th></tr>
+              <tr><td rowspan="1">На проверке</td><td><code>draft</code></td><td>Черновик</td><td><code>on_review</code></td></tr>
+              <tr><td rowspan="5">В работе</td><td><code>manager_execution</code></td><td>На исполнении у менеджера</td><td><code>in_progress</code></td></tr>
+              <tr><td><code>primary_documents_sent</code></td><td>Отправлены первичные документы</td><td><code>in_progress</code></td></tr>
+              <tr><td><code>originals_partial_no_transit</code></td><td>Получены оригиналы (не все документы), нет транзита</td><td><code>in_progress</code></td></tr>
+              <tr><td><code>originals_complete_no_transit</code></td><td>Получены оригиналы (все документы), нет транзита</td><td><code>in_progress</code></td></tr>
+              <tr><td><code>signature_revision_required</code></td><td>Требуется переподпись</td><td><code>in_progress</code></td></tr>
+              <tr><td rowspan="3">В пути</td><td><code>originals_missing_transit</code></td><td>Оригиналы отсутствуют, есть транзит</td><td><code>in_transit</code></td></tr>
+              <tr><td><code>originals_partial_transit</code></td><td>Получены оригиналы (не все документы), есть транзит</td><td><code>in_transit</code></td></tr>
+              <tr><td><code>originals_complete_transit</code></td><td>Получены оригиналы (все документы), есть транзит</td><td><code>in_transit</code></td></tr>
+              <tr><td rowspan="12">Доставлено</td><td><code>svh_no_originals_no_recycling</code></td><td>Авто на СВХ, оригиналы отсутствуют, нет утиля</td><td><code>delivered</code></td></tr>
+              <tr><td><code>svh_partial_docs_no_recycling</code></td><td>Авто на СВХ, не все документы, нет утиля</td><td><code>delivered</code></td></tr>
+              <tr><td><code>svh_no_originals_recycling</code></td><td>Авто на СВХ, оригиналы отсутствуют, есть утиль</td><td><code>delivered</code></td></tr>
+              <tr><td><code>svh_partial_docs_recycling</code></td><td>Авто на СВХ, не все документы, есть утиль</td><td><code>delivered</code></td></tr>
+              <tr><td><code>svh_all_docs_no_recycling</code></td><td>Авто на СВХ, все документы, нет утиля</td><td><code>delivered</code></td></tr>
+              <tr><td><code>svh_all_docs_recycling</code></td><td>Авто на СВХ, все документы, есть утиль</td><td><code>delivered</code></td></tr>
+              <tr><td><code>ptd_submitted</code></td><td>Подана ПТД</td><td><code>delivered</code></td></tr>
+              <tr><td><code>ptd_submitted_paid</code></td><td>Подана ПТД с оплатой</td><td><code>delivered</code></td></tr>
+              <tr><td><code>ptd_release</code></td><td>Выпуск ПТД</td><td><code>delivered</code></td></tr>
+              <tr><td><code>sent_to_lab</code></td><td>Направлено в лабораторию</td><td><code>delivered</code></td></tr>
+              <tr><td><code>issued_to_client</code></td><td>Выдано клиенту</td><td><code>delivered</code></td></tr>
+              <tr><td><code>request_closed</code></td><td>Заявка закрыта</td><td><code>closed</code></td></tr>
+            </table>
+            <p>Алиас: <code>manager_assigned</code> → <code>manager_execution</code>.</p>
+          </div>
+        </details>
+        <details class="card" open>
+          <summary class="summary"><span class="method get">ENUM</span><code class="path">docType</code><span class="desc">Все типы файлов в заявке.</span></summary>
+          <div class="body">
+            <p><b>Создание заявки (виды документов):</b></p>
+            <table class="enum">
+              <tr><th>docType</th><th>Что это</th><th>Обязательно</th></tr>
+              <tr><td><code>passport_front</code></td><td>Фото паспорта: лицевая сторона</td><td>Да</td></tr>
+              <tr><td><code>passport_registration</code></td><td>Фото паспорта: страница с пропиской</td><td>Да</td></tr>
+              <tr><td><code>inn</code></td><td>Фото/скан ИНН</td><td>Да</td></tr>
+              <tr><td><code>snils</code></td><td>Фото/скан СНИЛС</td><td>Да</td></tr>
+              <tr><td><code>invoice</code></td><td>Инвойс на автомобиль</td><td>Да</td></tr>
+              <tr><td><code>contract</code></td><td>Контракт на покупку авто (стартовый)</td><td>Да</td></tr>
+              <tr><td><code>payment_check</code></td><td>Чек/подтверждение оплаты за авто</td><td>Да</td></tr>
+              <tr><td><code>car_nameplate_photo</code></td><td>Фото шильдика/VIN-таблички</td><td>Да</td></tr>
+              <tr><td><code>car_mileage_photo</code></td><td>Фото пробега (одометр)</td><td>Да</td></tr>
+              <tr><td><code>car_front_photo</code></td><td>Фото автомобиля спереди</td><td>Да</td></tr>
+              <tr><td><code>car_back_photo</code></td><td>Фото автомобиля сзади</td><td>Да</td></tr>
+              <tr><td><code>add_doc1</code></td><td>Дополнительный документ №1</td><td>Нет</td></tr>
+              <tr><td><code>add_doc2</code></td><td>Дополнительный документ №2</td><td>Нет</td></tr>
+            </table>
+            <p><b>Пакет на подпись</b> (зависит от <code>dealType</code>, оригинал + <code>_sign</code>): <code>recycling_fee_calc</code>, <code>kuts</code>, <code>explanatory_note</code>, <code>customs_rep_agreement</code>, <code>contract</code>, <code>funds_transfer_application</code>, <code>passport_notarized_copy</code>, <code>receipt</code>, <code>additional_agreement</code>, <code>tripartite_agreement</code>, <code>quadripartite_agreement</code>.</p>
+            <p><b>Только подпись от клиента</b> (не из 1С в МП): <code>funds_transfer_application</code>, <code>passport_notarized_copy</code>.</p>
+            <p><b>Оплаты:</b> <code>payment_recycling_fee</code>, <code>payment_recycling_fee_receipt</code>, <code>payment_customs_duty</code>, <code>payment_customs_duty_receipt</code>.</p>
+            <p><b>Итог:</b> <code>epts</code>, <code>sbkts</code>.</p>
+            <p><b>Устаревшие:</b> <code>title_doc</code>→<code>invoice</code>, <code>transport_application</code>→<code>funds_transfer_application</code>, <code>additional_file</code>.</p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">RULE</span><code class="path">docType + _sign</code><span class="desc">Два файла на каждый документ на подпись.</span></summary>
+          <div class="body">
+            <p>Для документов на подпись хранятся <b>две</b> версии:</p>
+            <ul>
+              <li><b>Оригинал</b> — <code>docType</code> без суффикса (например <code>contract</code>), приходит из 1С</li>
+              <li><b>Подписанный</b> — тот же тип + суффикс <code>_sign</code> (например <code>contract_sign</code>), загружает клиент из МП</li>
+            </ul>
+            <p>Оригинал не перезаписывается подписью. При ошибке менеджер в 1С выставляет подстатус <code>signature_revision_required</code>; клиент загружает новый <code>*_sign</code>.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="group">
         <h2>Организации (интеграция 1С)</h2>
         <details class="card">
-          <summary class="summary"><span class="method post">AUTH</span><code class="path">Bearer token for 1C</code><span class="desc">Токен для заголовка Authorization.</span></summary>
-          <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>Authorization: Bearer {{INTEGRATION_BEARER_TOKEN}}</pre><p><b>Success:</b></p><pre>Скопируйте токен и используйте в запросах 1С.</pre><p><b>Errors:</b></p><ul></ul></div>
+          <summary class="summary"><span class="method post">AUTH</span><code class="path">Authorization для 1С</code><span class="desc">Интеграционный Bearer-токен (значение не выводится на страницу).</span></summary>
+          <div class="body"><p>Все запросы раздела <b>API 1С</b> ниже выполняйте с заголовком:</p><pre>Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre><p>Токен задаётся на сервере в переменной окружения <code>INTEGRATION_BEARER_TOKEN</code> (см. <code>.env.example</code> в репозитории сервера).</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/organizations</code><span class="desc">Создать/обновить одну организацию из 1С.</span></summary>
@@ -457,31 +651,36 @@
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-requests/link-1c</code><span class="desc">Проставить external1cId и managerExternal1cId.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>{
-  "requestId": 123,
-  "external1cId": "GUID-REQUEST-1C",
-  "managerExternal1cId": "GUID-MANAGER-1C"
-}</pre><p><b>Success:</b></p><pre>{
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/upload</code><span class="desc">Загрузка файла (1С и МП) → fileUrl.</span></summary>
+          <div class="body">
+            <p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN (1С) или Bearer accessToken (МП)</p>
+            <p><b>Request:</b> multipart, поле <code>file</code>, <code>docType</code> (form/query)</p>
+            <p><b>Success:</b></p><pre>{
   "ok": true,
-  "item": {
-    "id": "123",
-    "status": "in_progress",
-    "external1cId": "GUID-REQUEST-1C",
-    "managerExternal1cId": "GUID-MANAGER-1C"
+  "file": {
+    "docType": "contract",
+    "fileName": "contract.pdf",
+    "mimeType": "application/pdf",
+    "fileUrl": "/api/customs-requests/files/uuid.pdf"
   }
-}</pre><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+}</pre>
+            <p>Дальше URL передаётся в <code>state</code> (<code>signingFiles</code>) или в <code>POST /api/customs-requests/:id/files</code> (МП).</p>
+          </div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-requests/state</code><span class="desc">Обновить 1С-часть заявки по external1cId.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>{
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-requests/state</code><span class="desc">Обновление заявки: статус, подстатус, dealType, signingFiles, менеджер.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Направление:</b> 1С → наш сервер (1С реализует у себя HTTP-клиент на этот URL или мы опрашиваем — договорённость с командой 1С).</p><p><b>Обязательно:</b> <code>external1cId</code>. Остальные поля — частичное обновление.</p><p><b>Request:</b></p><pre>{
   "external1cId": "GUID-REQUEST-1C",
-  "status": "in_transit",
+  "status": "in_progress",
+  "dealType": "bilateral",
+  "statusSubType": "manager_execution",
+  "statusSubTypeDateTime": "2026-05-27T10:00:00+03:00",
+  "managerExternal1cId": "GUID-MANAGER-1C",
+  "managerFullName": "Иванов Иван Иванович",
   "ownerFullName": "Иванов Иван Иванович",
   "engineSpec": "Бензин, 2.5L",
   "engineVolume": "2494 см3",
   "statusSinceDateLabel": "С 27.04.2026",
-  "statusSubType": "in_transit_loading",
   "financeItems": [
     {
       "lineType": "duty",
@@ -500,13 +699,25 @@
       "title": "ЭПТС",
       "downloadUrl": "https://example.com/epts.pdf"
     }
-  ]
-}</pre><p><b>Success:</b></p><pre>{
+  ],
+  "signingFiles": [
+    {
+      "docType": "contract",
+      "fileName": "contract.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "/api/customs-requests/files/uuid.pdf"
+    }
+  ],
+  "advancePayment": { "amount": "830998.00", "currency": "RUB" },
+  "actualPayment": { "amount": "1200000.00", "currency": "RUB" }
+}</pre><p><b>Поля state (кратко):</b></p><ul><li><code>status</code>, <code>dealType</code>, <code>statusSubType</code>, <code>statusSubTypeDateTime</code></li><li><code>signingFiles[]</code> — оригиналы после upload (docType + fileUrl)</li><li><code>managerExternal1cId</code>, <code>managerFullName</code>, суммы, financeItems, фото, deliveredDocuments</li></ul><p><b>Подстатус:</b> 1С может передать в <code>state</code>; если нет — сервер может выставить после <code>signingFiles</code>. МП: upload → <code>contract_sign</code> → привязка к заявке → обновление в 1С для менеджера.</p><p><b>Success:</b></p><pre>{
   "ok": true,
   "item": {
     "id": "123",
-    "status": "in_transit",
-    "statusSubType": "in_transit_loading",
+    "status": "in_progress",
+    "dealType": "bilateral",
+    "statusSubType": "manager_execution",
+    "managerFullName": "Иванов Иван Иванович",
     "financeItems": [
       {
         "lineType": "duty",
@@ -550,18 +761,286 @@
         </details>
       </section>
     </section>
+
+    <section id="panel-admin" class="panel">
+
+      <section class="group">
+        <h2>Авторизация админки</h2>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/auth/login</code><span class="desc">Вход в веб-админку.</span></summary>
+          <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>{
+  "login": "admin",
+  "password": "123456"
+}</pre><p><b>Success:</b></p><pre>{
+  "accessToken": "sample_admin_access_token",
+  "tokenType": "Bearer",
+  "expiresAt": "2027-05-16T09:00:00.000Z",
+  "login": "admin"
+}</pre><p>JWT с <code>aud: "admin"</code> — не подходит для API приложения.</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/auth/logout</code><span class="desc">Выход из сессии админки.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p><b>Success:</b></p><pre>{ "ok": true }</pre></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/auth/me</code><span class="desc">Профиль администратора.</span></summary>
+          <div class="body"><p><b>Success:</b></p><pre>{
+  "id": 1,
+  "login": "admin",
+  "createdAt": "2026-05-16T09:00:00.000Z"
+}</pre></div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Организации из 1С (просмотр)</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/organizations</code><span class="desc">Список организаций, зарегистрированных через интеграцию.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p><b>Query:</b> <code>limit</code>, <code>offset</code>, <code>q</code> (поиск), <code>includeDeleted</code></p><p><b>Success:</b></p><pre>{
+  "items": [
+    {
+      "id": 10,
+      "id_1c": "org-001",
+      "login": "mail@org.ru",
+      "role": "user",
+      "orgType": "ООО",
+      "companyName": "ООО Ромашка",
+      "inn": "7701234567",
+      "phone": "+79990000000",
+      "createdAt": "2026-04-27T07:00:00.000Z",
+      "updatedAt": "2026-04-27T07:00:00.000Z",
+      "deletedAt": null
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}</pre><p>Пароли не отдаются.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/organizations/:id</code><span class="desc">Карточка организации.</span></summary>
+          <div class="body"><p><b>Success:</b></p><pre>{
+  "item": {
+    "id": 10,
+    "id_1c": "org-001",
+    "login": "mail@org.ru",
+    "role": "user",
+    "orgType": "ООО",
+    "companyName": "ООО Ромашка",
+    "inn": "7701234567",
+    "phone": "+79990000000",
+    "createdAt": "2026-04-27T07:00:00.000Z",
+    "updatedAt": "2026-04-27T07:00:00.000Z",
+    "deletedAt": null
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Настройки и заявки</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/settings/one-c-request-create</code><span class="desc">URL и Bearer для исходящих вызовов в 1С (create + update).</span></summary>
+          <div class="body"><p><b>Success:</b></p><pre>{
+  "oneCRequestCreateUrl": "https://1c.example/hs/import/customs-request",
+  "oneCRequestCreateBearerTokenMasked": "…abcd",
+  "hasBearerToken": true,
+  "updatedAt": "2026-05-16T12:00:00.000Z"
+}</pre></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method put">PUT</span><code class="path">/api/admin/settings/one-c-request-create</code><span class="desc">Задать URL и Bearer для POST в 1С (создание и update).</span></summary>
+          <div class="body"><p><b>Request:</b></p><pre>{
+  "oneCRequestCreateUrl": "https://1c.example/hs/import/customs-request",
+  "oneCRequestCreateBearerToken": "secret-token"
+}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "oneCRequestCreateUrl": "https://1c.example/hs/import/customs-request",
+  "oneCRequestCreateBearerTokenMasked": "…oken",
+  "hasBearerToken": true,
+  "updatedAt": "2026-05-16T12:00:00.000Z"
+}</pre><p><b>Update в 1С:</b> тот же Bearer; URL = <code>customs-request</code> → <code>customs-request-update</code> (см. <code>docs/api-1c.md</code>).</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/customs-requests/:id/resend-update-to-1c</code><span class="desc">Повтор update в 1С (oneCUpdatePending).</span></summary>
+          <div class="body"><p><b>Условия:</b> есть <code>external1cId</code>, <code>oneCUpdatePending: true</code>.</p><p><b>Request:</b></p><pre>{}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "oneC": { "response": {} },
+  "item": { "id": "123", "oneCUpdatePending": false }
+}</pre><p><b>Errors:</b> <code>409</code>, <code>502 ONE_C_UPDATE_FAILED</code>, <code>503</code></p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/customs-requests/:id/resend-to-1c</code><span class="desc">Повторная отправка заявки в 1С (только status new).</span></summary>
+          <div class="body"><p><b>Request:</b></p><pre>{}</pre><p><b>Success:</b></p><pre>{
+  "ok": true,
+  "oneC": {
+    "updated": true,
+    "link": {
+      "external1cId": "GUID-REQUEST-1C",
+      "managerExternal1cId": "GUID-MANAGER-1C",
+      "managerFullName": "Иванов Иван Иванович"
+    }
+  },
+  "item": {
+    "id": "123",
+    "status": "on_review",
+    "external1cId": "GUID-REQUEST-1C"
+  }
+}</pre><p><b>Errors:</b></p><ul><li><code>404 NOT_FOUND</code></li><li><code>409 CONFLICT</code></li><li><code>502 ONE_C_CREATE_FAILED</code></li><li><code>503 ONE_C_URL_NOT_CONFIGURED</code></li></ul></div>
+        </details>
+      </section>
+    </section>
+    
+    <section id="panel-tz" class="panel">
+      <section class="group">
+        <h2>Техническое задание (МП ↔ Сервер ↔ 1С)</h2>
+
+        <details class="card" open>
+          <summary class="summary"><span class="method get">Схема</span><code class="path">sequenceDiagram</code><span class="desc">Общий поток (Mermaid).</span></summary>
+          <div class="body">
+            <div class="mermaid-wrap">
+              <pre class="mermaid">
+sequenceDiagram
+  participant MP as Мобильное приложение
+  participant API as Сервер API
+  participant C1 as 1С
+
+  MP->>API: Создать заявку + файлы
+  API->>API: status new
+  API->>C1: requestId + данные + files
+  C1-->>API: external1cId
+  API->>API: status on_review
+
+  C1->>API: state in_progress + dealType + менеджер
+  API->>MP: карточка заявки
+
+  loop Первичный пакет на подпись
+    C1->>API: upload → fileUrl
+    C1->>API: state signingFiles + subStatus
+    API->>MP: скачать оригинал
+    MP->>API: upload docType_sign
+    API->>C1: подпись видна менеджеру
+    Note over C1,MP: при ошибке: statusSubType signature_revision_required
+  end
+
+  loop Квитанции и чеки
+    C1->>API: квитанции
+    MP->>API: чеки оплаты
+  end
+
+  loop Изменения в 1С
+    C1->>API: state status + statusSubType
+    API->>MP: обновление
+  end
+              </pre>
+            </div>
+          </div>
+        </details>
+
+        <details class="card">
+          <summary class="summary"><span class="method get">Заказчику</span><span class="desc">Что происходит с заявкой</span></summary>
+          <div class="body">
+            <p><b>Принцип:</b> МП общается только с сервером. 1С общается только с сервером.</p>
+            <p><b>Этапы (по смыслу документа):</b></p>
+            <ul>
+              <li><b>1. Создание заявки</b> — МП → сервер → 1С. У заявки стартовый статус «Новая».</li>
+              <li><b>2. Обработка в 1С</b> — выбор менеджера и подготовка документов.</li>
+              <li><b>3. Первичный пакет на подпись</b> — 1С → МП, затем подпись и возврат в 1С через сервер.</li>
+              <li><b>4. Квитанция утилизационного сбора</b> (параллельно п.3) — 1С → МП, затем загрузка чека.</li>
+              <li><b>5. Квитанция госпошлины</b> (параллельно п.3) — 1С → МП, затем загрузка чека.</li>
+              <li><b>6. Архив перед транзитом</b> — 1С → МП (только скачивание).</li>
+              <li><b>7. Итоговые документы после таможни</b> — 1С → МП (только скачивание).</li>
+            </ul>
+
+            <p><b>Статусы (отображение в МП):</b></p>
+            <ul>
+              <li><code>new</code> — Новая (пока 1С не ответила)</li>
+              <li><code>on_review</code> — На рассмотрении (1С ответила, менеджера ещё нет)</li>
+              <li><code>in_progress</code> — В работе (появился менеджер)</li>
+              <li><code>in_transit</code> — В пути</li>
+              <li><code>delivered</code> — Доставлено/завершение этапов</li>
+              <li><code>closed</code> — Заявка закрыта</li>
+            </ul>
+
+            <p><b>Документы в МП при подаче (начальные, обязательные):</b></p>
+            <ul>
+              <li><code>passport_front</code> — паспорт, 1 сторона</li>
+              <li><code>passport_registration</code> — паспорт, 2 сторона</li>
+              <li><code>inn</code></li>
+              <li><code>snils</code></li>
+              <li><code>invoice</code></li>
+              <li><code>contract</code></li>
+              <li><code>payment_check</code> — чек оплаты за авто</li>
+              <li><code>car_nameplate_photo</code> — фото VIN/таблички авто</li>
+              <li><code>car_mileage_photo</code> — фото пробега авто</li>
+              <li><code>car_front_photo</code> — фото авто (перед)</li>
+              <li><code>car_back_photo</code> — фото авто (зад)</li>
+            </ul>
+            <p><b>Дополнительно (по ситуации, не обязательно):</b> <code>add_doc1</code> и <code>add_doc2</code>.</p>
+
+            <p><b>Подсказки пользователю:</b> подстатусы 1С используются для того, чтобы в карточке заявки подсвечивать, <i>какие документы нужно подписать/загрузить</i>.</p>
+            <p><b>Подпись — два файла:</b> оригинал (<code>contract</code>) и подпись (<code>contract_sign</code>). При браке подписи — подстатус <code>signature_revision_required</code>.</p>
+            <p><b>Тип сделки:</b> <code>bilateral</code> | <code>cash</code> | <code>tripartite</code> | <code>quadripartite</code> — задаёт менеджер в 1С при статусе «В работе».</p>
+            <p><b>Заявление на перевод:</b> <code>funds_transfer_application</code> — перевод остатков после растаможивания.</p>
+            <p><b>Особые правила:</b> <code>funds_transfer_application</code>, <code>passport_notarized_copy</code> — не из 1С в МП, только <code>*_sign</code> от клиента.</p>
+          </div>
+        </details>
+
+        <details class="card">
+          <summary class="summary"><span class="method post">Для 1С</span><span class="desc">Контракты и ответственность</span></summary>
+          <div class="body">
+            <p><b>Создание заявки:</b></p>
+            <ul>
+              <li>Сервер инициирует создание заявки в 1С после успешного сохранения в сервере.</li>
+              <li>1С создаёт карточку заявки со статусом <b>«Черновик»</b>.</li>
+              <li>1С возвращает серверу: <code>{ requestId, external1cId }</code>.</li>
+            </ul>
+            <p><b>Обновления (1С → сервер):</b> <code>POST /api/integration/customs-requests/state</code></p>
+            <ul>
+              <li>Обязательно: <code>external1cId</code></li>
+              <li><code>status</code>, <code>statusSubType</code>, <code>statusSubTypeDateTime</code></li>
+              <li><code>dealType</code> — при переводе в работу (см. enum на вкладке API 1С)</li>
+              <li><code>managerExternal1cId</code>, <code>managerFullName</code></li>
+              <li>Цепочка: <code>new</code> → (ответ создания) <code>on_review</code> → (менеджер) <code>in_progress</code></li>
+              <li>Возврат подписей: <code>statusSubType: signature_revision_required</code></li>
+            </ul>
+
+            <p><b>Файлы:</b></p>
+            <ul>
+              <li>На этапе создания сервер передаёт 1С URL исходных файлов из МП (по <code>docType</code>).</li>
+              <li>1С формирует первичные документы на подпись и квитанции; сервер отдаёт их в МП.</li>
+              <li>После подписи пользователь загружает файлы в МП, сервер пересылает результаты в 1С (через загрузки по <code>docType</code>).</li>
+            </ul>
+
+            <p><b>Справочники:</b> подстатусы и все <code>docType</code> — вкладка <b>API 1С</b> (секция «Справочники») и <code>docs/catalog-reference.md</code>.</p>
+
+            <p><b>Особые правила по документам:</b></p>
+            <ul>
+              <li><code>funds_transfer_application</code> (перевод остатков) и <code>passport_notarized_copy</code> — не из 1С в МП, только <code>*_sign</code> из МП.</li>
+              <li>Файлы: upload → URL в <code>state.signingFiles</code>; подстатус от 1С или с сервера.</li>
+              <li>Перезагрузка документов допустима с любой стороны (новая версия по тому же <code>docType</code>).</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+    </section>
   </div>
   <script>
     const tabs = document.querySelectorAll('.tab');
-    const panelApp = document.getElementById('panel-app');
-    const panelOneC = document.getElementById('panel-onec');
+    const panels = {
+      app: document.getElementById('panel-app'),
+      onec: document.getElementById('panel-onec'),
+      admin: document.getElementById('panel-admin'),
+      tz: document.getElementById('panel-tz'),
+    };
     tabs.forEach((tab) => {
       tab.addEventListener('click', () => {
+        const key = tab.dataset.tab;
         tabs.forEach((t) => t.classList.remove('active'));
         tab.classList.add('active');
-        const isApp = tab.dataset.tab === 'app';
-        panelApp.classList.toggle('active', isApp);
-        panelOneC.classList.toggle('active', !isApp);
+        Object.entries(panels).forEach(([k, el]) => {
+          el.classList.toggle('active', k === key);
+        });
       });
     });
   </script>

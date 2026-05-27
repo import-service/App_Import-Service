@@ -32,4 +32,6 @@ git push origin main
 
 Сообщения коммитов — **на русском**.
 
-Правки **сервера** на прод: после push ещё `.\scripts\pack-server-update.ps1` и архив на VPS — см. `import_service_server/.cursor/rules/server-deploy-vps.mdc`.
+Правки **сервера** на прод: `.\scripts\deploy-server-vps.ps1` — см. `import_service_server/.cursor/rules/server-deploy-vps.mdc`.
+
+Правки **веб-админки** на прод: `.\scripts\deploy-admin-web.ps1` затем `.\scripts\deploy-server-vps.ps1` — см. `.cursor/rules/admin-deploy-vps.mdc`.

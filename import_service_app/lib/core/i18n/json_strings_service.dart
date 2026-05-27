@@ -81,6 +81,16 @@ final class JsonStringsService {
   String get carStatusOnWay => text('carStatusOnWay');
   String get carStatusDelivered => text('carStatusDelivered');
   String get carStatusNew => text('carStatusNew');
+  String get carStatusOnReview => text('carStatusOnReview');
+  String get carStatusClosed => text('carStatusClosed');
+  String get carStatusCancelled => text('carStatusCancelled');
+  String get requestFilesSectionCreation => text('requestFilesSectionCreation');
+  String get requestFilesSectionSigning => text('requestFilesSectionSigning');
+  String get requestFilesSectionPayment => text('requestFilesSectionPayment');
+  String get requestFilesSectionOther => text('requestFilesSectionOther');
+  String get requestFileNeedsSignature => text('requestFileNeedsSignature');
+  String get requestDocSignedSuffix => text('requestDocSignedSuffix');
+  String get requestFileGeneric => text('requestFileGeneric');
   String get requestDetailNotFound => text('requestDetailNotFound');
   String get requestDetailStatusLabel => text('requestDetailStatusLabel');
   String get requestDocumentPack => text('requestDocumentPack');
@@ -88,6 +98,7 @@ final class JsonStringsService {
   String get requestDocumentUpload => text('requestDocumentUpload');
   String get requestTestModeLabel => text('requestTestModeLabel');
   String get requestDetailOwner => text('requestDetailOwner');
+  String get requestDetailManager => text('requestDetailManager');
   String get requestDetailVehicle => text('requestDetailVehicle');
   String get requestDetailEngine => text('requestDetailEngine');
   String get requestDetailVin => text('requestDetailVin');

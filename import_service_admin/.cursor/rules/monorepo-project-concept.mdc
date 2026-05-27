@@ -1,0 +1,10 @@
+---
+description: Ссылка на общую концепцию монорепо (корень import_servis)
+alwaysApply: true
+---
+
+Перед задачами по заявкам и 1С **обязательно** опирайся на общую концепцию:
+
+`D:\Projects\import_servis\.cursor\rules\project-concept.mdc`
+
+Промпт админки: `D:\Projects\import_servis\.cursor\rules\agent-admin-web.mdc`

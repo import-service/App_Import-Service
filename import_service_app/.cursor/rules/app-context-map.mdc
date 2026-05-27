@@ -65,6 +65,11 @@ alwaysApply: true
 | `presentation/widgets/requests/car_request_file_slot_row.dart` | Строка слота фото/файла на детализации (те же поля, что [RequestFilesUploadPage]) |
 | `presentation/widgets/requests/request_detail_finance_card.dart` | Финансы: сумма, заглушки квитанция/QR, кнопка (демо) |
 | `presentation/widgets/requests/request_detail_photo_placeholders_row.dart` | Ряд плиток-заглушек вместо фото авто |
+| `presentation/widgets/requests/request_detail_files_sections.dart` | Секции файлов заявки: подача, подпись, оплата |
+| `core/constants/customs_catalog.dart` | Справочник docType / подстатусов (синхрон с сервером) |
+| `domain/services/request_files_grouper.dart` | Группировка `files[]`, пары `*_sign`, нужность подписи |
+| `presentation/helpers/doc_type_labels.dart` | Подписи docType для UI |
+| `presentation/helpers/request_status_labels.dart` | Подписи верхних статусов, фильтры вкладок, доступность чата |
 | `domain/entities/request_detail_finance_line.dart` | Строка суммы в «Финансах» на детализации |
 | `presentation/widgets/drafts/request_draft_list_tile.dart` | Строка черновика заявки |
 | `presentation/widgets/bottom_sheets/request_draft_delete_confirm_bottom_sheet.dart` | Подтверждение удаления черновика (шторка) |
