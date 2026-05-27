@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:import_service_admin/core/catalog/customs_request_labels.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/error/exceptions.dart';
 import 'package:import_service_admin/core/logging/one_c_log.dart';
-import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/core/ui/app_snackbars.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
 import 'package:import_service_admin/domain/entities/customs_request.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
-import 'package:import_service_admin/presentation/widgets/requests/request_status_chip.dart';
+import 'package:import_service_admin/presentation/widgets/requests/request_list_card.dart';
 
 class RequestsPage extends StatefulWidget {
   const RequestsPage({super.key});
@@ -42,7 +40,7 @@ class _RequestsPageState extends State<RequestsPage> {
       await sl<CustomsRequestsRepository>().resendUpdateTo1C(item.id);
       if (!mounted) return;
       AppSnackBars.showSuccess(
-        'Изменения заявки ${item.id} отправлены в 1С',
+        'Изменения заявки отправлены в 1С',
         context: context,
       );
       _reload();
@@ -67,18 +65,9 @@ class _RequestsPageState extends State<RequestsPage> {
     if (_sending.contains(item.id)) return;
     setState(() => _sending.add(item.id));
     try {
-      final updated = await sl<CustomsRequestsRepository>().resendTo1C(item.id);
+      await sl<CustomsRequestsRepository>().resendTo1C(item.id);
       if (!mounted) return;
-      final manager = updated.managerFullName?.trim();
-      final extId = updated.external1cId?.trim();
-      var okText = 'Заявка ${item.id} отправлена в 1С';
-      if (extId != null && extId.isNotEmpty) {
-        okText += ' · $extId';
-      }
-      if (manager != null && manager.isNotEmpty) {
-        okText += ' · $manager';
-      }
-      AppSnackBars.showSuccess(okText, context: context);
+      AppSnackBars.showSuccess('Заявка отправлена в 1С', context: context);
       _reload();
     } on UnauthorizedException {
       return;
@@ -134,10 +123,10 @@ class _RequestsPageState extends State<RequestsPage> {
             separatorBuilder: (_, _) => const Gap(12),
             itemBuilder: (context, index) {
               final item = items[index];
-              return _RequestCard(
+              return RequestListCard(
                 item: item,
                 sending: _sending.contains(item.id),
-                onTap: () => _openDetail(item),
+                onOpenDetail: () => _openDetail(item),
                 onSendTo1C: item.canSendTo1C ? () => _sendTo1C(item) : null,
                 onResendUpdateTo1C:
                     item.canResendUpdateTo1C ? () => _resendUpdateTo1C(item) : null,
@@ -146,176 +135,6 @@ class _RequestsPageState extends State<RequestsPage> {
           ),
         );
       },
-    );
-  }
-}
-
-class _RequestCard extends StatelessWidget {
-  const _RequestCard({
-    required this.item,
-    required this.sending,
-    required this.onTap,
-    this.onSendTo1C,
-    this.onResendUpdateTo1C,
-  });
-
-  final CustomsRequest item;
-  final bool sending;
-  final VoidCallback onTap;
-  final VoidCallback? onSendTo1C;
-  final VoidCallback? onResendUpdateTo1C;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isNew = item.status == 'new';
-    final needsUpdateResend = item.oneCUpdatePending;
-    final subLabel = statusSubTypeLabel(item.statusSubType);
-    final hasSub = item.statusSubType != null &&
-        item.statusSubType!.trim().isNotEmpty &&
-        subLabel != '—';
-
-    return Card(
-      elevation: 0,
-      color: isNew
-          ? const Color(0xFFFFF8E1)
-          : needsUpdateResend
-              ? const Color(0xFFFFEBEE)
-              : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isNew
-              ? const Color(0xFFFFB300)
-              : needsUpdateResend
-                  ? const Color(0xFFE53935)
-                  : const Color(0xFFE0E0E0),
-        ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.carTitle,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Gap(4),
-                        Text('№ ${item.id} · ${item.ownerFullName}'),
-                      ],
-                    ),
-                  ),
-                  RequestStatusChip(status: item.status),
-                ],
-              ),
-              const Gap(8),
-              Text('VIN: ${item.vin}', style: theme.textTheme.bodySmall),
-              if (hasSub)
-                Text(
-                  'Подстатус: $subLabel',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              if (item.external1cId != null && item.external1cId!.isNotEmpty)
-                Text(
-                  '1С: ${item.external1cId}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              if (item.managerFullName != null) ...[
-                const Gap(4),
-                Text(
-                  'Менеджер: ${item.managerFullName}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-              if (item.isTest)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'Тестовая',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppTheme.accentRed,
-                    ),
-                  ),
-                ),
-              if (needsUpdateResend && onSendTo1C == null) ...[
-                const Gap(8),
-                Text(
-                  'Изменения не доставлены в 1С',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFFC62828),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-              if (onSendTo1C != null) ...[
-                const Gap(12),
-                FilledButton.icon(
-                  onPressed: sending ? null : onSendTo1C,
-                  icon: sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.cloud_upload_outlined, size: 20),
-                  label: const Text('Отправить в 1С'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.primaryBlue,
-                  ),
-                ),
-              ],
-              if (onResendUpdateTo1C != null) ...[
-                const Gap(12),
-                FilledButton.icon(
-                  onPressed: sending ? null : onResendUpdateTo1C,
-                  icon: sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.sync_outlined, size: 20),
-                  label: const Text('Повторить update в 1С'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFC62828),
-                  ),
-                ),
-              ],
-              const Gap(4),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'Подробнее →',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppTheme.primaryBlue,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

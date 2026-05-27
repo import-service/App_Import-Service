@@ -80,7 +80,35 @@ class CustomsRequest extends Equatable {
   final List<CustomsRequestDeliveredDocument> deliveredDocuments;
   final List<CustomsRequestFile> files;
 
-  String get carTitle => '$carMake $carModel'.trim();
+  String get carTitle => displayCarLine;
+
+  String get displayCarLine {
+    final a = carMake.trim();
+    final b = carModel.trim();
+    if (a.isEmpty && b.isEmpty) return '—';
+    if (a.isEmpty) return b;
+    if (b.isEmpty) return a;
+    return '$a $b';
+  }
+
+  String get organizationLine {
+    final o = legalEntityName.trim();
+    return o.isNotEmpty ? o : '—';
+  }
+
+  /// Превью в списке: первое фото авто или car_front из files (если есть).
+  String? get listThumbnailUrl {
+    if (vehiclePhotoUrls.isNotEmpty) {
+      return vehiclePhotoUrls.first;
+    }
+    for (final f in files) {
+      final t = f.docType.trim();
+      if (t == 'car_front_photo' || t == 'car_back_photo') {
+        return f.fileUrl;
+      }
+    }
+    return null;
+  }
 
   bool get canSendTo1C =>
       status == 'new' &&

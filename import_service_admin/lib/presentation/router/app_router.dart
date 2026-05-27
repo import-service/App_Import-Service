@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:import_service_admin/core/auth/auth_session_controller.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
+import 'package:import_service_admin/core/navigation/router_keys.dart';
 import 'package:import_service_admin/presentation/pages/dashboard_page.dart';
 import 'package:import_service_admin/presentation/pages/login_page.dart';
 import 'package:import_service_admin/presentation/pages/organizations_page.dart';
@@ -10,6 +11,7 @@ import 'package:import_service_admin/presentation/pages/settings_one_c_page.dart
 import 'package:import_service_admin/presentation/shell/admin_shell_page.dart';
 
 final GoRouter appRouter = GoRouter(
+  navigatorKey: rootNavigatorKey,
   refreshListenable: sl<AuthSessionController>(),
   initialLocation: '/login',
   redirect: (context, state) {
@@ -53,6 +55,7 @@ final GoRouter appRouter = GoRouter(
               routes: [
                 GoRoute(
                   path: ':id',
+                  parentNavigatorKey: rootNavigatorKey,
                   builder: (context, state) => RequestDetailPage(
                     requestId: state.pathParameters['id']!,
                   ),
