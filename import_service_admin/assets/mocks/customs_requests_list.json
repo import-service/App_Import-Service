@@ -7,9 +7,31 @@
       "carModel": "Crown",
       "vin": "JTDBR32E720001234",
       "status": "in_progress",
+      "statusSubType": "primary_documents_sent",
       "statusSinceDateLabel": "12.04.2026",
+      "dealType": "tripartite",
+      "legalEntityName": "ООО Вектор",
+      "legalEmail": "mail@example.com",
+      "legalPhone": "+79990000000",
+      "individualFullName": "Иванов Иван Иванович",
+      "individualPhone": "+79991112233",
+      "individualSnils": "12345678901",
+      "hasSunroof": false,
+      "hasAllWheelDrive": true,
+      "importedLast12Months": false,
+      "ownsOtherCars": true,
       "isTest": false,
-      "managerFullName": "Петров Пётр Петрович"
+      "external1cId": "ext-001",
+      "managerFullName": "Петров Пётр Петрович",
+      "oneCUpdatePending": false,
+      "financeItems": [
+        {
+          "lineType": "recycling_fee",
+          "amountText": "12 500 ₽",
+          "title": ""
+        }
+      ],
+      "files": []
     },
     {
       "id": "req-002",
@@ -19,8 +41,19 @@
       "vin": "WBAFR9C50DD123456",
       "status": "new",
       "statusSinceDateLabel": "15.05.2026",
+      "legalEntityName": "ИП Сидорова",
+      "legalEmail": "anna@example.com",
+      "legalPhone": "+79992223344",
+      "individualFullName": "Сидорова Анна Сергеевна",
+      "individualPhone": "+79992223344",
+      "individualSnils": "98765432109",
+      "hasSunroof": true,
+      "hasAllWheelDrive": false,
+      "importedLast12Months": false,
+      "ownsOtherCars": false,
       "isTest": true,
-      "managerFullName": null
+      "oneCUpdatePending": false,
+      "files": []
     },
     {
       "id": "req-003",
@@ -28,10 +61,24 @@
       "carMake": "Mercedes-Benz",
       "carModel": "E-Class",
       "vin": "WDDHF8JB5CA123789",
-      "status": "delivered",
+      "status": "in_transit",
+      "statusSubType": "originals_missing_transit",
       "statusSinceDateLabel": "01.03.2026",
+      "legalEntityName": "ООО Автоимпорт",
+      "legalEmail": "d@example.com",
+      "legalPhone": "+79995556677",
+      "individualFullName": "Козлов Дмитрий",
+      "individualPhone": "+79995556677",
+      "individualSnils": "11122233344",
+      "hasSunroof": false,
+      "hasAllWheelDrive": true,
+      "importedLast12Months": true,
+      "ownsOtherCars": false,
       "isTest": false,
-      "managerFullName": "Смирнов А.А."
+      "external1cId": "ext-003",
+      "managerFullName": "Смирнов А.А.",
+      "oneCUpdatePending": true,
+      "files": []
     }
   ]
 }

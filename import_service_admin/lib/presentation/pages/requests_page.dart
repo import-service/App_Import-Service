@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
+import 'package:import_service_admin/core/catalog/customs_request_labels.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/error/exceptions.dart';
 import 'package:import_service_admin/core/logging/one_c_log.dart';
 import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/core/ui/app_snackbars.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
-import 'package:import_service_admin/domain/entities/customs_request_summary.dart';
+import 'package:import_service_admin/domain/entities/customs_request.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
+import 'package:import_service_admin/presentation/widgets/requests/request_status_chip.dart';
 
 class RequestsPage extends StatefulWidget {
   const RequestsPage({super.key});
@@ -17,7 +20,7 @@ class RequestsPage extends StatefulWidget {
 }
 
 class _RequestsPageState extends State<RequestsPage> {
-  late Future<({List<CustomsRequestSummary> items, int total})> _future;
+  late Future<({List<CustomsRequest> items, int total})> _future;
   final _sending = <String>{};
 
   @override
@@ -32,7 +35,7 @@ class _RequestsPageState extends State<RequestsPage> {
     });
   }
 
-  Future<void> _resendUpdateTo1C(CustomsRequestSummary item) async {
+  Future<void> _resendUpdateTo1C(CustomsRequest item) async {
     if (_sending.contains(item.id)) return;
     setState(() => _sending.add(item.id));
     try {
@@ -60,7 +63,7 @@ class _RequestsPageState extends State<RequestsPage> {
     }
   }
 
-  Future<void> _sendTo1C(CustomsRequestSummary item) async {
+  Future<void> _sendTo1C(CustomsRequest item) async {
     if (_sending.contains(item.id)) return;
     setState(() => _sending.add(item.id));
     try {
@@ -94,9 +97,13 @@ class _RequestsPageState extends State<RequestsPage> {
     }
   }
 
+  void _openDetail(CustomsRequest item) {
+    context.push('/requests/${Uri.encodeComponent(item.id)}');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<({List<CustomsRequestSummary> items, int total})>(
+    return FutureBuilder<({List<CustomsRequest> items, int total})>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -130,6 +137,7 @@ class _RequestsPageState extends State<RequestsPage> {
               return _RequestCard(
                 item: item,
                 sending: _sending.contains(item.id),
+                onTap: () => _openDetail(item),
                 onSendTo1C: item.canSendTo1C ? () => _sendTo1C(item) : null,
                 onResendUpdateTo1C:
                     item.canResendUpdateTo1C ? () => _resendUpdateTo1C(item) : null,
@@ -146,12 +154,14 @@ class _RequestCard extends StatelessWidget {
   const _RequestCard({
     required this.item,
     required this.sending,
+    required this.onTap,
     this.onSendTo1C,
     this.onResendUpdateTo1C,
   });
 
-  final CustomsRequestSummary item;
+  final CustomsRequest item;
   final bool sending;
+  final VoidCallback onTap;
   final VoidCallback? onSendTo1C;
   final VoidCallback? onResendUpdateTo1C;
 
@@ -160,6 +170,10 @@ class _RequestCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isNew = item.status == 'new';
     final needsUpdateResend = item.oneCUpdatePending;
+    final subLabel = statusSubTypeLabel(item.statusSubType);
+    final hasSub = item.statusSubType != null &&
+        item.statusSubType!.trim().isNotEmpty &&
+        subLabel != '—';
 
     return Card(
       elevation: 0,
@@ -178,140 +192,129 @@ class _RequestCard extends StatelessWidget {
                   : const Color(0xFFE0E0E0),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.carTitle,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.carTitle,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const Gap(4),
-                      Text('№ ${item.id} · ${item.ownerFullName}'),
-                    ],
+                        const Gap(4),
+                        Text('№ ${item.id} · ${item.ownerFullName}'),
+                      ],
+                    ),
                   ),
-                ),
-                _StatusChip(status: item.status),
-              ],
-            ),
-            const Gap(8),
-            Text('VIN: ${item.vin}', style: theme.textTheme.bodySmall),
-            if (item.external1cId != null && item.external1cId!.isNotEmpty)
-              Text(
-                '1С: ${item.external1cId}',
-                style: theme.textTheme.bodySmall,
+                  RequestStatusChip(status: item.status),
+                ],
               ),
-            if (item.managerFullName != null) ...[
-              const Gap(4),
-              Text(
-                'Менеджер: ${item.managerFullName}',
-                style: theme.textTheme.bodySmall,
-              ),
-            ],
-            if (item.isTest)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Тестовая',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppTheme.accentRed,
-                  ),
-                ),
-              ),
-            if (needsUpdateResend && onSendTo1C == null) ...[
               const Gap(8),
-              Text(
-                'Изменения не доставлены в 1С',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFFC62828),
-                  fontWeight: FontWeight.w600,
+              Text('VIN: ${item.vin}', style: theme.textTheme.bodySmall),
+              if (hasSub)
+                Text(
+                  'Подстатус: $subLabel',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              if (item.external1cId != null && item.external1cId!.isNotEmpty)
+                Text(
+                  '1С: ${item.external1cId}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              if (item.managerFullName != null) ...[
+                const Gap(4),
+                Text(
+                  'Менеджер: ${item.managerFullName}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+              if (item.isTest)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Тестовая',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: AppTheme.accentRed,
+                    ),
+                  ),
+                ),
+              if (needsUpdateResend && onSendTo1C == null) ...[
+                const Gap(8),
+                Text(
+                  'Изменения не доставлены в 1С',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFFC62828),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              if (onSendTo1C != null) ...[
+                const Gap(12),
+                FilledButton.icon(
+                  onPressed: sending ? null : onSendTo1C,
+                  icon: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.cloud_upload_outlined, size: 20),
+                  label: const Text('Отправить в 1С'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                  ),
+                ),
+              ],
+              if (onResendUpdateTo1C != null) ...[
+                const Gap(12),
+                FilledButton.icon(
+                  onPressed: sending ? null : onResendUpdateTo1C,
+                  icon: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.sync_outlined, size: 20),
+                  label: const Text('Повторить update в 1С'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFC62828),
+                  ),
+                ),
+              ],
+              const Gap(4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Подробнее →',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: AppTheme.primaryBlue,
+                  ),
                 ),
               ),
             ],
-            if (onSendTo1C != null) ...[
-              const Gap(12),
-              FilledButton.icon(
-                onPressed: sending ? null : onSendTo1C,
-                icon: sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.cloud_upload_outlined, size: 20),
-                label: const Text('Отправить в 1С'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primaryBlue,
-                ),
-              ),
-            ],
-            if (onResendUpdateTo1C != null) ...[
-              const Gap(12),
-              FilledButton.icon(
-                onPressed: sending ? null : onResendUpdateTo1C,
-                icon: sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.sync_outlined, size: 20),
-                label: const Text('Повторить update в 1С'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFC62828),
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final String status;
-
-  String get _label => switch (status) {
-        'new' => 'Новая',
-        'in_progress' => 'В работе',
-        'in_transit' => 'В пути',
-        'delivered' => 'Доставлена',
-        _ => status,
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryBlue.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        _label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppTheme.primaryBlue,
-              fontWeight: FontWeight.w600,
-            ),
       ),
     );
   }

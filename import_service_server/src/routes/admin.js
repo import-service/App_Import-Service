@@ -287,6 +287,35 @@ module.exports = async function adminRoutes(fastify) {
     },
   );
 
+  fastify.get(
+    '/admin/customs-requests/:id',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      const [rows] = await fastify.pool.query(
+        `SELECT ${CUSTOMS_REQUEST_SELECT} FROM customs_requests WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      const [fileRows] = await fastify.pool.query(
+        `SELECT id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url, created_at, updated_at
+         FROM customs_request_files WHERE request_id = ? AND deleted_at IS NULL ORDER BY id ASC`,
+        [id],
+      );
+
+      return reply.send(
+        toCustomsRequestDto(fastify, request, rows[0], fileRows, detailDtoOptions),
+      );
+    },
+  );
+
   fastify.post(
     '/admin/customs-requests/:id/resend-to-1c',
     { onRequest: [fastify.authenticateAdmin] },

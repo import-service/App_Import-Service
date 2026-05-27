@@ -1,13 +1,15 @@
-import 'package:import_service_admin/domain/entities/customs_request_summary.dart';
+import 'package:import_service_admin/domain/entities/customs_request.dart';
 
 abstract class CustomsRequestsRepository {
-  Future<({List<CustomsRequestSummary> items, int total})> listRequests({
+  Future<({List<CustomsRequest> items, int total})> listRequests({
     int limit,
     int offset,
     String? status,
   });
 
-  Future<CustomsRequestSummary> resendTo1C(String id);
+  Future<CustomsRequest> getRequest(String id);
 
-  Future<CustomsRequestSummary> resendUpdateTo1C(String id);
+  Future<CustomsRequest> resendTo1C(String id);
+
+  Future<CustomsRequest> resendUpdateTo1C(String id);
 }

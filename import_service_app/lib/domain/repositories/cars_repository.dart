@@ -22,4 +22,11 @@ abstract class CarsRepository {
 
   /// Демо: подгрузить моковые заявки «как с бэка» и сохранить в локальный store.
   Future<Either<Failure, void>> bootstrapDemoRequests();
+
+  /// `POST /api/customs-requests/:id/files` — подпись (`*_sign`), чек оплаты и т.д.
+  Future<Either<Failure, CarListItem>> attachRequestFile({
+    required String requestId,
+    required String docType,
+    required String localFilePath,
+  });
 }

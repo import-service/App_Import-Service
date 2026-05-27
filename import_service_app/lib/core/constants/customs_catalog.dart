@@ -1,69 +1,45 @@
-/// Справочники заявки (синхрон с `import_service_server/src/constants/customsCatalog.js`).
+/// Справочники заявки (фасад над enum в `domain/entities/`).
 library;
 
-/// Верхний статус `statusSubType` — переподпись.
-const String kStatusSubTypeSignatureRevision = 'signature_revision_required';
+import 'package:import_service_app/domain/entities/customs_doc_type.dart';
+import 'package:import_service_app/domain/entities/deal_type.dart';
+import 'package:import_service_app/domain/entities/finance_line_type.dart';
+import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 
-/// Типы сделки (`dealType`), задаёт 1С при `in_progress`.
-const List<String> kDealTypes = [
-  'bilateral',
-  'cash',
-  'tripartite',
-  'quadripartite',
-];
+export 'package:import_service_app/domain/entities/customs_doc_type.dart';
+export 'package:import_service_app/domain/entities/deal_type.dart';
+export 'package:import_service_app/domain/entities/finance_line_type.dart';
+export 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 
-/// Обязательные `docType` при создании заявки.
-const List<String> kRequiredDocTypesOnCreate = [
-  'passport_front',
-  'passport_registration',
-  'inn',
-  'snils',
-  'invoice',
-  'contract',
-  'payment_check',
-  'car_nameplate_photo',
-  'car_mileage_photo',
-  'car_front_photo',
-  'car_back_photo',
-];
+/// @deprecated Используйте [RequestStatusSubType.signatureRevisionRequired].
+String get kStatusSubTypeSignatureRevision =>
+    RequestStatusSubType.signatureRevisionRequired.apiCode;
 
-const List<String> kOptionalDocTypesOnCreate = ['add_doc1', 'add_doc2'];
+List<String> get kDealTypes => DealType.values.map((e) => e.apiCode).toList();
 
-/// Все типы этапа «создание».
-List<String> get kCreationDocTypes => [
-      ...kRequiredDocTypesOnCreate,
-      ...kOptionalDocTypesOnCreate,
-    ];
+List<String> get kRequiredDocTypesOnCreate =>
+    CustomsDocType.requiredOnCreate.map((e) => e.apiCode).toList();
 
-/// Базовые типы пакета на подпись (оригинал из 1С или только `*_sign` от клиента).
-const List<String> kSigningBaseDocTypes = [
-  'recycling_fee_calc',
-  'kuts',
-  'explanatory_note',
-  'customs_rep_agreement',
-  'funds_transfer_application',
-  'passport_notarized_copy',
-  'receipt',
-  'additional_agreement',
-  'tripartite_agreement',
-  'quadripartite_agreement',
-  'contract',
-];
+List<String> get kOptionalDocTypesOnCreate =>
+    CustomsDocType.optionalOnCreate.map((e) => e.apiCode).toList();
 
-/// Только подпись клиента, оригинал из 1С не приходит.
-const Set<String> kClientSignOnlyDocTypes = {
-  'funds_transfer_application',
-  'passport_notarized_copy',
-};
+List<String> get kCreationDocTypes =>
+    CustomsDocType.creationTypes.map((e) => e.apiCode).toList();
 
-const List<String> kPaymentDocTypes = [
-  'payment_recycling_fee',
-  'payment_recycling_fee_receipt',
-  'payment_customs_duty',
-  'payment_customs_duty_receipt',
-];
+List<String> get kSigningBaseDocTypes =>
+    CustomsDocType.signingBaseTypes.map((e) => e.apiCode).toList();
 
-const List<String> kFinalDocTypes = ['epts', 'sbkts'];
+Set<String> get kClientSignOnlyDocTypes =>
+    CustomsDocType.clientSignOnlyTypes.map((e) => e.apiCode).toSet();
+
+List<String> get kPaymentDocTypes =>
+    CustomsDocType.paymentTypes.map((e) => e.apiCode).toList();
+
+List<String> get kTransitArchiveDocTypes =>
+    CustomsDocType.transitArchiveTypes.map((e) => e.apiCode).toList();
+
+List<String> get kFinalDocTypes =>
+    CustomsDocType.finalTypes.map((e) => e.apiCode).toList();
 
 enum CustomsDocCategory {
   creation,
@@ -74,54 +50,69 @@ enum CustomsDocCategory {
 }
 
 CustomsDocCategory docCategoryFor(String? rawDocType) {
-  final code = normalizeDocType(rawDocType);
-  if (code.isEmpty) return CustomsDocCategory.other;
-  if (code.endsWith('_sign')) return CustomsDocCategory.signing;
-  if (kCreationDocTypes.contains(code)) return CustomsDocCategory.creation;
-  if (kSigningBaseDocTypes.contains(code)) return CustomsDocCategory.signing;
-  if (kPaymentDocTypes.contains(code)) return CustomsDocCategory.payment;
-  if (kFinalDocTypes.contains(code)) return CustomsDocCategory.finalDoc;
+  final (type, signed) = CustomsDocType.parseWithSign(rawDocType);
+  if (type == null) return CustomsDocCategory.other;
+  if (signed) return CustomsDocCategory.signing;
+  if (type.isCreation) return CustomsDocCategory.creation;
+  if (type.isSigningBase) return CustomsDocCategory.signing;
+  if (type.isPayment) return CustomsDocCategory.payment;
+  if (type.isTransitArchive) return CustomsDocCategory.other;
+  if (type.isFinal) return CustomsDocCategory.finalDoc;
   return CustomsDocCategory.other;
 }
 
-String normalizeDocType(String? raw) {
-  final code = (raw ?? '').trim();
-  if (code.isEmpty) return '';
-  switch (code) {
-    case 'title_doc':
-      return 'invoice';
-    case 'transport_application':
-      return 'funds_transfer_application';
-    default:
-      return code;
-  }
+bool isTransitArchiveDocType(String? docType) {
+  final (type, _) = CustomsDocType.parseWithSign(docType);
+  return type?.isTransitArchive ?? false;
 }
 
+bool isFinalDocType(String? docType) {
+  final (type, _) = CustomsDocType.parseWithSign(docType);
+  return type?.isFinal ?? false;
+}
+
+String normalizeDocType(String? raw) => CustomsDocType.normalizeCode(raw);
+
 String signedDocType(String baseDocType) {
-  final base = normalizeDocType(baseDocType);
-  if (base.isEmpty || base.endsWith('_sign')) return base;
-  return '${base}_sign';
+  final type = CustomsDocType.tryParse(baseDocType);
+  if (type == null) return normalizeDocType(baseDocType);
+  return type.signedApiCode;
 }
 
 bool isSignedDocType(String? docType) {
-  return normalizeDocType(docType).endsWith('_sign');
+  return CustomsDocType.parseWithSign(docType).$2;
 }
 
 String baseDocTypeFromSigned(String? signedType) {
-  final s = normalizeDocType(signedType);
-  if (!s.endsWith('_sign')) return s;
-  return s.substring(0, s.length - 5);
+  final (type, signed) = CustomsDocType.parseWithSign(signedType);
+  if (!signed || type == null) return normalizeDocType(signedType);
+  return type.apiCode;
 }
 
 bool isCreationDocType(String? docType) {
-  return kCreationDocTypes.contains(normalizeDocType(docType));
+  final (type, signed) = CustomsDocType.parseWithSign(docType);
+  return !signed && (type?.isCreation ?? false);
 }
 
 bool isSigningBaseDocType(String? docType) {
-  final n = normalizeDocType(docType);
-  return kSigningBaseDocTypes.contains(n);
+  final (type, signed) = CustomsDocType.parseWithSign(docType);
+  return !signed && (type?.isSigningBase ?? false);
 }
 
 bool isClientSignOnlyDocType(String? docType) {
-  return kClientSignOnlyDocTypes.contains(normalizeDocType(docType));
+  final (type, signed) = CustomsDocType.parseWithSign(docType);
+  return !signed && (type?.isClientSignOnly ?? false);
+}
+
+String? receiptDocTypeForFinanceLineType(String? lineType) {
+  return FinanceLineType.tryParse(lineType)?.receiptDocType?.apiCode;
+}
+
+String? receiptDocTypeForPaymentFee(String? feeDocType) {
+  final type = CustomsDocType.tryParse(feeDocType);
+  return switch (type) {
+    CustomsDocType.paymentRecyclingFee => CustomsDocType.paymentRecyclingFeeReceipt.apiCode,
+    CustomsDocType.paymentCustomsDuty => CustomsDocType.paymentCustomsDutyReceipt.apiCode,
+    _ => null,
+  };
 }

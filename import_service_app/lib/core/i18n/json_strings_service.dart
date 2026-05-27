@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/services.dart';
+import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 
 /// Загрузка строк из `assets/i18n/<lang>.json`.
 ///
@@ -87,10 +88,32 @@ final class JsonStringsService {
   String get requestFilesSectionCreation => text('requestFilesSectionCreation');
   String get requestFilesSectionSigning => text('requestFilesSectionSigning');
   String get requestFilesSectionPayment => text('requestFilesSectionPayment');
+  String get requestFilesSectionTransitArchive => text('requestFilesSectionTransitArchive');
+  String get requestFilesSectionFinal => text('requestFilesSectionFinal');
   String get requestFilesSectionOther => text('requestFilesSectionOther');
+  String get requestDetailDocumentsTitle => text('requestDetailDocumentsTitle');
   String get requestFileNeedsSignature => text('requestFileNeedsSignature');
+  String get requestUploadSignedButton => text('requestUploadSignedButton');
+  String get requestUploadSignedAgain => text('requestUploadSignedAgain');
+  String get requestFileAttachSuccess => text('requestFileAttachSuccess');
+  String get requestHintSignatureRevision => text('requestHintSignatureRevision');
+  String get requestHintSignDocuments => text('requestHintSignDocuments');
+  String get requestHintUploadReceipt => text('requestHintUploadReceipt');
+  String get requestHintUploadReceiptShort => text('requestHintUploadReceiptShort');
+  String get requestHintOriginalsToOffice => text('requestHintOriginalsToOffice');
+  String get requestHintProcessingAtCustoms => text('requestHintProcessingAtCustoms');
+  String get requestHintIssuedToClient => text('requestHintIssuedToClient');
+  String get requestHintRequestClosed => text('requestHintRequestClosed');
+  String get requestDocumentOpenFailed => text('requestDocumentOpenFailed');
+  String get requestPickDocumentTitle => text('requestPickDocumentTitle');
+  String get requestPickDocumentPhoto => text('requestPickDocumentPhoto');
+  String get requestPickDocumentPdf => text('requestPickDocumentPdf');
   String get requestDocSignedSuffix => text('requestDocSignedSuffix');
   String get requestFileGeneric => text('requestFileGeneric');
+
+  /// Подпись [RequestStatusSubType] для UI (`statusSubType_<apiCode>` в JSON).
+  String statusSubTypeLabel(RequestStatusSubType sub) =>
+      text('statusSubType_${sub.apiCode}');
   String get requestDetailNotFound => text('requestDetailNotFound');
   String get requestDetailStatusLabel => text('requestDetailStatusLabel');
   String get requestDocumentPack => text('requestDocumentPack');
@@ -106,6 +129,7 @@ final class JsonStringsService {
   String get requestDetailPhoto => text('requestDetailPhoto');
   String get requestDetailServerFiles => text('requestDetailServerFiles');
   String get requestDetailUploadReceipt => text('requestDetailUploadReceipt');
+  String get requestDetailUploadReceiptAgain => text('requestDetailUploadReceiptAgain');
   String get requestDetailOpenReceipt => text('requestDetailOpenReceipt');
   String get requestDetailReceiptCaption => text('requestDetailReceiptCaption');
   String get requestDetailTransitSubStatusLoading => text('requestDetailTransitSubStatusLoading');

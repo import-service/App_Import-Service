@@ -17,6 +17,7 @@ alwaysApply: true
 
 | Что | Где |
 |-----|-----|
+| Enum `docType` / подстатус / сделка | `lib/domain/entities/customs_doc_type.dart`, `request_status_sub_type.dart`, `deal_type.dart`, `finance_line_type.dart` |
 | Форма заявки (DTO + JSON) | `lib/data/models/request_form_model.dart` |
 | Черновик заявки | `lib/data/models/request_draft.dart` |
 | Хранилище черновиков (SharedPreferences) | `lib/data/local/request_draft_store.dart` |
@@ -66,6 +67,10 @@ alwaysApply: true
 | `presentation/widgets/requests/request_detail_finance_card.dart` | Финансы: сумма, заглушки квитанция/QR, кнопка (демо) |
 | `presentation/widgets/requests/request_detail_photo_placeholders_row.dart` | Ряд плиток-заглушек вместо фото авто |
 | `presentation/widgets/requests/request_detail_files_sections.dart` | Секции файлов заявки: подача, подпись, оплата |
+| `presentation/widgets/requests/request_detail_file_upload_chip.dart` | Загрузка подписи/чека на деталке |
+| `presentation/helpers/request_file_picker.dart` | Фото/PDF для загрузки на деталке |
+| `presentation/helpers/request_status_action_hint.dart` | Подсказки по statusSubType на деталке |
+| `presentation/widgets/requests/request_detail_action_hint_banner.dart` | Баннер подсказки на деталке |
 | `core/constants/customs_catalog.dart` | Справочник docType / подстатусов (синхрон с сервером) |
 | `domain/services/request_files_grouper.dart` | Группировка `files[]`, пары `*_sign`, нужность подписи |
 | `presentation/helpers/doc_type_labels.dart` | Подписи docType для UI |

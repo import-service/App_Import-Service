@@ -1,78 +1,102 @@
-import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
+import 'package:import_service_app/domain/entities/customs_doc_type.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 
 String docTypeLabel(CustomsRequestFile file, JsonStringsService s) {
-  final code = normalizeDocType(file.docType);
-  if (isSignedDocType(code)) {
-    final base = baseDocTypeFromSigned(code);
-    return '${docTypeLabelForCode(base, s)} (${s.requestDocSignedSuffix})';
+  final (type, signed) = CustomsDocType.parseWithSign(file.docType);
+  if (type == null) {
+    final name = file.fileName?.trim() ?? '';
+    return name.isNotEmpty ? name : s.requestFileGeneric;
   }
-  return docTypeLabelForCode(code, s, fileName: file.fileName);
+  if (signed) {
+    return '${docTypeLabelForType(type, s)} (${s.requestDocSignedSuffix})';
+  }
+  return docTypeLabelForType(type, s, fileName: file.fileName);
 }
 
 String docTypeLabelForCode(String code, JsonStringsService s, {String? fileName}) {
-  switch (code) {
-    case 'passport_front':
+  final (type, signed) = CustomsDocType.parseWithSign(code);
+  if (type == null) {
+    final name = fileName?.trim() ?? '';
+    return name.isNotEmpty ? name : s.requestFileGeneric;
+  }
+  if (signed) {
+    return '${docTypeLabelForType(type, s)} (${s.requestDocSignedSuffix})';
+  }
+  return docTypeLabelForType(type, s, fileName: fileName);
+}
+
+String docTypeLabelForType(CustomsDocType type, JsonStringsService s, {String? fileName}) {
+  switch (type) {
+    case CustomsDocType.passportFront:
       return s.text('reqPassportFrontLabel');
-    case 'passport_registration':
+    case CustomsDocType.passportRegistration:
       return s.text('reqPassportAddressLabel');
-    case 'inn':
+    case CustomsDocType.inn:
       return s.text('reqInnFileLabel');
-    case 'snils':
+    case CustomsDocType.snils:
       return s.text('reqSnilsFileLabel');
-    case 'invoice':
+    case CustomsDocType.invoice:
       return s.text('reqInvoiceFileLabel');
-    case 'contract':
+    case CustomsDocType.contract:
       return s.text('reqContractFileLabel');
-    case 'payment_check':
+    case CustomsDocType.paymentCheck:
       return s.text('reqPaymentReceiptFileLabel');
-    case 'car_nameplate_photo':
+    case CustomsDocType.carNameplatePhoto:
       return s.text('reqVinPlateFileLabel');
-    case 'car_mileage_photo':
+    case CustomsDocType.carMileagePhoto:
       return s.text('reqOdometerFileLabel');
-    case 'car_front_photo':
+    case CustomsDocType.carFrontPhoto:
       return s.text('reqCarFrontFileLabel');
-    case 'car_back_photo':
+    case CustomsDocType.carBackPhoto:
       return s.text('reqCarRearFileLabel');
-    case 'add_doc1':
+    case CustomsDocType.addDoc1:
       return s.text('reqAdditionalFile1Label');
-    case 'add_doc2':
+    case CustomsDocType.addDoc2:
       return s.text('reqAdditionalFile2Label');
-    case 'recycling_fee_calc':
+    case CustomsDocType.recyclingFeeCalc:
       return s.text('docRecyclingFeeCalc');
-    case 'kuts':
+    case CustomsDocType.kuts:
       return s.text('docKuts');
-    case 'explanatory_note':
+    case CustomsDocType.explanatoryNote:
       return s.text('docExplanatoryNote');
-    case 'customs_rep_agreement':
+    case CustomsDocType.customsRepAgreement:
       return s.text('docCustomsRepAgreement');
-    case 'funds_transfer_application':
+    case CustomsDocType.fundsTransferApplication:
       return s.text('docFundsTransferApplication');
-    case 'passport_notarized_copy':
+    case CustomsDocType.passportNotarizedCopy:
       return s.text('docPassportNotarizedCopy');
-    case 'receipt':
+    case CustomsDocType.receipt:
       return s.text('docReceipt');
-    case 'additional_agreement':
+    case CustomsDocType.additionalAgreement:
       return s.text('docAdditionalAgreement');
-    case 'tripartite_agreement':
+    case CustomsDocType.tripartiteAgreement:
       return s.text('docTripartiteAgreement');
-    case 'quadripartite_agreement':
+    case CustomsDocType.quadripartiteAgreement:
       return s.text('docQuadripartiteAgreement');
-    case 'payment_recycling_fee':
+    case CustomsDocType.paymentRecyclingFee:
       return s.text('docPaymentRecyclingFee');
-    case 'payment_recycling_fee_receipt':
+    case CustomsDocType.paymentRecyclingFeeReceipt:
       return s.text('docPaymentRecyclingFeeReceipt');
-    case 'payment_customs_duty':
+    case CustomsDocType.paymentCustomsDuty:
       return s.text('docPaymentCustomsDuty');
-    case 'payment_customs_duty_receipt':
+    case CustomsDocType.paymentCustomsDutyReceipt:
       return s.text('docPaymentCustomsDutyReceipt');
-    case 'epts':
+    case CustomsDocType.epts:
       return s.text('docEpts');
-    case 'sbkts':
+    case CustomsDocType.sbkts:
       return s.text('docSbcts');
-    default:
-      final name = fileName?.trim() ?? '';
-      return name.isNotEmpty ? name : s.text('requestFileGeneric');
+    case CustomsDocType.tpo:
+      return s.text('docTpo');
+    case CustomsDocType.ptd:
+      return s.text('docPtd');
+    case CustomsDocType.transitArchive:
+      return s.text('docTransitArchive');
+    case CustomsDocType.transitArchivePhoto:
+      return s.text('docTransitArchivePhoto');
+    case CustomsDocType.transitArchiveVideo:
+      return s.text('docTransitArchiveVideo');
+    case CustomsDocType.uploadedFile:
+      return s.text('docUploadedFile');
   }
 }

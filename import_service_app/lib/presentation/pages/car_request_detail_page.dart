@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/extensions/navigation_context.dart';
@@ -21,11 +25,13 @@ import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_ap
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_line_labels.dart';
+import 'package:import_service_app/presentation/helpers/request_status_action_hint.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
+import 'package:import_service_app/presentation/helpers/request_status_sub_type_labels.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_files_sections.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_deliverable_doc_row.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_finance_card.dart';
-import 'package:import_service_app/presentation/widgets/requests/request_detail_photo_urls_row.dart';
+import 'package:import_service_app/presentation/helpers/request_file_picker.dart';
 
 /// Детализация заявки. Чат — после появления [CarListItem.external1cId].
 class CarRequestDetailPage extends StatefulWidget {
@@ -38,6 +44,8 @@ class CarRequestDetailPage extends StatefulWidget {
 }
 
 class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
+  String? _uploadingDocType;
+
   @override
   void initState() {
     super.initState();
@@ -51,10 +59,30 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     });
   }
 
-  void _onDemoBlock() {
+  void _onDocumentOpenFailed() {
     sl<AppFeedbackService>().show(
-      sl<JsonStringsService>().demoActionUnavailable,
-      kind: AppFeedbackKind.warning,
+      sl<JsonStringsService>().requestDocumentOpenFailed,
+      kind: AppFeedbackKind.error,
+    );
+  }
+
+  Future<void> _attachDocType(String docType, CarListItem item) async {
+    if (_uploadingDocType != null) return;
+    final path = await pickRequestDocumentPath(context);
+    if (!mounted || path == null || path.isEmpty) return;
+    setState(() => _uploadingDocType = docType);
+    final result = await sl<CarsRepository>().attachRequestFile(
+      requestId: item.id,
+      docType: docType,
+      localFilePath: path,
+    );
+    if (!mounted) return;
+    setState(() => _uploadingDocType = null);
+    final feedback = sl<AppFeedbackService>();
+    final s = sl<JsonStringsService>();
+    result.fold(
+      (failure) => feedback.show(failure.message, kind: AppFeedbackKind.error),
+      (_) => feedback.show(s.requestFileAttachSuccess, kind: AppFeedbackKind.success),
     );
   }
 
@@ -66,8 +94,15 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     String? badge,
   }) {
     final title = docTypeLabel(f, sl<JsonStringsService>());
-    final url = _resolveFileUrl(f.fileUrl);
-    final tappable = url != null && url.isNotEmpty;
+    final rawPath = f.fileUrl?.trim();
+    final localFile = rawPath != null &&
+            rawPath.isNotEmpty &&
+            !rawPath.startsWith('http') &&
+            File(rawPath).existsSync()
+        ? File(rawPath)
+        : null;
+    final url = localFile == null ? _resolveFileUrl(f.fileUrl) : null;
+    final tappable = localFile != null || (url != null && url.isNotEmpty);
     final token = sl<AuthSessionController>().accessToken?.trim();
     final headers = (token != null && token.isNotEmpty)
         ? <String, String>{'Authorization': 'Bearer $token'}
@@ -99,16 +134,26 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                     border: Border.all(color: borderColor),
                   ),
                   child: tappable
-                      ? Image.network(
-                          url,
-                          headers: headers,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Icon(
-                            Icons.insert_drive_file_outlined,
-                            size: 24,
-                            color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                          ),
-                        )
+                      ? localFile != null
+                          ? Image.file(
+                              localFile,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Icon(
+                                Icons.insert_drive_file_outlined,
+                                size: 24,
+                                color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                              ),
+                            )
+                          : Image.network(
+                              url!,
+                              headers: headers,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Icon(
+                                Icons.insert_drive_file_outlined,
+                                size: 24,
+                                color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                              ),
+                            )
                       : Icon(
                           Icons.insert_drive_file_outlined,
                           size: 24,
@@ -169,6 +214,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     required CarListItem item,
   }) {
     final chipText = requestStatusLabel(item.status, s);
+    final subTypeLabel = requestStatusSubTypeLabel(item.statusSubType, s);
     final statusDateText = _statusDateText(item);
 
     final out = <Widget>[
@@ -176,19 +222,34 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              runSpacing: 6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  s.requestDetailStatusLabel,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 6,
+                  children: [
+                    Text(
+                      s.requestDetailStatusLabel,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    RequestStatusPill(label: chipText),
+                  ],
                 ),
-                RequestStatusPill(label: chipText),
+                if (subTypeLabel != null) ...[
+                  const Gap(6),
+                  Text(
+                    subTypeLabel,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textSecondary,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -207,23 +268,6 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       ),
       const Gap(20),
     ];
-
-    for (var i = 0; i < item.deliveredDocuments.length; i++) {
-      final d = item.deliveredDocuments[i];
-      out.add(
-        RequestDetailDeliverableDocRow(
-          title: d.title,
-          downloadUrl: d.downloadUrl,
-          onOpenFailed: () async => _onDemoBlock(),
-        ),
-      );
-      if (i < item.deliveredDocuments.length - 1) {
-        out.add(const Gap(8));
-      }
-    }
-    if (item.deliveredDocuments.isNotEmpty) {
-      out.add(const Gap(20));
-    }
 
     out
       ..add(
@@ -290,9 +334,15 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             line: line,
             label: financeItemLabel(line, s),
             receiptCaption: s.requestDetailReceiptCaption,
-            uploadLabel: s.requestDetailUploadReceipt,
+            uploadLabel: (line.receiptUrl != null && line.receiptUrl!.trim().isNotEmpty)
+                ? s.requestDetailUploadReceiptAgain
+                : s.requestDetailUploadReceipt,
             openReceiptLabel: s.requestDetailOpenReceipt,
-            onUploadTap: _onDemoBlock,
+            onUploadTap: () {
+              final docType = receiptDocTypeForFinanceLineType(line.lineType);
+              if (docType == null) return;
+              _attachDocType(docType, item);
+            },
           ),
         );
         if (i < item.financeItems.length - 1) {
@@ -302,12 +352,12 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       out.add(const Gap(20));
     }
 
-    if (sl<AuthSessionController>().isDemo && item.vehiclePhotoUrls.isNotEmpty) {
+    if (requestDetailShouldShowDocumentsBlock(item, s)) {
       out
         ..add(const Gap(24))
         ..add(
           Text(
-            s.requestDetailPhoto,
+            s.requestDetailDocumentsTitle,
             style: theme.textTheme.titleMedium?.copyWith(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.w600,
@@ -316,19 +366,16 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         )
         ..add(const Gap(10))
         ..add(
-          RequestDetailPhotoUrlsRow(
-            urls: item.vehiclePhotoUrls,
-            onTileTap: (_) => _onDemoBlock(),
-          ),
-        );
-    }
-
-    if (item.files.isNotEmpty) {
-      out
-        ..add(const Gap(24))
-        ..add(
           RequestDetailFilesSections(
             item: item,
+            uploadingDocType: _uploadingDocType,
+            onUploadDocType: (docType) => _attachDocType(docType, item),
+            onTransitPhotoTap: (url) => _openExternalUrl(url),
+            buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
+              title: d.title,
+              downloadUrl: d.downloadUrl,
+              onOpenFailed: () async => _onDocumentOpenFailed(),
+            ),
             buildFileRow: (f, {required highlight, badge}) {
               final index = item.files.indexWhere(
                 (e) => e.docType == f.docType && e.fileUrl == f.fileUrl,
@@ -351,6 +398,19 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       ),
     );
     return out;
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      _onDocumentOpenFailed();
+      return;
+    }
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      _onDocumentOpenFailed();
+    }
   }
 
   void _openFilesCarousel(List<CustomsRequestFile> files, int selectedIndex) {
@@ -429,14 +489,25 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-        children: _buildScrollChildren(
-          context: context,
-          s: s,
-          theme: theme,
-          item: item,
-        ),
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            children: _buildScrollChildren(
+              context: context,
+              s: s,
+              theme: theme,
+              item: item,
+            ),
+          ),
+          if (_uploadingDocType != null)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x44000000),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+        ],
       ),
     );
   }

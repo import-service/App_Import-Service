@@ -249,7 +249,7 @@ final class CustomsRequestsRemoteDataSource {
     final file = File(source);
     if (!await file.exists()) return null;
     final ext = _extension(source);
-    final fileUrl = await _uploadFileAndGetUrl(
+    final fileUrl = await uploadFileAndGetUrl(
       filePath: source,
       fileName: _fileName(source),
       mimeType: _mimeByExtension(ext),
@@ -262,7 +262,45 @@ final class CustomsRequestsRemoteDataSource {
     };
   }
 
-  Future<String> _uploadFileAndGetUrl({
+  /// Загрузить файл и привязать к заявке; возвращает обновлённую заявку.
+  Future<CarListItem> attachRequestFiles({
+    required String requestId,
+    required List<({String docType, String localPath})> items,
+  }) async {
+    if (items.isEmpty) {
+      throw const UnknownServerException('Нет файлов для прикрепления');
+    }
+    final files = <Map<String, dynamic>>[];
+    for (final e in items) {
+      final entry = await _buildFileEntry(docType: e.docType, source: e.localPath);
+      if (entry != null) {
+        files.add(entry);
+      }
+    }
+    if (files.isEmpty) {
+      throw const UnknownServerException('Не удалось подготовить файлы');
+    }
+    final path = 'customs-requests/${Uri.encodeComponent(requestId)}/files';
+    try {
+      final response = await _dio.post<dynamic>(path, data: <String, dynamic>{'files': files});
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Invalid attach files response');
+      }
+      return _toCarListItem(data);
+    } on DioException catch (e, st) {
+      final mapped = ErrorHandler.handle(e);
+      AppLog.error(
+        'Attach files failed: $path',
+        tag: 'CustomsRequestsRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw mapped;
+    }
+  }
+
+  Future<String> uploadFileAndGetUrl({
     required String filePath,
     required String fileName,
     required String mimeType,

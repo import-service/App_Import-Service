@@ -92,8 +92,21 @@ final class DefaultCarsSeed {
           paymentQrUrl: 'https://www.example.com/pay/ut',
         ),
       ],
-      vehiclePhotoUrls: <String>[],
+      vehiclePhotoUrls: [
+        '$_demoFileBase/transit-photo-1.jpg',
+        '$_demoFileBase/transit-photo-2.jpg',
+      ],
       files: [
+        CustomsRequestFile(
+          docType: 'transit_archive_photo',
+          fileName: 'transit-1.jpg',
+          fileUrl: '$_demoFileBase/transit-archive-1.jpg',
+        ),
+        CustomsRequestFile(
+          docType: 'transit_archive_video',
+          fileName: 'transit.mp4',
+          fileUrl: '$_demoFileBase/transit-archive.mp4',
+        ),
         CustomsRequestFile(
           docType: 'contract_sign',
           fileName: 'contract-signed.pdf',

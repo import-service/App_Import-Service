@@ -1,7 +1,7 @@
 import 'package:import_service_admin/core/constants/app_config.dart';
 import 'package:import_service_admin/data/datasources/mock/customs_requests_mock_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/customs_requests_remote_data_source.dart';
-import 'package:import_service_admin/domain/entities/customs_request_summary.dart';
+import 'package:import_service_admin/domain/entities/customs_request.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
 
 class CustomsRequestsRepositoryImpl implements CustomsRequestsRepository {
@@ -15,7 +15,7 @@ class CustomsRequestsRepositoryImpl implements CustomsRequestsRepository {
   final CustomsRequestsMockDataSource _mock;
 
   @override
-  Future<({List<CustomsRequestSummary> items, int total})> listRequests({
+  Future<({List<CustomsRequest> items, int total})> listRequests({
     int limit = 100,
     int offset = 0,
     String? status,
@@ -36,7 +36,15 @@ class CustomsRequestsRepositoryImpl implements CustomsRequestsRepository {
   }
 
   @override
-  Future<CustomsRequestSummary> resendTo1C(String id) {
+  Future<CustomsRequest> getRequest(String id) {
+    if (AppConfig.useMockApi) {
+      return _mock.getRequest(id);
+    }
+    return _remote.getRequest(id);
+  }
+
+  @override
+  Future<CustomsRequest> resendTo1C(String id) {
     if (AppConfig.useMockApi) {
       throw UnsupportedError('resendTo1C недоступен в режиме моков');
     }
@@ -44,7 +52,7 @@ class CustomsRequestsRepositoryImpl implements CustomsRequestsRepository {
   }
 
   @override
-  Future<CustomsRequestSummary> resendUpdateTo1C(String id) {
+  Future<CustomsRequest> resendUpdateTo1C(String id) {
     if (AppConfig.useMockApi) {
       throw UnsupportedError('resendUpdateTo1C недоступен в режиме моков');
     }
