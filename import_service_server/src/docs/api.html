@@ -18,6 +18,9 @@
     .tab.active { background: #111827; color: #fff; border-color: #111827; }
     .panel { display: none; }
     .panel.active { display: block; }
+    .panel-intro { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 14px; }
+    .panel-intro strong { color: #1e3a8a; }
+    .panel-intro a { color: #1d4ed8; }
     .group { margin-bottom: 18px; }
     .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 14px; }
     .summary { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; }
@@ -53,18 +56,20 @@
     <p class="base-url"><b>WebSocket (чат):</b> <code>{{WS_BASE_URL}}</code></p>
 
     <div class="tabs">
-      <button class="tab active" data-tab="app">API приложения</button>
-      <button class="tab" data-tab="onec">API 1С</button>
+      <button class="tab" data-tab="app">API приложения</button>
+      <button class="tab" data-tab="integration">API для 1С</button>
+      <button class="tab" data-tab="onec">API 1С (внешний HTTP)</button>
+      <button class="tab" data-tab="catalogs">Справочники</button>
       <button class="tab" data-tab="admin">API админки</button>
       <button class="tab" data-tab="tz">ТЗ</button>
     </div>
 
-    <section id="panel-app" class="panel active">
+    <section id="panel-app" class="panel">
 
       <section class="group">
         <h2>Авторизация</h2>
         <details class="card">
-          <summary class="summary"><span class="method get">GET</span><code class="path">/api/version</code><span class="desc">Проверка версии и имени backend.</span></summary>
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/version</code><span class="desc">Проверка версии и имени сервера.</span></summary>
           <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>{}</pre><p><b>Success:</b></p><pre>{
   "name": "import-service-server",
   "version": "0.1.1",
@@ -440,11 +445,14 @@
     </section>
 
     <section id="panel-onec" class="panel">
+      <div class="panel-intro">
+        <strong>Направление: сервер → 1С.</strong> Описаны внешние HTTP-методы, реализуемые на стороне 1С. URL и Bearer задаются в админке (<code>PUT /api/admin/settings/one-c-request-create</code>). Входящие вызовы 1С к серверу описаны во вкладке <a href="/docs/integration">API для 1С</a>.
+      </div>
 
       <section class="group">
         <h2>Исходящее создание заявки (HTTP на стороне 1С)</h2>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">URL из админки</code><span class="desc">Backend шлёт заявку после POST /api/customs-requests.</span></summary>
+          <summary class="summary"><span class="method post">POST</span><code class="path">URL из админки</code><span class="desc">Сервер отправляет заявку после POST /api/customs-requests.</span></summary>
           <div class="body"><p>URL и Bearer задаются в <code>PUT /api/admin/settings/one-c-request-create</code>. Тело — как у приложения + <code>requestId</code>.</p><p><b>Request (пример):</b></p><pre>{
   "requestId": 123,
   "legalEntityName": "ООО Вектор",
@@ -480,15 +488,15 @@
       <section class="group">
         <h2>Исходящий update заявки (HTTP на стороне 1С)</h2>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">…/customs-request-update</code><span class="desc">Сервер шлёт изменения после state / подписи из МП.</span></summary>
+          <summary class="summary"><span class="method post">POST</span><code class="path">…/customs-request-update</code><span class="desc">Сервер шлёт изменения после подписи из МП.</span></summary>
           <div class="body">
             <p><b>Auth:</b> тот же Bearer, что для создания — из <code>PUT /api/admin/settings/one-c-request-create</code> (<code>oneCRequestCreateBearerToken</code>).</p>
             <p><b>URL:</b> из <code>oneCRequestCreateUrl</code> в тех же настройках. Путь update:</p>
             <ul>
-              <li>в админке <code>…/customs-request</code> → шлём на <code>…/customs-request-update</code></li>
-              <li>если уже <code>…/customs-request-update</code> — без изменений</li>
+              <li>при значении <code>…/customs-request</code> сервер направляет запрос на <code>…/customs-request-update</code></li>
+              <li>при значении <code>…/customs-request-update</code> URL используется без модификации</li>
             </ul>
-            <p><b>Когда вызываем:</b> после <code>POST /api/integration/customs-requests/state</code> (наша сторона) и после <code>POST /api/customs-requests/:id/files</code> (подпись <code>*_sign</code> из МП).</p>
+            <p><b>Когда вызывается:</b> после <code>POST /api/customs-requests/:id/files</code> (подпись <code>*_sign</code> из МП). После входящего <code>state</code> от 1С update не отправляется.</p>
             <p><b>Request (пример, зеркало <code>state</code>):</b></p><pre>{
   "requestId": 123,
   "external1cId": "GUID-REQUEST-1C",
@@ -508,13 +516,19 @@
   ],
   "source": "import_service_server"
 }</pre>
-            <p>Минимум: <code>external1cId</code> + хотя бы одно изменённое поле. Полный список полей — как в <code>POST /api/integration/customs-requests/state</code> (см. ниже).</p>
+            <p>Минимальный набор: <code>external1cId</code> и не менее одного измененного поля. Полный состав полей соответствует <code>POST /api/integration/customs-requests/state</code> (вкладка <a href="/docs/integration">API для 1С</a>).</p>
           </div>
         </details>
       </section>
+    </section>
+
+    <section id="panel-catalogs" class="panel">
+      <div class="panel-intro">
+        <strong>Общие коды</strong> для <code>state</code>, МП и исходящего update в 1С: статусы, подстатусы, <code>dealType</code>, <code>docType</code>.
+      </div>
 
       <section class="group">
-        <h2>Справочники для state (статусы, подстатусы, тип сделки)</h2>
+        <h2>Справочники (статусы, подстатусы, тип сделки, docType)</h2>
         <details class="card" open>
           <summary class="summary"><span class="method get">ENUM</span><code class="path">status</code><span class="desc">Верхний уровень заявки (поле state).</span></summary>
           <div class="body">
@@ -546,7 +560,7 @@
           </div>
         </details>
         <details class="card" open>
-          <summary class="summary"><span class="method get">ENUM</span><code class="path">statusSubType</code><span class="desc">Подстатусы 1С — как на скрине настройки.</span></summary>
+          <summary class="summary"><span class="method get">ENUM</span><code class="path">statusSubType</code><span class="desc">Подстатусы 1С согласно утвержденному справочнику.</span></summary>
           <div class="body">
             <p>1С передаёт <b>код</b> в <code>state.statusSubType</code>. Полный справочник: <code>docs/catalog-reference.md</code>.</p>
             <table class="enum">
@@ -615,12 +629,18 @@
           </div>
         </details>
       </section>
+    </section>
+
+    <section id="panel-integration" class="panel">
+      <div class="panel-intro">
+        <strong>Направление: 1С → сервер.</strong> Эндпоинты на <code>{{BASE_URL}}</code> с интеграционным Bearer. Исходящие вызовы к HTTP 1С описаны во вкладке <a href="/docs/onec">API 1С (внешний HTTP)</a>. Коды полей приведены во вкладке <a href="/docs/catalogs">Справочники</a>.
+      </div>
 
       <section class="group">
-        <h2>Организации (интеграция 1С)</h2>
+        <h2>Организации и заявки (интеграция 1С)</h2>
         <details class="card">
           <summary class="summary"><span class="method post">AUTH</span><code class="path">Authorization для 1С</code><span class="desc">Интеграционный Bearer-токен (значение не выводится на страницу).</span></summary>
-          <div class="body"><p>Все запросы раздела <b>API 1С</b> ниже выполняйте с заголовком:</p><pre>Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre><p>Токен задаётся на сервере в переменной окружения <code>INTEGRATION_BEARER_TOKEN</code> (см. <code>.env.example</code> в репозитории сервера).</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
+          <div class="body"><p>Все запросы вкладки <b>API для 1С</b> выполняйте с заголовком:</p><pre>Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre><p>Токен задаётся на сервере в переменной окружения <code>INTEGRATION_BEARER_TOKEN</code> (см. <code>.env.example</code> в репозитории сервера).</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/organizations</code><span class="desc">Создать/обновить одну организацию из 1С.</span></summary>
@@ -669,7 +689,7 @@
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-requests/state</code><span class="desc">Обновление заявки: статус, подстатус, dealType, signingFiles, менеджер.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Направление:</b> 1С → наш сервер (1С реализует у себя HTTP-клиент на этот URL или мы опрашиваем — договорённость с командой 1С).</p><p><b>Обязательно:</b> <code>external1cId</code>. Остальные поля — частичное обновление.</p><p><b>Request:</b></p><pre>{
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Направление:</b> 1С → сервер. 1С выполняет вызов данного HTTP-метода.</p><p><b>Обязательно:</b> <code>external1cId</code>. Остальные поля передаются как частичное обновление.</p><p><b>Request:</b></p><pre>{
   "external1cId": "GUID-REQUEST-1C",
   "status": "in_progress",
   "dealType": "bilateral",
@@ -954,7 +974,7 @@ sequenceDiagram
 
             <p><b>Статусы (отображение в МП):</b></p>
             <ul>
-              <li><code>new</code> — Новая (пока 1С не ответила)</li>
+              <li><code>new</code> — Новая (до получения ответа 1С)</li>
               <li><code>on_review</code> — На рассмотрении (1С ответила, менеджера ещё нет)</li>
               <li><code>in_progress</code> — В работе (появился менеджер)</li>
               <li><code>in_transit</code> — В пути</li>
@@ -999,7 +1019,7 @@ sequenceDiagram
             <ul>
               <li>Обязательно: <code>external1cId</code></li>
               <li><code>status</code>, <code>statusSubType</code>, <code>statusSubTypeDateTime</code></li>
-              <li><code>dealType</code> — при переводе в работу (см. enum на вкладке API 1С)</li>
+              <li><code>dealType</code> — при переводе в работу (см. <a href="/docs/catalogs">Справочники</a>)</li>
               <li><code>managerExternal1cId</code>, <code>managerFullName</code></li>
               <li>Цепочка: <code>new</code> → (ответ создания) <code>on_review</code> → (менеджер) <code>in_progress</code></li>
               <li>Возврат подписей: <code>statusSubType: signature_revision_required</code></li>
@@ -1012,7 +1032,7 @@ sequenceDiagram
               <li>После подписи пользователь загружает файлы в МП, сервер пересылает результаты в 1С (через загрузки по <code>docType</code>).</li>
             </ul>
 
-            <p><b>Справочники:</b> подстатусы и все <code>docType</code> — вкладка <b>API 1С</b> (секция «Справочники») и <code>docs/catalog-reference.md</code>.</p>
+            <p><b>Справочники:</b> подстатусы и все <code>docType</code> — вкладка <a href="/docs/catalogs">Справочники</a> и <code>docs/catalog-reference.md</code>.</p>
 
             <p><b>Особые правила по документам:</b></p>
             <ul>
@@ -1029,20 +1049,51 @@ sequenceDiagram
     const tabs = document.querySelectorAll('.tab');
     const panels = {
       app: document.getElementById('panel-app'),
+      integration: document.getElementById('panel-integration'),
       onec: document.getElementById('panel-onec'),
+      catalogs: document.getElementById('panel-catalogs'),
       admin: document.getElementById('panel-admin'),
       tz: document.getElementById('panel-tz'),
     };
+
+    function tabFromLocation() {
+      const m = location.pathname.match(/\/docs\/([a-z]+)\/?$/i);
+      if (m && panels[m[1].toLowerCase()]) return m[1].toLowerCase();
+      const hash = (location.hash || '').replace(/^#/, '').toLowerCase();
+      if (hash && panels[hash]) return hash;
+      return 'app';
+    }
+
+    function showTab(key, updateHistory) {
+      if (!panels[key]) key = 'app';
+      tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === key));
+      Object.entries(panels).forEach(([k, el]) => {
+        if (el) el.classList.toggle('active', k === key);
+      });
+      if (updateHistory !== false) {
+        const path = `/docs/${key}`;
+        if (location.pathname !== path) {
+          history.pushState({ tab: key }, '', path);
+        }
+      }
+      document.title = `Import Service API — ${tabs.length ? [...tabs].find((t) => t.dataset.tab === key)?.textContent || key : key}`;
+    }
+
     tabs.forEach((tab) => {
-      tab.addEventListener('click', () => {
-        const key = tab.dataset.tab;
-        tabs.forEach((t) => t.classList.remove('active'));
-        tab.classList.add('active');
-        Object.entries(panels).forEach(([k, el]) => {
-          el.classList.toggle('active', k === key);
-        });
+      tab.addEventListener('click', () => showTab(tab.dataset.tab));
+    });
+
+    document.querySelectorAll('a[href^="/docs/"]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        const m = a.getAttribute('href').match(/^\/docs\/([a-z]+)\/?$/i);
+        if (!m || !panels[m[1]]) return;
+        e.preventDefault();
+        showTab(m[1]);
       });
     });
+
+    window.addEventListener('popstate', () => showTab(tabFromLocation(), false));
+    showTab(tabFromLocation(), false);
   </script>
 </body>
 </html>

@@ -24,7 +24,7 @@ module.exports = async function docsRoutes(fastify) {
     reply.header('Cache-Control', 'public, max-age=86400').type('image/png').send(buf);
   });
 
-  fastify.get('/docs', async (request, reply) => {
+  async function sendDocsHtml(request, reply) {
     const proto = String(request.headers['x-forwarded-proto'] || '')
       .split(',')[0]
       .trim() || (request.protocol ? String(request.protocol).replace(':', '') : 'https');
@@ -38,5 +38,24 @@ module.exports = async function docsRoutes(fastify) {
       .replaceAll('{{BASE_URL}}', baseUrl)
       .replaceAll('{{WS_BASE_URL}}', wsBaseUrl);
     reply.type('text/html; charset=utf-8').send(html);
+  }
+
+  /** /docs → редирект на вкладку по умолчанию (можно делиться ссылкой на /docs/app и т.д.) */
+  fastify.get('/docs', async (request, reply) => {
+    reply.redirect('/docs/app', 302);
+  });
+
+  fastify.get('/docs/', async (request, reply) => {
+    reply.redirect('/docs/app', 302);
+  });
+
+  fastify.get('/docs/:section', async (request, reply) => {
+    const section = String(request.params.section || '').toLowerCase();
+    const allowed = new Set(['app', 'integration', 'onec', 'catalogs', 'admin', 'tz']);
+    if (!allowed.has(section)) {
+      reply.redirect('/docs/app', 302);
+      return;
+    }
+    await sendDocsHtml(request, reply);
   });
 };
