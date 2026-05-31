@@ -35,7 +35,14 @@ bool requestStatusDeliveredTab(RequestStatus status) {
       status == RequestStatus.cancelled;
 }
 
-/// Чат доступен после привязки к 1С.
-bool requestChatAvailable(String? external1cId) {
-  return external1cId != null && external1cId.trim().isNotEmpty;
+/// Чат доступен только после реальной инициализации заявки в 1С и назначения менеджера.
+bool requestChatAvailable({
+  required RequestStatus status,
+  required String? external1cId,
+  required String? managerFullName,
+}) {
+  if (status == RequestStatus.newRequest) return false;
+  final hasExternal1c = external1cId != null && external1cId.trim().isNotEmpty;
+  final hasManager = managerFullName != null && managerFullName.trim().isNotEmpty;
+  return hasExternal1c && hasManager;
 }

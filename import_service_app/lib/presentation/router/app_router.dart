@@ -48,7 +48,11 @@ final GoRouter appRouter = GoRouter(
       name: 'requestDetail',
       builder: (BuildContext context, GoRouterState state) {
         final id = state.pathParameters['id'] ?? '';
-        return CarRequestDetailPage(requestId: id);
+        final focusDocs = state.uri.queryParameters['focus'] == 'docs';
+        return CarRequestDetailPage(
+          requestId: id,
+          focusDocumentsOnOpen: focusDocs,
+        );
       },
     ),
   ],

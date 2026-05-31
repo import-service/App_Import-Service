@@ -12,6 +12,7 @@ import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
+import 'package:import_service_app/presentation/helpers/login_error_message.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/settings_app_bar_action.dart';
 import 'package:import_service_app/presentation/widgets/auth/login_brand_logo.dart';
@@ -105,7 +106,10 @@ class _LoginPageState extends State<LoginPage> {
       context.go('/home');
     } on ServerException catch (e) {
       if (!mounted) return;
-      sl<AppFeedbackService>().show(e.message, kind: AppFeedbackKind.error);
+      sl<AppFeedbackService>().show(
+        loginErrorMessage(e, strings),
+        kind: AppFeedbackKind.error,
+      );
     } catch (_) {
       if (!mounted) return;
       sl<AppFeedbackService>().show(

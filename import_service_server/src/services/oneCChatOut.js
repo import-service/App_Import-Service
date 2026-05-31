@@ -1,3 +1,4 @@
+const { getAppSettings } = require('./appSettings');
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_ATTEMPTS = 2;
 
@@ -37,12 +38,27 @@ async function postJson({ url, body, bearerToken, timeoutMs }) {
   return { status: res.status, json, raw: text };
 }
 
+/** Отдельный endpoint чата на стороне 1С (не files update). */
+function buildOneCChatUrl(createUrl) {
+  const raw = String(createUrl || '').trim();
+  if (!raw) return '';
+  if (/\/customs-request-chat\/?$/i.test(raw)) return raw;
+  if (/\/customs-request-update\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-request-update\/?$/i, '/customs-request-chat');
+  }
+  if (/\/customs-request\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-request\/?$/i, '/customs-request-chat');
+  }
+  return `${raw.replace(/\/$/, '')}/customs-request-chat`;
+}
+
 /**
  * @param {import('fastify').FastifyInstance} fastify
  */
 async function sendUserMessageTo1C(fastify, { external1cId, clientMessageId, text, attachmentsJson }) {
-  const cfg = fastify.config.chat.oneC;
-  if (!cfg.url) {
+  const settings = await getAppSettings(fastify.pool);
+  const chatUrl = buildOneCChatUrl(settings.oneCRequestCreateUrl);
+  if (!chatUrl) {
     const e = new Error('ONE_C_CHAT_URL_NOT_SET');
     e.code = 'ONE_C_CHAT_URL_NOT_SET';
     throw e;
@@ -55,15 +71,14 @@ async function sendUserMessageTo1C(fastify, { external1cId, clientMessageId, tex
     attachments: attachmentsJson,
   };
 
-  const timeoutMs = cfg.timeoutMs || DEFAULT_TIMEOUT_MS;
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
       return await postJson({
-        url: cfg.url,
+        url: chatUrl,
         body,
-        bearerToken: cfg.bearerToken || '',
-        timeoutMs,
+        bearerToken: settings.oneCRequestCreateBearerToken || '',
+        timeoutMs: DEFAULT_TIMEOUT_MS,
       });
     } catch (e) {
       lastErr = e;
@@ -75,4 +90,4 @@ async function sendUserMessageTo1C(fastify, { external1cId, clientMessageId, tex
   throw lastErr;
 }
 
-module.exports = { sendUserMessageTo1C };
+module.exports = { sendUserMessageTo1C, buildOneCChatUrl };

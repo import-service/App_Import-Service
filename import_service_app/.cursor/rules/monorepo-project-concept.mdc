@@ -5,6 +5,8 @@ alwaysApply: true
 
 Перед задачами по заявкам, статусам и документам **обязательно** опирайся на общую концепцию:
 
-`D:\Projects\import_servis\.cursor\rules\project-concept.mdc`
+1. **`D:\Projects\import_servis\docs\request-lifecycle.md`** — жизненный цикл заявки (этапы, МП-секции, demo, запреты)
+2. **`D:\Projects\import_servis\.cursor\rules\project-concept.mdc`** — краткая концепция монорепо
+3. **`D:\Projects\import_servis\docs\catalog-reference.md`** — коды `docType`, `statusSubType`, `dealType`
 
 Промпт МП: `D:\Projects\import_servis\.cursor\rules\agent-mobile-app.mdc`

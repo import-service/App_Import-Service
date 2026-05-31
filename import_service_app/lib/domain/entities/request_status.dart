@@ -22,4 +22,20 @@ enum RequestStatus {
     }
     return RequestStatus.newRequest;
   }
+
+  /// Чип на главной: 0 — в работе, 1 — в пути, 2 — доставлено.
+  int get carsListTabIndex {
+    switch (this) {
+      case RequestStatus.newRequest:
+      case RequestStatus.onReview:
+      case RequestStatus.inProgress:
+        return 0;
+      case RequestStatus.inTransit:
+        return 1;
+      case RequestStatus.delivered:
+      case RequestStatus.closed:
+      case RequestStatus.cancelled:
+        return 2;
+    }
+  }
 }

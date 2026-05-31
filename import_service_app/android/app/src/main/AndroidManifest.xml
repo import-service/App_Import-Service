@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Сеть: REST (Dio), WebSocket чат. Обязательно в main — release не подмешивает src/debug. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Пуш-уведомления Android 13+ (FCM). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
       Камера / галерея / хранилище подтягиваются merge из плагинов
@@ -34,6 +36,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Не дергать getToken/topic sync до готовности GMS (иначе hard fail «Won't retry»). -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="import_service_high" />
     </application>
 
     <queries>

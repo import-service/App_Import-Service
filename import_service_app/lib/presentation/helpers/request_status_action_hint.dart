@@ -1,7 +1,6 @@
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_doc_type.dart';
-import 'package:import_service_app/domain/entities/finance_line_type.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
 import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 
@@ -58,23 +57,11 @@ bool requestNeedsPaymentReceiptAction(CarListItem item) {
   );
   if (hasRecyclingFee && !hasRecyclingReceipt) return true;
   if (hasDutyFee && !hasDutyReceipt) return true;
-  for (final line in item.financeItems) {
-    final receiptType = FinanceLineType.tryParse(line.lineType)?.receiptDocType;
-    if (receiptType == null) continue;
-    final hasReceipt = item.files.any(
-      (f) => CustomsDocType.tryParse(f.docType) == receiptType,
-    );
-    if ((line.receiptUrl == null || line.receiptUrl!.isEmpty) && !hasReceipt) {
-      return true;
-    }
-  }
   return false;
 }
 
 bool requestDetailShouldShowDocumentsBlock(CarListItem item, JsonStringsService s) {
   if (item.files.isNotEmpty) return true;
-  if (item.vehiclePhotoUrls.isNotEmpty) return true;
-  if (item.deliveredDocuments.isNotEmpty) return true;
   if (requestStatusActionHint(item, s) != null) return true;
   if (requestNeedsPaymentReceiptAction(item)) return true;
   return item.status == RequestStatus.inProgress ||

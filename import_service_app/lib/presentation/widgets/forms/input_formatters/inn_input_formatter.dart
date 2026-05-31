@@ -1,15 +1,22 @@
 import 'package:flutter/services.dart';
 
+/// Только цифры ИНН (10 или 12).
+String innDigitsOnly(String? raw) => (raw ?? '').replaceAll(RegExp(r'\D'), '');
+
 /// Форматирует ИНН для чтения: `1234 567 890` или `1234 567 890 12`.
 class InnInputFormatter extends TextInputFormatter {
+  static String formatDigits(String digits) {
+    final trimmed = innDigitsOnly(digits);
+    final limited = trimmed.length > 12 ? trimmed.substring(0, 12) : trimmed;
+    return _formatDigits(limited);
+  }
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
-    final trimmed = digits.length > 12 ? digits.substring(0, 12) : digits;
-    final formatted = _format(trimmed);
+    final formatted = formatDigits(newValue.text);
 
     return TextEditingValue(
       text: formatted,
@@ -17,7 +24,7 @@ class InnInputFormatter extends TextInputFormatter {
     );
   }
 
-  String _format(String digits) {
+  static String _formatDigits(String digits) {
     if (digits.isEmpty) return '';
     final b = StringBuffer();
     final g1 = digits.length >= 4 ? 4 : digits.length;

@@ -31,12 +31,21 @@ final class ChatMessage extends Equatable {
   static bool _readFromJson(Map<String, dynamic> json) {
     final a = json['readByUser'] ?? json['read_by_user'];
     if (a is bool) return a;
+    final readAt = json['readByUserAt'] ?? json['read_by_user_at'];
+    if (readAt is String && readAt.trim().isNotEmpty) return true;
     return true;
   }
 
   static bool _from1cFromJson(Map<String, dynamic> json) {
     final a = json['from1c'] ?? json['from_1c'];
     if (a is bool) return a;
+    final direction = (json['direction']?.toString().trim().toLowerCase() ?? '');
+    if (direction == 'from_1c') return true;
+    final authorType = (json['authorType'] ?? json['author_type'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    if (authorType == 'manager_1c') return true;
     return false;
   }
 
@@ -50,7 +59,11 @@ final class ChatMessage extends Equatable {
     } else if (idRaw is String) {
       id = int.tryParse(idRaw);
     }
-    final text = (json['text'] as String?)?.trim() ?? '';
+    final text = ((json['text'] as String?) ??
+            (json['textContent'] as String?) ??
+            (json['text_content'] as String?))
+        ?.trim() ??
+        '';
     return ChatMessage(
       id: id,
       clientMessageId: json['clientMessageId'] as String? ?? json['client_message_id'] as String?,
@@ -63,12 +76,23 @@ final class ChatMessage extends Equatable {
   }
 
   static List<ChatAttachment> _attachmentsFromJson(Map<String, dynamic> json) {
-    final att = json['attachments'] as List<dynamic>?;
-    if (att == null) return const [];
-    return att
-        .whereType<Map<String, dynamic>>()
-        .map((e) => ChatAttachment.fromJson(e))
-        .toList();
+    final raw = json['attachments'];
+    if (raw is List<dynamic>) {
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map((e) => ChatAttachment.fromJson(e))
+          .toList();
+    }
+    if (raw is Map<String, dynamic>) {
+      final nested = raw['attachments'];
+      if (nested is List<dynamic>) {
+        return nested
+            .whereType<Map<String, dynamic>>()
+            .map((e) => ChatAttachment.fromJson(e))
+            .toList();
+      }
+    }
+    return const [];
   }
 
   @override

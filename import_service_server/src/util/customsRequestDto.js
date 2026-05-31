@@ -1,17 +1,22 @@
 const CUSTOMS_REQUEST_SELECT = `
   id, external_1c_id, manager_external_1c_id, manager_full_name,
-  legal_entity_name, legal_email, legal_phone,
+  legal_entity_name, legal_email, legal_phone, legal_inn,
   individual_full_name, individual_phone, individual_snils,
   owner_full_name,
   car_make, car_model, vin,
   has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars, comment_text, is_test,
   status,
-  engine_spec, engine_volume, status_since_date_label, status_sub_type,
+  engine_spec, engine_volume, status_sub_type,
   status_sub_type_datetime, deal_type,
   one_c_update_pending, one_c_update_last_error_json, one_c_update_last_attempt_at,
-  finance_items_json, vehicle_photo_urls_json, delivered_documents_json,
+  advance_payment_json, actual_payment_json,
   created_at, updated_at
 `.replace(/\s+/g, ' ');
+
+/** Сумма в рублях в state: строка или число. */
+const MONEY_AMOUNT_SCHEMA = {
+  type: ['string', 'number'],
+};
 
 function getPublicBaseUrl(fastify, request) {
   const fixed = String(fastify?.config?.publicBaseUrl || '').replace(/\/$/, '');
@@ -46,67 +51,69 @@ function parseJsonCol(v) {
   }
 }
 
-function normalizeFinanceItem(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const lineType = String(raw.lineType ?? raw.line_type ?? '').trim();
-  if (!lineType) return null;
-  let amountText = raw.amountText != null ? String(raw.amountText) : '';
-  if (!amountText && raw.amount != null && raw.amount !== '') {
-    amountText = String(raw.amount);
+function normalizeMoneyAmount(raw) {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'object' && raw !== null) {
+    return normalizeMoneyAmount(raw.amount);
   }
-  const o = {
-    lineType,
-    amountText,
-    title: raw.title != null ? String(raw.title) : '',
-    paymentQrUrl: String(raw.paymentQrUrl ?? raw.payment_qr_url ?? ''),
-    receiptUrl: String(raw.receiptUrl ?? raw.receipt_url ?? ''),
-  };
-  if (raw.amount != null && raw.amount !== '' && !Number.isNaN(Number(raw.amount))) {
-    o.amount = Number(raw.amount);
+  const amountStr =
+    typeof raw === 'number' ? raw.toFixed(2) : String(raw).trim().replace(',', '.');
+  if (!amountStr || Number.isNaN(Number(amountStr))) return null;
+  return amountStr;
+}
+
+function parseMoneyAmountJson(v) {
+  const p = parseJsonCol(v);
+  if (p == null) return null;
+  if (typeof p === 'object' && p.amount != null) {
+    return normalizeMoneyAmount(p.amount);
   }
-  return o;
+  return normalizeMoneyAmount(p);
 }
 
-function parseFinanceItemsJson(v) {
-  const p = parseJsonCol(v);
-  if (!Array.isArray(p)) return [];
-  return p.map(normalizeFinanceItem).filter(Boolean);
+function computeRefundAmount(advancePayment, actualPayment) {
+  if (!advancePayment || !actualPayment) return null;
+  const advance = Number(advancePayment);
+  const actual = Number(actualPayment);
+  if (Number.isNaN(advance) || Number.isNaN(actual)) return null;
+  return (advance - actual).toFixed(2);
 }
 
-function parseStringUrlArray(v, base) {
-  const p = parseJsonCol(v);
-  if (!Array.isArray(p)) return [];
-  return p.map((s) => toAbsoluteUrl(String(s).trim(), base)).filter(Boolean);
+/** Цифры ИНН из тела запроса (legalInn или inn — не docType файла). */
+function readLegalInnFromBody(body) {
+  if (!body || typeof body !== 'object') return '';
+  if (body.legalInn !== undefined) return String(body.legalInn).replace(/\D/g, '');
+  if (body.inn !== undefined) return String(body.inn).replace(/\D/g, '');
+  return '';
 }
 
-function parseDeliveredDocs(v, base) {
-  const p = parseJsonCol(v);
-  if (!Array.isArray(p)) return [];
-  const out = [];
-  for (const raw of p) {
-    if (!raw || typeof raw !== 'object') continue;
-    const title = String(raw.title ?? raw.documentTitle ?? '').trim();
-    const downloadUrl = toAbsoluteUrl(
-      String(raw.downloadUrl ?? raw.download_url ?? raw.url ?? ''),
-      base,
-    );
-    if (title || downloadUrl) {
-      out.push({ title, downloadUrl });
+function validateLegalInnDigits(digits, { required = true } = {}) {
+  const v = String(digits ?? '').replace(/\D/g, '');
+  if (!v) {
+    if (required) {
+      throw new Error('VALIDATION_ERROR: legalInn обязателен (10 или 12 цифр)');
     }
+    return null;
   }
-  return out;
+  if (v.length !== 10 && v.length !== 12) {
+    throw new Error('VALIDATION_ERROR: legalInn должен содержать 10 или 12 цифр');
+  }
+  return v;
 }
 
-function mergeVehiclePhotoUrls(vehicleUrls, fileRows, base) {
-  const seen = new Set(vehicleUrls);
-  for (const f of fileRows || []) {
-    const t = f.doc_type;
-    if (t === 'car_front_photo' || t === 'car_back_photo') {
-      const u = toAbsoluteUrl(f.file_url, base);
-      if (u) seen.add(u);
-    }
+/** Распарсить legalInn из create/patch; undefined — поле не передано. */
+function resolveLegalInnFromBody(body, { required = false } = {}) {
+  const hasKey = body && (body.legalInn !== undefined || body.inn !== undefined);
+  if (!hasKey) {
+    if (required) return validateLegalInnDigits('', { required: true });
+    return undefined;
   }
-  return Array.from(seen);
+  return validateLegalInnDigits(readLegalInnFromBody(body), { required: true });
+}
+
+function moneyAmountToJsonPayload(body) {
+  const amount = normalizeMoneyAmount(body);
+  return amount ? JSON.stringify({ amount }) : null;
 }
 
 function toIso(mysqlDate) {
@@ -119,31 +126,19 @@ function toIso(mysqlDate) {
 }
 
 /**
- * DTO заявки для мобильного контракта: camelCase, id — string, алиасы detail* для обратной совместимости.
- * @param {{ includeFiles?: boolean, mergeVehicleFiles?: boolean }} [options]
- *   list: { includeFiles: false, mergeVehicleFiles: false } — нет `files`, vehiclePhotoUrls только из JSON
- *   detail/по умолчанию: `files` есть, в vehiclePhotoUrls мержатся car_front/car_back из upload
+ * DTO заявки для МП: camelCase, единый массив files[].
  */
 function toCustomsRequestDto(fastify, request, row, fileRows, options) {
   const includeFiles = !options || options.includeFiles !== false;
-  const withFileMerge = !options || options.mergeVehicleFiles !== false;
-
   const base = getPublicBaseUrl(fastify, request);
 
   const ownerFullName =
     (row.owner_full_name && String(row.owner_full_name).trim()) ||
     String(row.individual_full_name || '');
 
-  const financeItems = parseFinanceItemsJson(row.finance_items_json);
-  const financeRef = financeItems;
-
-  let vehiclePhotoUrls = parseStringUrlArray(row.vehicle_photo_urls_json, base);
-  if (withFileMerge) {
-    vehiclePhotoUrls = mergeVehiclePhotoUrls(vehiclePhotoUrls, fileRows, base);
-  }
-  const vehicleRef = vehiclePhotoUrls;
-
-  const deliveredDocuments = parseDeliveredDocs(row.delivered_documents_json, base);
+  const advancePayment = parseMoneyAmountJson(row.advance_payment_json);
+  const actualPayment = parseMoneyAmountJson(row.actual_payment_json);
+  const refundAmount = computeRefundAmount(advancePayment, actualPayment);
 
   const dto = {
     id: String(row.id),
@@ -160,10 +155,6 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
       row.engine_volume != null && String(row.engine_volume).trim() !== ''
         ? String(row.engine_volume)
         : null,
-    statusSinceDateLabel:
-      row.status_since_date_label != null && String(row.status_since_date_label).trim() !== ''
-        ? String(row.status_since_date_label)
-        : null,
     statusSubType:
       row.status_sub_type != null && String(row.status_sub_type).trim() !== ''
         ? String(row.status_sub_type)
@@ -179,15 +170,20 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
       row.one_c_update_last_attempt_at != null
         ? toIso(row.one_c_update_last_attempt_at)
         : null,
-    financeItems: financeRef,
-    vehiclePhotoUrls: vehicleRef,
-    deliveredDocuments,
-    // Устаревшие имена (тот же смысл) — моб. клиент умеет читать для миграции
-    detailFinanceLines: financeRef,
-    detailPhotoUrls: vehicleRef,
+    advancePayment,
+    actualPayment,
+    refundAmount,
     legalEntityName: String(row.legal_entity_name),
     legalEmail: String(row.legal_email),
     legalPhone: String(row.legal_phone),
+    legalInn:
+      row.legal_inn != null && String(row.legal_inn).trim() !== ''
+        ? String(row.legal_inn).trim()
+        : null,
+    inn:
+      row.legal_inn != null && String(row.legal_inn).trim() !== ''
+        ? String(row.legal_inn).trim()
+        : null,
     individualFullName: String(row.individual_full_name),
     individualPhone: String(row.individual_phone),
     individualSnils: String(row.individual_snils),
@@ -230,45 +226,16 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
   return dto;
 }
 
-function financeItemsToJsonPayload(body) {
-  if (body == null) return null;
-  const arr = Array.isArray(body) ? body : [];
-  const out = [];
-  for (const raw of arr) {
-    const n = normalizeFinanceItem({ ...raw, lineType: raw?.lineType ?? raw?.line_type });
-    if (n) out.push(n);
-  }
-  return JSON.stringify(out);
-}
-
-function stringArrayToJsonPayload(body) {
-  if (body == null) return null;
-  const arr = Array.isArray(body) ? body : [];
-  return JSON.stringify(arr.map((s) => String(s).trim()).filter(Boolean));
-}
-
-function deliveredDocsToJsonPayload(body) {
-  if (body == null) return null;
-  const arr = Array.isArray(body) ? body : [];
-  const out = [];
-  for (const raw of arr) {
-    if (!raw || typeof raw !== 'object') continue;
-    const title = String(raw.title || '').trim();
-    const downloadUrl = String(raw.downloadUrl || raw.download_url || '').trim();
-    if (title || downloadUrl) {
-      out.push({ title, downloadUrl });
-    }
-  }
-  return JSON.stringify(out);
-}
-
 module.exports = {
   CUSTOMS_REQUEST_SELECT,
+  MONEY_AMOUNT_SCHEMA,
   toCustomsRequestDto,
   getPublicBaseUrl,
   toAbsoluteUrl,
-  financeItemsToJsonPayload,
-  stringArrayToJsonPayload,
-  deliveredDocsToJsonPayload,
-  normalizeFinanceItem,
+  moneyAmountToJsonPayload,
+  normalizeMoneyAmount,
+  computeRefundAmount,
+  readLegalInnFromBody,
+  validateLegalInnDigits,
+  resolveLegalInnFromBody,
 };

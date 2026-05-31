@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/services.dart';
+import 'package:import_service_app/domain/entities/deal_type.dart';
 import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 
 /// Загрузка строк из `assets/i18n/<lang>.json`.
@@ -58,6 +59,8 @@ final class JsonStringsService {
   String get emailFormatError => text('emailFormatError');
   String get requestUnknownError => text('requestUnknownError');
   String get loginUnknownError => text('loginUnknownError');
+  String get loginInvalidCredentials => text('loginInvalidCredentials');
+  String get loginNetworkError => text('loginNetworkError');
   String get logoutUnknownError => text('logoutUnknownError');
   String get logoutButton => text('logoutButton');
   String get logoutConfirmTitle => text('logoutConfirmTitle');
@@ -114,13 +117,22 @@ final class JsonStringsService {
   /// Подпись [RequestStatusSubType] для UI (`statusSubType_<apiCode>` в JSON).
   String statusSubTypeLabel(RequestStatusSubType sub) =>
       text('statusSubType_${sub.apiCode}');
+
+  String dealTypeLabel(DealType type) => switch (type) {
+        DealType.bilateral => text('dealType_bilateral'),
+        DealType.cash => text('dealType_cash'),
+        DealType.tripartite => text('dealType_tripartite'),
+        DealType.quadripartite => text('dealType_quadripartite'),
+      };
   String get requestDetailNotFound => text('requestDetailNotFound');
   String get requestDetailStatusLabel => text('requestDetailStatusLabel');
   String get requestDocumentPack => text('requestDocumentPack');
   String get requestDocumentPackInfo => text('requestDocumentPackInfo');
   String get requestDocumentUpload => text('requestDocumentUpload');
   String get requestTestModeLabel => text('requestTestModeLabel');
+  String get requestDetailDealType => text('requestDetailDealType');
   String get requestDetailOwner => text('requestDetailOwner');
+  String get requestDetailAboutSection => text('requestDetailAboutSection');
   String get requestDetailManager => text('requestDetailManager');
   String get requestDetailVehicle => text('requestDetailVehicle');
   String get requestDetailEngine => text('requestDetailEngine');
@@ -150,6 +162,19 @@ final class JsonStringsService {
   String get chatUnavailable => text('chatUnavailable');
   String get chatEmptyHint => text('chatEmptyHint');
   String get chatInDevelopment => text('chatInDevelopment');
+  String get pushToastNewMessage => text('pushToastNewMessage');
+  String get pushToastRequestUpdated => text('pushToastRequestUpdated');
+  String get requestCardNewMessageHint => text('requestCardNewMessageHint');
+  String get requestCardDocsActionHint => text('requestCardDocsActionHint');
+  String get requestCardStatusUpdatedHint => text('requestCardStatusUpdatedHint');
+  String requestCardChangeNewStatus(String status) =>
+      text('requestCardChangeNewStatus').replaceAll('{status}', status);
+  String requestCardChangeStatusTransition(String from, String to) =>
+      text('requestCardChangeStatusTransition')
+          .replaceAll('{from}', from)
+          .replaceAll('{to}', to);
+  String requestCardChangeFiles(String files) =>
+      text('requestCardChangeFiles').replaceAll('{files}', files);
   String get appFeatureInDevelopment => text('appFeatureInDevelopment');
   String requestDraftsFab(int count) =>
       text('requestDraftsFab').replaceAll('{count}', count.toString());
@@ -158,8 +183,15 @@ final class JsonStringsService {
   String get requestDraftsDeleteTitle => text('requestDraftsDeleteTitle');
   String get requestDraftsDeleteMessage => text('requestDraftsDeleteMessage');
   String get requestDraftsDeleteConfirm => text('requestDraftsDeleteConfirm');
+  String get requestSaveDraftButton => text('requestSaveDraftButton');
+  String get requestDraftSaved => text('requestDraftSaved');
   String get carsFilterTooltip => text('carsFilterTooltip');
+  String get carsRefreshTooltip => text('carsRefreshTooltip');
   String get carsAddButtonTooltip => text('carsAddButtonTooltip');
+  String get requestFilesLeaveTitle => text('requestFilesLeaveTitle');
+  String get requestFilesLeaveMessage => text('requestFilesLeaveMessage');
+  String get requestFilesLeaveConfirm => text('requestFilesLeaveConfirm');
+  String get requestFilesLeaveSave => text('requestFilesLeaveSave');
   String get demoClientName => text('demoClientName');
   String get noDataTitle => text('noDataTitle');
 

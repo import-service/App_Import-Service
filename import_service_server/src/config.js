@@ -66,12 +66,6 @@ module.exports = {
     // Realtime: отдельный порт (ws+broadcast) — проксируйте /ws/ с nginx на этот порт, если нужен wss
     broadcastPort: Number(process.env.CHAT_BROADCAST_PORT || 3010),
     broadcastSecret: required('CHAT_BROADCAST_SECRET'),
-    oneC: {
-      // Пример: https://1c.example.com/hs/incoming/chat
-      url: String(process.env.ONE_C_CHAT_URL || '').trim(),
-      bearerToken: String(process.env.ONE_C_CHAT_BEARER_TOKEN || '').trim(),
-      timeoutMs: Number(process.env.ONE_C_CHAT_TIMEOUT_MS || 15000),
-    },
   },
   smtp: {
     host: required('SMTP_HOST'),
@@ -82,5 +76,21 @@ module.exports = {
     from: required('EMAIL_FROM'),
     to: required('MAIL_TO'),
     appName: process.env.APP_NAME || 'Импорт Сервис',
+  },
+  push: {
+    fcm: {
+      projectId: String(process.env.FCM_PROJECT_ID || '').trim(),
+      clientEmail: String(process.env.FCM_CLIENT_EMAIL || '').trim(),
+      privateKey: String(process.env.FCM_PRIVATE_KEY || '')
+        .replace(/\\n/g, '\n')
+        .trim(),
+    },
+  },
+  demoFlow: {
+    enabled: String(process.env.DEMO_FLOW_ENABLED || 'true').toLowerCase() === 'true',
+    stepMs: Number(process.env.DEMO_FLOW_STEP_MS || 180000),
+    /** Быстрые шаги для ФИО «Тестов Тест Тестович» (по умолчанию 60 с). */
+    fastStepMs: Number(process.env.DEMO_FLOW_FAST_STEP_MS || 60000),
+    chatReplyMs: Number(process.env.DEMO_FLOW_CHAT_REPLY_MS || 4000),
   },
 };

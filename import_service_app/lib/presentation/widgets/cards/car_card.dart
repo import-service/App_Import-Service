@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
+import 'package:import_service_app/core/themes/request_status_list_style.dart';
 import 'package:import_service_app/core/util/vin_display.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/presentation/models/demo_car.dart';
@@ -21,7 +22,11 @@ class CarCard extends StatelessWidget {
   final VoidCallback? onOpenDetails;
   final VoidCallback? onOpenChat;
 
-  bool get _showGoToChat => requestChatAvailable(car.external1cId);
+  bool get _showGoToChat => requestChatAvailable(
+    status: car.requestStatus,
+    external1cId: car.external1cId,
+    managerFullName: car.managerFullName,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +36,11 @@ class CarCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.requestCardBorder),
+        border: Border.all(
+          color: car.hasPendingActions
+              ? AppTheme.accentRed.withValues(alpha: 0.5)
+              : AppTheme.requestCardBorder,
+        ),
       ),
       child: Material(
         type: MaterialType.transparency,
@@ -123,8 +132,55 @@ class CarCard extends StatelessWidget {
                     const Gap(10),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: RequestStatusPill(label: car.statusLabel),
+                      child: RequestStatusPill(
+                        label: car.statusLabel,
+                        backgroundColor: car.requestStatus.listChipBackground,
+                        foregroundColor: car.requestStatus.listChipForeground,
+                      ),
                     ),
+                    if (car.hasPendingActions) ...[
+                      const Gap(6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Icon(
+                              Icons.error_outline_rounded,
+                              size: 18,
+                              color: AppTheme.accentRed,
+                            ),
+                          ),
+                          const Gap(6),
+                          Expanded(
+                            child: Text(
+                              car.pendingActionHints.join('\n'),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppTheme.accentRed,
+                                fontWeight: FontWeight.w600,
+                                height: 1.35,
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else if (car.hasStatusUpdate) ...[
+                      const Gap(6),
+                      Text(
+                        car.statusUpdateSummary?.trim().isNotEmpty == true
+                            ? car.statusUpdateSummary!.trim()
+                            : sl<JsonStringsService>().requestCardStatusUpdatedHint,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppTheme.primaryBlue,
+                          fontWeight: FontWeight.w500,
+                          height: 1.35,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -147,20 +203,51 @@ class CarCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.chat_bubble_outline_rounded,
-                            size: 22,
-                            color: AppTheme.textSecondary,
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 22,
+                                color: AppTheme.textSecondary,
+                              ),
+                              if (car.hasUnreadChat)
+                                const Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.accentRed,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: SizedBox(width: 12, height: 12),
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              sl<JsonStringsService>().requestCardGoToChat,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: AppTheme.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  sl<JsonStringsService>().requestCardGoToChat,
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (car.hasUnreadChat)
+                                  Text(
+                                    sl<JsonStringsService>().requestCardNewMessageHint,
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: AppTheme.accentRed,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           Icon(

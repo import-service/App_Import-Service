@@ -37,8 +37,8 @@ async function markOneCUpdateSynced(pool, requestId) {
  * Исходящий update в 1С + синхронизация флага в БД.
  * skipped (нет URL / нет external1cId) — флаг не трогаем.
  */
-async function pushCustomsRequestUpdateTo1C(fastify, requestId) {
-  const result = await submitCustomsRequestUpdateTo1CFromDb(fastify, requestId);
+async function pushCustomsRequestUpdateTo1C(fastify, requestId, options = {}) {
+  const result = await submitCustomsRequestUpdateTo1CFromDb(fastify, requestId, options);
   if (result.ok) {
     await markOneCUpdateSynced(fastify.pool, requestId);
   } else if (!result.skipped) {

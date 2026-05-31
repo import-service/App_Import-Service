@@ -21,12 +21,16 @@ class RequestDetailFileUploadChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Material(
-        color: AppTheme.requestCardStatusPillBg,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.transparent,
         child: InkWell(
           onTap: busy ? null : onTap,
           borderRadius: BorderRadius.circular(12),
-          child: Padding(
+          child: Ink(
+            decoration: BoxDecoration(
+              color: AppTheme.requestCardStatusPillBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.requestCardBorder),
+            ),
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,

@@ -23,8 +23,27 @@ alwaysApply: true
 ## 5. Канон правил
 - Общие соглашения — **сначала** в шаблоне `D:\Projects\_my_template\digitalsquare` (`AGENTS.md`), иначе новый клон без фикса.
 
+## 6. Локальные пути файлов на экранах (заявка, черновик)
+- **Любой** `List<String>` в `State`, который мутируется (`add`, `removeAt`, `[i]=`), инициализировать через **`List<String>.from(...)`** или **`mutableSlotPaths()`** (`lib/core/util/single_file_path_list.dart`).
+- **Запрещено** для таких списков: `const []`, возврат `const []` из хелперов, мутация списков из `RequestFilesPayload` / JSON **без копии**.
+- **Один файл на docType (v2):** лимит в UI — **`RequestPhotoRowField(maxPhotos: 1)`** + `if (target.isNotEmpty) return` в `_addPhotoTo`. **Не** ломать рабочий паттерн «`List.from` + `target.add`» ради «упрощения».
+- Эталон экрана файлов: `lib/presentation/pages/request_files_upload_page.dart`.
+
+## 7. FCM / push (cold start, MIUI)
+- **`firebase_messaging_auto_init_enabled=false`** в `AndroidManifest`; **`setAutoInitEnabled(false)`** до UI; **`getToken`** — после первого кадра + ожидание GMS (`google_api_availability`).
+- **Не** вызывать `getToken()` в `main()` до `runApp()`.
+- **Не** показывать «продолжаем без push» — retry + `registerPushTokenIfNeeded()` после логина и восстановления сессии.
+- Эталон: `lib/core/push/push_notifications_service.dart`, `lib/main.dart`.
+
+## 8. Ошибки API в UI
+- **Запрещено** показывать пользователю сырые коды (`INVALID_CREDENTIALS`, `NOT_FOUND` и т.п.) из `ServerException.message`.
+- Маппинг в i18n: `presentation/helpers/login_error_message.dart`, ключи в `assets/i18n/*.json`.
+
 ## Чек-лист
 - [ ] Порядок `await` / сессия / `go` проверен (+ трассы на время отладки)
 - [ ] `Stack`+`Expanded` — не `loose`+`shrink` в ловушку
 - [ ] Списки и табы — без лишнего `PageView`; constraints ок
-- [ ] `flutter analyze` + ручной прогон входа/демо/главного экрана
+- [ ] Файлы заявки: списки путей **изменяемые**; фото после камеры **без** crash
+- [ ] Push: токен в logcat после старта; не блокирует UI
+- [ ] Логин: неверный пароль — человекочитаемый текст, не код API
+- [ ] `flutter analyze` + ручной прогон входа/демо/главного экрана/фото на слоте

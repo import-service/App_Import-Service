@@ -1,5 +1,15 @@
 # Контекст для агента
 
+## Жизненный цикл заявки (читать первым по флоу)
+
+**`D:\Projects\import_servis\docs\request-lifecycle.md`** — единый эталон: этапы, статусы, upload/push, секции карточки МП, demo, запреты (лишние слоты на подпись, client-only до пакета, дубль `contract`).  
+Краткая выжимка: **`.cursor/rules/monorepo-project-concept.mdc`** → `project-concept.mdc`. Коды: **`catalog-reference.md`**, upload v2: **`contract-files-v2.md`**.
+
+## Главный документ по архитектуре (читать первым по коду)
+
+**`.cursor/rules/app-runtime-architecture.mdc`** — как течёт data/runtime: старт, auth, create+upload, файловые слоты, push, demo vs prod, что можно менять и инварианты.  
+Карта файлов: **`app-context-map.mdc`**. Ловушки: **`pitfalls-and-regression-guards.mdc`**.
+
 ## API и контракты (источник правды)
 - После правок на бэке **все изменения контрактов, эндпоинтов, полей DTO** брать из каталога:  
   **`D:\Projects\import_servis\docs`**
@@ -30,4 +40,5 @@
 
 ## Прочее
 - Терминал: **`agent-workflow.mdc`** — агент **может** запускать `flutter analyze` и т.д. по задаче.
+- Промпт для другого агента (сервер/админка): **`agent-handoff-prompts.mdc`** — только copy-блок.
 - Правила: `.cursor/rules/`, при сомнении **приоритет репо** над личными user rules.

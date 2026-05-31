@@ -1,10 +1,8 @@
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
-import 'package:import_service_app/domain/entities/delivered_vehicle_document.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
-import 'package:import_service_app/domain/entities/vehicle_finance_item.dart';
 
-/// Сид: те же поля, что ждёт клиент с API. Демо-URL примеры; в проде с бэка/1С.
+/// Сид v2: те же поля, что API (`files[]`, суммы-строки, `statusSubTypeDateTime`).
 final class DefaultCarsSeed {
   DefaultCarsSeed._();
 
@@ -20,7 +18,7 @@ final class DefaultCarsSeed {
       status: RequestStatus.newRequest,
       engineSpec: 'Бензин / 1.6 л / 106 л.с. / 4 цил.',
       engineVolume: 'V — 1998 см³',
-      statusSinceDateLabel: '11.04.2025',
+      statusSubTypeDateTime: '2025-04-11T10:00:00+03:00',
       files: [
         CustomsRequestFile(
           docType: 'passport_front',
@@ -49,6 +47,8 @@ final class DefaultCarsSeed {
       external1cId: 'GUID-DEMO-UNI-K',
       managerFullName: 'Петрова Мария Сергеевна',
       statusSubType: 'primary_documents_sent',
+      statusSubTypeDateTime: '2025-05-01T12:00:00+03:00',
+      dealType: 'tripartite',
       files: [
         CustomsRequestFile(
           docType: 'contract',
@@ -77,30 +77,22 @@ final class DefaultCarsSeed {
       external1cId: 'GUID-DEMO-CAMRY',
       engineSpec: 'Гибридный на основе бензинового / 96 квт / 131 л.с.',
       engineVolume: 'V — 1199 см³',
-      statusSinceDateLabel: '02.04.2025',
+      statusSubTypeDateTime: '2025-04-02T10:00:00+03:00',
       statusSubType: 'originals_missing_transit',
       managerFullName: 'Сидоров Алексей Петрович',
-      financeItems: [
-        VehicleFinanceItem(
-          lineType: 'customs_duty',
-          amountText: '830 998,00 ₽',
-          paymentQrUrl: 'https://www.example.com/pay/customs',
-        ),
-        VehicleFinanceItem(
-          lineType: 'recycling_fee',
-          amountText: '3 200,00 ₽',
-          paymentQrUrl: 'https://www.example.com/pay/ut',
-        ),
-      ],
-      vehiclePhotoUrls: [
-        '$_demoFileBase/transit-photo-1.jpg',
-        '$_demoFileBase/transit-photo-2.jpg',
-      ],
+      advancePayment: '830998.00',
+      actualPayment: '750000.00',
+      refundAmount: '80998.00',
       files: [
         CustomsRequestFile(
-          docType: 'transit_archive_photo',
+          docType: 'transit_archive_photo_1',
           fileName: 'transit-1.jpg',
-          fileUrl: '$_demoFileBase/transit-archive-1.jpg',
+          fileUrl: '$_demoFileBase/transit-photo-1.jpg',
+        ),
+        CustomsRequestFile(
+          docType: 'transit_archive_photo_2',
+          fileName: 'transit-2.jpg',
+          fileUrl: '$_demoFileBase/transit-photo-2.jpg',
         ),
         CustomsRequestFile(
           docType: 'transit_archive_video',
@@ -117,6 +109,11 @@ final class DefaultCarsSeed {
           fileName: 'customs-duty.pdf',
           fileUrl: '$_demoFileBase/customs-duty.pdf',
         ),
+        CustomsRequestFile(
+          docType: 'payment_recycling_fee_receipt',
+          fileName: 'recycling-receipt.pdf',
+          fileUrl: '$_demoFileBase/recycling-receipt.pdf',
+        ),
       ],
     ),
     CarListItem(
@@ -129,45 +126,22 @@ final class DefaultCarsSeed {
       external1cId: 'GUID-DEMO-LIXIANG',
       engineSpec: 'Бензиновый / 120 кВт / 163 л.с.',
       engineVolume: 'V — 1332 см³',
-      statusSinceDateLabel: '11.04.2025',
+      statusSubTypeDateTime: '2025-04-11T10:00:00+03:00',
       statusSubType: 'request_closed',
       managerFullName: 'Козлов Дмитрий Викторович',
-      financeItems: [
-        VehicleFinanceItem(
-          lineType: 'customs_duty',
-          amountText: '291 000,00 ₽',
-          paymentQrUrl: 'https://www.example.com/pay/customs',
-        ),
-        VehicleFinanceItem(
-          lineType: 'recycling_fee',
-          amountText: '5 200,00 ₽',
-          paymentQrUrl: 'https://www.example.com/pay/ut',
-        ),
-      ],
-      vehiclePhotoUrls: <String>[],
-      deliveredDocuments: [
-        DeliveredVehicleDocument(
-          title: 'СБКТС',
-          downloadUrl: 'https://www.example.com/docs/sbcts',
-        ),
-        DeliveredVehicleDocument(
-          title: 'ЭПТС',
-          downloadUrl: 'https://www.example.com/docs/epts',
-        ),
-        DeliveredVehicleDocument(
-          title: 'ТПО',
-          downloadUrl: 'https://www.example.com/docs/tpo',
-        ),
-        DeliveredVehicleDocument(
-          title: 'ПТД',
-          downloadUrl: 'https://www.example.com/docs/ptd',
-        ),
-      ],
+      advancePayment: '291000.00',
+      actualPayment: '285000.00',
+      refundAmount: '6000.00',
       files: [
         CustomsRequestFile(
           docType: 'epts',
           fileName: 'epts.pdf',
           fileUrl: 'https://www.example.com/docs/epts',
+        ),
+        CustomsRequestFile(
+          docType: 'sbkts',
+          fileName: 'sbkts.pdf',
+          fileUrl: 'https://www.example.com/docs/sbcts',
         ),
       ],
     ),
@@ -179,7 +153,7 @@ final class DefaultCarsSeed {
       vin: 'JTDBR32E123456789',
       status: RequestStatus.onReview,
       external1cId: 'GUID-DEMO-ON-REVIEW',
-      statusSinceDateLabel: '20.05.2026',
+      statusSubTypeDateTime: '2026-05-20T10:00:00+03:00',
     ),
   ];
 }

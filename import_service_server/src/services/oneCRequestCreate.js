@@ -18,11 +18,14 @@ function absoluteFileUrl(fastify, fileUrl) {
 
 function buildCreatePayloadFromBody(requestId, body) {
   const files = Array.isArray(body.files) ? body.files : [];
+  const legalInn = normalize(String(body.legalInn ?? body.inn ?? '').replace(/\D/g, ''));
   return {
     requestId,
     legalEntityName: normalize(body.legalEntityName),
     legalEmail: normalize(body.legalEmail),
     legalPhone: normalize(body.legalPhone),
+    legalInn: legalInn || null,
+    inn: legalInn || null,
     individualFullName: normalize(body.individualFullName),
     individualPhone: normalize(body.individualPhone),
     individualSnils: normalize(body.individualSnils),
@@ -45,11 +48,14 @@ function buildCreatePayloadFromBody(requestId, body) {
 }
 
 function buildCreatePayloadFromRow(requestId, row, fileRows) {
+  const legalInn = normalize(String(row.legal_inn ?? '').replace(/\D/g, ''));
   return {
     requestId,
     legalEntityName: normalize(row.legal_entity_name),
     legalEmail: normalize(row.legal_email),
     legalPhone: normalize(row.legal_phone),
+    legalInn: legalInn || null,
+    inn: legalInn || null,
     individualFullName: normalize(row.individual_full_name),
     individualPhone: normalize(row.individual_phone),
     individualSnils: normalize(row.individual_snils),

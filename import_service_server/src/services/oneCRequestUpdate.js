@@ -1,5 +1,8 @@
 const { getAppSettings } = require('./appSettings');
-const { buildRequestDetailPayloadById } = require('./requestDetailPayload');
+const {
+  buildOneCFilesUpdatePayload,
+  buildOneCFilesUpdatePayloadForResend,
+} = require('./requestDetailPayload');
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_ONE_C_BODY_CHARS = 4000;
@@ -87,16 +90,22 @@ function formatUpdateFailureForClient(err) {
   return { message: parts.join(': '), oneC };
 }
 
-async function submitCustomsRequestUpdateTo1CFromDb(fastify, requestId) {
+async function submitCustomsRequestUpdateTo1CFromDb(fastify, requestId, options = {}) {
   const settings = await getAppSettings(fastify.pool);
   const updateUrl = buildOneCUpdateUrl(settings.oneCRequestCreateUrl);
   if (!updateUrl) {
     return { ok: false, skipped: true, reason: 'URL_NOT_CONFIGURED' };
   }
 
-  const payload = await buildRequestDetailPayloadById(fastify, requestId);
+  const payload = options.resendAllClientFiles
+    ? await buildOneCFilesUpdatePayloadForResend(fastify, requestId)
+    : await buildOneCFilesUpdatePayload(fastify, requestId, options.files, options.requestLike);
+
   if (!payload || !payload.external1cId) {
     return { ok: false, skipped: true, reason: 'MISSING_EXTERNAL_1C_ID' };
+  }
+  if (!Array.isArray(payload.files) || payload.files.length === 0) {
+    return { ok: false, skipped: true, reason: 'NO_FILES_TO_SEND' };
   }
 
   try {
@@ -115,5 +124,9 @@ async function submitCustomsRequestUpdateTo1CFromDb(fastify, requestId) {
   }
 }
 
-module.exports = { submitCustomsRequestUpdateTo1CFromDb, formatUpdateFailureForClient };
+module.exports = {
+  submitCustomsRequestUpdateTo1CFromDb,
+  formatUpdateFailureForClient,
+  buildOneCUpdateUrl,
+};
 

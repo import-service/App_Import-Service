@@ -1,4 +1,5 @@
 import 'package:import_service_app/data/models/registration_request_model.dart';
+import 'package:import_service_app/core/util/single_file_path_list.dart';
 
 final class RequestFormModel {
   static const int trackedFieldCount = 25;
@@ -98,14 +99,15 @@ final class RequestFormModel {
   }
 
   factory RequestFormModel.fromJson(Map<String, dynamic> json) {
-    List<String> readList(String key) =>
-        (json[key] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    List<String> readList(String key) => singleFilePathList(
+          (json[key] as List<dynamic>? ?? []).map((e) => e.toString()),
+        );
     return RequestFormModel(
       organizationType: ((json['organizationType'] as String?) == 'ip')
           ? OrganizationType.ip
           : OrganizationType.ooo,
       companyName: (json['companyName'] as String?) ?? '',
-      companyInn: (json['companyInn'] as String?) ?? '',
+      companyInn: _readCompanyInn(json),
       companyEmail: (json['companyEmail'] as String?) ?? '',
       companyPhone: (json['companyPhone'] as String?) ?? '',
       personFullName: (json['personFullName'] as String?) ?? '',
@@ -170,4 +172,14 @@ final class RequestFormModel {
         'additionalFile2Paths': additionalFile2Paths,
         'isTest': isTest,
       };
+
+  static String _readCompanyInn(Map<String, dynamic> json) {
+    for (final key in ['companyInn', 'inn', 'legalInn', 'legal_inn']) {
+      final raw = json[key];
+      if (raw == null) continue;
+      final text = raw.toString().trim();
+      if (text.isNotEmpty) return text.replaceAll(RegExp(r'\D'), '');
+    }
+    return '';
+  }
 }

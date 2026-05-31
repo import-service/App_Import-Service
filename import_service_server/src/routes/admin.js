@@ -417,7 +417,7 @@ module.exports = async function adminRoutes(fastify) {
         });
       }
 
-      const result = await pushCustomsRequestUpdateTo1C(fastify, id);
+      const result = await pushCustomsRequestUpdateTo1C(fastify, id, { resendAllClientFiles: true });
       if (result.skipped) {
         return reply.code(503).send({
           error: 'ONE_C_URL_NOT_CONFIGURED',
@@ -449,6 +449,51 @@ module.exports = async function adminRoutes(fastify) {
         },
         item: toCustomsRequestDto(fastify, request, updatedRows[0], fileRows, detailDtoOptions),
       });
+    },
+  );
+
+  // Временный endpoint для быстрого сброса последней demo-заявки из админки.
+  fastify.post(
+    '/admin/customs-requests/demo-reset-latest',
+    {
+      // Временный тех-метод для текущего тестового цикла.
+      // После завершения тестов удалить endpoint.
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            confirm: { type: 'string', const: 'demo-reset' },
+          },
+        },
+      },
+    },
+    async (_request, reply) => {
+      if (!fastify.config.demoFlow?.enabled) {
+        return reply.code(409).send({ error: 'DEMO_FLOW_DISABLED' });
+      }
+      const [rows] = await fastify.pool.query(
+        `SELECT id
+         FROM customs_requests
+         WHERE is_test = 1
+           AND (
+             individual_full_name = 'Тестов Тест Тестович'
+             OR individual_full_name LIKE 'Тестов Тест Тестович%'
+           )
+           AND deleted_at IS NULL
+         ORDER BY id DESC
+         LIMIT 1`,
+      );
+      if (!rows.length) {
+        return reply.send({ ok: true, deleted: false, reason: 'NO_ACTIVE_DEMO_REQUEST' });
+      }
+      const id = Number(rows[0].id);
+      await fastify.pool.query(
+        `UPDATE customs_requests
+         SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+         WHERE id = ? AND deleted_at IS NULL`,
+        [id],
+      );
+      return reply.send({ ok: true, deleted: true, requestId: id });
     },
   );
 

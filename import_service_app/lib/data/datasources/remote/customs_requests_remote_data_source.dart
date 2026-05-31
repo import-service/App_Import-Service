@@ -4,6 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:import_service_app/core/error/error_handler.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
+import 'package:import_service_app/data/models/customs_request_upload_result.dart';
+import 'package:import_service_app/domain/entities/request_file_upload_entry.dart';
+import 'package:import_service_app/domain/entities/request_files_batch_upload_result.dart';
 import 'package:import_service_app/data/models/request_form_model.dart';
 import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
@@ -60,25 +63,78 @@ final class CustomsRequestsRemoteDataSource {
     }
   }
 
-  Future<CarListItem> createRequest(
+  /// Список файлов комплекта create из формы (первый путь на каждый docType).
+  static List<RequestFileUploadEntry> fileEntriesFromForm(RequestFormModel form) {
+    final sources = <({String docType, List<String> paths})>[
+      (docType: 'passport_front', paths: form.passportFrontPaths),
+      (docType: 'passport_registration', paths: form.passportAddressPaths),
+      (docType: 'inn', paths: form.innPaths),
+      (docType: 'snils', paths: form.snilsPaths),
+      (docType: 'invoice', paths: form.invoicePaths),
+      (docType: 'contract', paths: form.contractPaths),
+      (docType: 'payment_check', paths: form.paymentReceiptPaths),
+      (docType: 'car_nameplate_photo', paths: form.vinPlatePhotoPaths),
+      (docType: 'car_mileage_photo', paths: form.odometerPhotoPaths),
+      (docType: 'car_front_photo', paths: form.carFrontPhotoPaths),
+      (docType: 'car_back_photo', paths: form.carRearPhotoPaths),
+      (docType: 'add_doc1', paths: form.additionalFile1Paths),
+      (docType: 'add_doc2', paths: form.additionalFile2Paths),
+    ];
+    final expanded = <RequestFileUploadEntry>[];
+    for (final bucket in sources) {
+      for (final p in bucket.paths) {
+        final trimmed = p.trim();
+        if (trimmed.isEmpty) continue;
+        if (_looksLikeUrl(trimmed)) continue;
+        expanded.add((docType: bucket.docType, localPath: trimmed));
+        break;
+      }
+    }
+    return expanded;
+  }
+
+  /// `POST /customs-requests` без `files`, затем батч upload (contract-files-v2).
+  Future<CreateRequestResult> createRequestWithFiles(
     RequestFormModel form, {
     void Function(int done, int total)? onUploadProgress,
   }) async {
     try {
-      final payload = await _buildCreatePayload(
-        form,
-        onUploadProgress: onUploadProgress,
-      );
+      AppLog.trace('create: POST without files', tag: 'CreateReq');
+      final payload = _buildCreateFormPayload(form);
       final response = await _dio.post<dynamic>('customs-requests', data: payload);
       final data = response.data;
       if (data is! Map<String, dynamic>) {
         throw const UnknownServerException('Invalid customs request response format');
       }
-      return _toCarListItem(data);
+      final created = _toCarListItem(data);
+      final requestId = created.id.trim();
+      if (requestId.isEmpty) {
+        throw const UnknownServerException('Create response has no request id');
+      }
+
+      final entries = fileEntriesFromForm(form);
+      if (entries.isEmpty) {
+        AppLog.trace('create: no local files to upload', tag: 'CreateReq');
+        return CreateRequestResult(item: created);
+      }
+
+      final batch = await uploadRequestFilesBatch(
+        requestId: requestId,
+        items: entries,
+        onProgress: onUploadProgress,
+      );
+      AppLog.trace(
+        'create: uploads done failed=${batch.failedDocTypes.length}',
+        tag: 'CreateReq',
+      );
+      return CreateRequestResult(
+        item: batch.item,
+        failedDocTypes: batch.failedDocTypes,
+      );
     } on DioException catch (e, st) {
       final mapped = ErrorHandler.handle(e);
       AppLog.error(
-        'Request create failed: /api/customs-requests',
+        'Request create failed',
         tag: 'CustomsRequestsRemoteDataSource',
         error: e,
         stackTrace: st,
@@ -97,6 +153,18 @@ final class CustomsRequestsRemoteDataSource {
     }
   }
 
+  /// Совместимость: возвращает заявку даже при частичном upload (см. [failedDocTypes] в логах).
+  Future<CarListItem> createRequest(
+    RequestFormModel form, {
+    void Function(int done, int total)? onUploadProgress,
+  }) async {
+    final result = await createRequestWithFiles(
+      form,
+      onUploadProgress: onUploadProgress,
+    );
+    return result.item;
+  }
+
   static List<Map<String, dynamic>> _extractList(dynamic data) {
     if (data is List<dynamic>) {
       return data.whereType<Map<String, dynamic>>().toList(growable: false);
@@ -113,7 +181,7 @@ final class CustomsRequestsRemoteDataSource {
     return const <Map<String, dynamic>>[];
   }
 
-  /// [api-app.md]: `GET /api/customs-requests/:id` (полный объект, `files`, слив `vehiclePhotoUrls`).
+  /// [contract-files-v2.md]: `GET /api/customs-requests/:id`
   Future<CarListItem> getRequestById(String id) async {
     final path = 'customs-requests/${Uri.encodeComponent(id)}';
     try {
@@ -171,46 +239,7 @@ final class CustomsRequestsRemoteDataSource {
     return CarListItem.fromJson(merged);
   }
 
-  Future<Map<String, dynamic>> _buildCreatePayload(
-    RequestFormModel form, {
-    void Function(int done, int total)? onUploadProgress,
-  }) async {
-    final files = <Map<String, dynamic>>[];
-    final sources = <({String docType, List<String> paths})>[
-      (docType: 'passport_front', paths: form.passportFrontPaths),
-      (docType: 'passport_registration', paths: form.passportAddressPaths),
-      (docType: 'inn', paths: form.innPaths),
-      (docType: 'snils', paths: form.snilsPaths),
-      (docType: 'invoice', paths: form.invoicePaths),
-      (docType: 'contract', paths: form.contractPaths),
-      (docType: 'payment_check', paths: form.paymentReceiptPaths),
-      (docType: 'car_nameplate_photo', paths: form.vinPlatePhotoPaths),
-      (docType: 'car_mileage_photo', paths: form.odometerPhotoPaths),
-      (docType: 'car_front_photo', paths: form.carFrontPhotoPaths),
-      (docType: 'car_back_photo', paths: form.carRearPhotoPaths),
-      (docType: 'add_doc1', paths: form.additionalFile1Paths),
-      (docType: 'add_doc2', paths: form.additionalFile2Paths),
-    ];
-    final expanded = <({String docType, String source})>[];
-    for (final bucket in sources) {
-      for (final p in bucket.paths) {
-        final trimmed = p.trim();
-        if (trimmed.isEmpty) continue;
-        expanded.add((docType: bucket.docType, source: trimmed));
-      }
-    }
-    final total = expanded.length;
-    var done = 0;
-    if (total > 0) {
-      onUploadProgress?.call(0, total);
-    }
-    for (final e in expanded) {
-      final item = await _buildFileEntry(docType: e.docType, source: e.source);
-      done += 1;
-      onUploadProgress?.call(done, total);
-      if (item != null) files.add(item);
-    }
-
+  static Map<String, dynamic> _buildCreateFormPayload(RequestFormModel form) {
     return <String, dynamic>{
       'orgType': form.organizationType == OrganizationType.ip ? 'IP' : 'OOO',
       'legalEntityName': form.companyName.trim(),
@@ -230,69 +259,45 @@ final class CustomsRequestsRemoteDataSource {
       'ownsOtherCars': form.hasOtherCars,
       'commentText': form.comment.trim(),
       'isTest': form.isTest,
-      'files': files,
     };
   }
 
-  Future<Map<String, dynamic>?> _buildFileEntry({
-    required String docType,
-    required String source,
-  }) async {
-    if (_looksLikeUrl(source)) {
-      return <String, dynamic>{
-        'docType': docType,
-        'fileName': _fileName(source),
-        'mimeType': _mimeByExtension(_extension(source)),
-        'fileUrl': source,
-      };
-    }
-    final file = File(source);
-    if (!await file.exists()) return null;
-    final ext = _extension(source);
-    final fileUrl = await uploadFileAndGetUrl(
-      filePath: source,
-      fileName: _fileName(source),
-      mimeType: _mimeByExtension(ext),
-    );
-    return <String, dynamic>{
-      'docType': docType,
-      'fileName': _fileName(source),
-      'mimeType': _mimeByExtension(ext),
-      'fileUrl': fileUrl,
-    };
-  }
-
-  /// Загрузить файл и привязать к заявке; возвращает обновлённую заявку.
-  Future<CarListItem> attachRequestFiles({
+  /// Один файл v2: `POST /api/customs-requests/upload`.
+  Future<CustomsRequestUploadResponse> uploadRequestFile({
     required String requestId,
-    required List<({String docType, String localPath})> items,
+    required String docType,
+    required String localPath,
+    required int uploadIndex,
+    required int uploadTotal,
   }) async {
-    if (items.isEmpty) {
-      throw const UnknownServerException('Нет файлов для прикрепления');
+    final file = File(localPath);
+    if (!await file.exists()) {
+      throw UnknownServerException('Файл не найден: $localPath');
     }
-    final files = <Map<String, dynamic>>[];
-    for (final e in items) {
-      final entry = await _buildFileEntry(docType: e.docType, source: e.localPath);
-      if (entry != null) {
-        files.add(entry);
-      }
-    }
-    if (files.isEmpty) {
-      throw const UnknownServerException('Не удалось подготовить файлы');
-    }
-    final path = 'customs-requests/${Uri.encodeComponent(requestId)}/files';
+    final fileName = _fileName(localPath);
     try {
-      final response = await _dio.post<dynamic>(path, data: <String, dynamic>{'files': files});
-      final data = response.data;
-      if (data is! Map<String, dynamic>) {
-        throw const UnknownServerException('Invalid attach files response');
-      }
-      return _toCarListItem(data);
+      final form = FormData.fromMap(<String, dynamic>{
+        'requestId': requestId,
+        'docType': docType,
+        'uploadIndex': uploadIndex,
+        'uploadTotal': uploadTotal,
+        'file': await MultipartFile.fromFile(localPath, filename: fileName),
+      });
+      AppLog.trace(
+        'upload $uploadIndex/$uploadTotal docType=$docType requestId=$requestId',
+        tag: 'UploadV2',
+      );
+      final response = await _dio.post<dynamic>(
+        'customs-requests/upload',
+        data: form,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+      return _parseUploadResponse(response.data);
     } on DioException catch (e, st) {
       final mapped = ErrorHandler.handle(e);
       AppLog.error(
-        'Attach files failed: $path',
-        tag: 'CustomsRequestsRemoteDataSource',
+        'Upload failed docType=$docType',
+        tag: 'UploadV2',
         error: e,
         stackTrace: st,
       );
@@ -300,25 +305,118 @@ final class CustomsRequestsRemoteDataSource {
     }
   }
 
-  Future<String> uploadFileAndGetUrl({
-    required String filePath,
-    required String fileName,
-    required String mimeType,
+  /// Батч upload: при ошибке одного файла — в [failedDocTypes], остальные продолжаем.
+  Future<RequestFilesBatchUploadResult> uploadRequestFilesBatch({
+    required String requestId,
+    required List<RequestFileUploadEntry> items,
+    void Function(int done, int total)? onProgress,
   }) async {
-    final form = FormData.fromMap(<String, dynamic>{
-      'file': await MultipartFile.fromFile(filePath, filename: fileName),
-    });
-    final response = await _dio.post<dynamic>(
-      'customs-requests/upload',
-      data: form,
-      options: Options(contentType: 'multipart/form-data'),
-    );
-    final data = response.data;
-    final url = _extractUploadedFileUrl(data);
-    if (url == null || url.isEmpty) {
-      throw const UnknownServerException('Upload response has no fileUrl');
+    if (items.isEmpty) {
+      final item = await getRequestById(requestId);
+      return RequestFilesBatchUploadResult(item: item);
     }
-    return url;
+
+    final total = items.length;
+    var done = 0;
+    onProgress?.call(0, total);
+
+    final failed = <String>[];
+    CarListItem? latest;
+
+    for (var i = 0; i < items.length; i++) {
+      final entry = items[i];
+      final index = i + 1;
+      try {
+        final upload = await uploadRequestFile(
+          requestId: requestId,
+          docType: entry.docType,
+          localPath: entry.localPath,
+          uploadIndex: index,
+          uploadTotal: total,
+        );
+        AppLog.trace(
+          'upload ok batchComplete=${upload.batchComplete}',
+          tag: 'UploadV2',
+        );
+        latest = await getRequestById(requestId);
+      } on ServerException catch (e) {
+        AppLog.error(
+          'upload skip docType=${entry.docType}: ${e.message}',
+          tag: 'UploadV2',
+        );
+        failed.add(entry.docType);
+        if (latest == null) {
+          try {
+            latest = await getRequestById(requestId);
+          } catch (_) {
+            // оставим latest null
+          }
+        }
+      } catch (e, st) {
+        AppLog.error(
+          'upload skip docType=${entry.docType}',
+          tag: 'UploadV2',
+          error: e,
+          stackTrace: st,
+        );
+        failed.add(entry.docType);
+      }
+      done += 1;
+      onProgress?.call(done, total);
+    }
+
+    latest ??= await getRequestById(requestId);
+    return RequestFilesBatchUploadResult(
+      item: latest,
+      failedDocTypes: failed,
+    );
+  }
+
+  /// Подпись / чек: upload 1/1 + GET (вместо устаревшего `POST …/:id/files`).
+  Future<CarListItem> attachRequestFiles({
+    required String requestId,
+    required List<RequestFileUploadEntry> items,
+  }) async {
+    if (items.isEmpty) {
+      throw const UnknownServerException('Нет файлов для прикрепления');
+    }
+    final batch = await uploadRequestFilesBatch(
+      requestId: requestId,
+      items: items,
+    );
+    if (batch.failedDocTypes.isNotEmpty) {
+      throw UnknownServerException(
+        'Не удалось загрузить: ${batch.failedDocTypes.join(', ')}',
+      );
+    }
+    return batch.item;
+  }
+
+  static CustomsRequestUploadResponse _parseUploadResponse(dynamic data) {
+    if (data is! Map<String, dynamic>) {
+      throw const UnknownServerException('Invalid upload response format');
+    }
+    final ok = data['ok'] == true;
+    final batchComplete = data['batchComplete'] == true;
+    final nested = data['file'];
+    if (nested is Map<String, dynamic>) {
+      return CustomsRequestUploadResponse(
+        ok: ok,
+        batchComplete: batchComplete,
+        docType: nested['docType'] as String?,
+        fileUrl: nested['fileUrl'] as String?,
+        mimeType: nested['mimeType'] as String?,
+        fileSizeBytes: nested['fileSizeBytes'] is int
+            ? nested['fileSizeBytes'] as int
+            : int.tryParse('${nested['fileSizeBytes']}'),
+        replaced: nested['replaced'] == true,
+      );
+    }
+    return CustomsRequestUploadResponse(
+      ok: ok,
+      batchComplete: batchComplete,
+      fileUrl: _extractUploadedFileUrl(data),
+    );
   }
 
   static String? _extractUploadedFileUrl(dynamic data) {
@@ -344,24 +442,4 @@ final class CustomsRequestsRemoteDataSource {
     return idx >= 0 ? normalized.substring(idx + 1) : normalized;
   }
 
-  static String _extension(String path) {
-    final name = _fileName(path).toLowerCase();
-    final idx = name.lastIndexOf('.');
-    if (idx < 0 || idx == name.length - 1) return '';
-    return name.substring(idx + 1);
-  }
-
-  static String _mimeByExtension(String ext) {
-    switch (ext) {
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'png':
-        return 'image/png';
-      case 'pdf':
-        return 'application/pdf';
-      default:
-        return 'application/octet-stream';
-    }
-  }
 }

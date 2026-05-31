@@ -13,7 +13,8 @@ alwaysApply: true
 |------|----------------|
 | [docs/README.md](D:\Projects\import_servis\docs\README.md) | Оглавление, базовый URL прод |
 | [docs/api-app.md](D:\Projects\import_servis\docs\api-app.md) | Основной контракт для `import_service_admin`: auth, заявки (v2, camelCase), чат, WSS, деплой Flutter Web |
-| [docs/api-1c.md](D:\Projects\import_servis\docs\api-1c.md) | Интеграция 1С (если задача касается `organizations`, `customs-requests/state`) |
+| [docs/api-1c.md](D:\Projects\import_servis\docs\api-1c.md) | Интеграция 1С (`organizations`, `state`, upload) |
+| [docs/contract-files-v2.md](D:\Projects\import_servis\docs\contract-files-v2.md) | **Файлы v2:** upload, батч, без files в state |
 
 ## Обязательно
 

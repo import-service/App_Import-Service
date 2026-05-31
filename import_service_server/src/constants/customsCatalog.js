@@ -188,12 +188,15 @@ const DOCUMENT_TYPES = [
   // Итоговые документы
   { code: 'epts', label: 'ЭПТС', category: 'final' },
   { code: 'sbkts', label: 'СБКТС', category: 'final' },
-  // Прочее
-  { code: 'uploaded_file', label: 'Временный тип при upload без docType', category: 'other' },
-  // Устаревшие (не использовать в новых интеграциях)
-  { code: 'title_doc', label: 'Устаревший: инвойс', category: 'legacy', mapsTo: 'invoice' },
-  { code: 'additional_file', label: 'Устаревший: доп. файл', category: 'legacy' },
-  { code: 'transport_application', label: 'Устаревший: см. funds_transfer_application', category: 'legacy', mapsTo: 'funds_transfer_application' },
+  // Архив перед транзитом (1С → МП, только скачивание; несколько фото — суффикс _1, _2, …)
+  {
+    code: 'transit_archive_photo',
+    label: 'Фото архива перед транзитом (базовый код; при нескольких — transit_archive_photo_1, _2, …)',
+    category: 'transit_archive',
+  },
+  { code: 'transit_archive_video', label: 'Видео архива перед транзитом', category: 'transit_archive' },
+  // Служебный
+  { code: 'uploaded_file', label: 'Ошибка: upload без docType (не использовать)', category: 'other' },
 ];
 
 const REQUIRED_DOCUMENT_TYPES_ON_CREATE = DOCUMENT_TYPES.filter((d) => d.requiredOnCreate).map(
@@ -202,19 +205,25 @@ const REQUIRED_DOCUMENT_TYPES_ON_CREATE = DOCUMENT_TYPES.filter((d) => d.require
 
 const DOCUMENT_TYPE_CODES = DOCUMENT_TYPES.map((d) => d.code);
 
-const LEGACY_DOC_TYPE_ALIASES = {
-  transport_application: 'funds_transfer_application',
-  title_doc: 'invoice',
-};
-
 /** Старые коды подстатусов → актуальные (обратная совместимость). */
 const LEGACY_STATUS_SUB_TYPE_ALIASES = {
   manager_assigned: 'manager_execution',
 };
 
 function normalizeDocType(docType) {
-  const code = String(docType ?? '').trim();
-  return LEGACY_DOC_TYPE_ALIASES[code] || code;
+  return String(docType ?? '').trim();
+}
+
+function isKnownDocType(docType) {
+  const code = normalizeDocType(docType);
+  if (!code) return false;
+  if (DOCUMENT_TYPE_CODES.includes(code)) return true;
+  if (/_sign$/.test(code)) {
+    const base = code.replace(/_sign$/, '');
+    return DOCUMENT_TYPE_CODES.includes(base);
+  }
+  if (/^transit_archive_photo_\d+$/.test(code)) return true;
+  return false;
 }
 
 function normalizeStatusSubType(code) {
@@ -253,9 +262,9 @@ module.exports = {
   DOCUMENT_TYPES,
   DOCUMENT_TYPE_CODES,
   REQUIRED_DOCUMENT_TYPES_ON_CREATE,
-  LEGACY_DOC_TYPE_ALIASES,
   LEGACY_STATUS_SUB_TYPE_ALIASES,
   normalizeDocType,
+  isKnownDocType,
   normalizeStatusSubType,
   isKnownStatusSubType,
   suggestedStatusForSubType,

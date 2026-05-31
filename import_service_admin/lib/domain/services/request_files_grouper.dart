@@ -1,18 +1,7 @@
 import 'package:import_service_admin/core/catalog/customs_request_labels.dart';
 import 'package:import_service_admin/domain/entities/customs_request_file.dart';
 
-String normalizeDocTypeCode(String? raw) {
-  final code = (raw ?? '').trim();
-  if (code.isEmpty) return '';
-  switch (code) {
-    case 'title_doc':
-      return 'invoice';
-    case 'transport_application':
-      return 'funds_transfer_application';
-    default:
-      return code;
-  }
-}
+String normalizeDocTypeCode(String? raw) => (raw ?? '').trim();
 
 const kCreationDocTypes = [
   'passport_front',

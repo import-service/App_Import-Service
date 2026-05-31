@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "709308120184",
+    "project_id": "import-service-f736b",
+    "storage_bucket": "import-service-f736b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:709308120184:android:499437c6795989b10a418d",
+        "android_client_info": {
+          "package_name": "com.importservice.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8IHK34e44iRTGUj2f4DsFpaU3_Kyc7pw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

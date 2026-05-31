@@ -13,23 +13,44 @@ Future<String?> pickRequestDocumentPath(BuildContext context) async {
   final choice = await AppModalBottomSheet.show<String>(
     context: context,
     child: Builder(
-      builder: (sheetContext) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SheetHeader(title: s.requestPickDocumentTitle),
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: Text(s.requestPickDocumentPhoto),
-            onTap: () => Navigator.pop(sheetContext, 'photo'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.picture_as_pdf_outlined),
-            title: Text(s.requestPickDocumentPdf),
-            onTap: () => Navigator.pop(sheetContext, 'pdf'),
-          ),
-          const Gap(8),
-        ],
+      builder: (sheetContext) => Material(
+        color: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SheetHeader(title: s.requestPickDocumentTitle),
+            InkWell(
+              onTap: () => Navigator.pop(sheetContext, 'photo'),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.photo_camera_outlined),
+                    const Gap(12),
+                    Expanded(child: Text(s.requestPickDocumentPhoto)),
+                  ],
+                ),
+              ),
+            ),
+            InkWell(
+              onTap: () => Navigator.pop(sheetContext, 'pdf'),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.picture_as_pdf_outlined),
+                    const Gap(12),
+                    Expanded(child: Text(s.requestPickDocumentPdf)),
+                  ],
+                ),
+              ),
+            ),
+            const Gap(8),
+          ],
+        ),
       ),
     ),
   );
@@ -60,7 +81,7 @@ Future<String?> pickRequestDocumentPath(BuildContext context) async {
             ),
           ),
         ),
-        child: const CameraView(hideGalleryInSheet: false),
+        child: const CameraView(hideGalleryInSheet: true),
       ),
     ),
   );

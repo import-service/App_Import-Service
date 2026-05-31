@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 
+/// Горизонтальный ряд: кнопка «+» и превью. [maxPhotos] — лимит (1 для заявки v2).
 class RequestPhotoRowField extends StatelessWidget {
   const RequestPhotoRowField({
     super.key,
@@ -12,6 +13,7 @@ class RequestPhotoRowField extends StatelessWidget {
     required this.onAddTap,
     required this.onRemoveTap,
     this.markRequired = true,
+    this.maxPhotos,
   });
 
   final String title;
@@ -20,6 +22,22 @@ class RequestPhotoRowField extends StatelessWidget {
   final VoidCallback onAddTap;
   final ValueChanged<int> onRemoveTap;
   final bool markRequired;
+  /// `1` — один файл на слот (кнопка «+» скрыта, пока файл есть).
+  final int? maxPhotos;
+
+  bool get _canAddMore {
+    if (maxPhotos == 1) return photoPaths.isEmpty;
+    if (maxPhotos != null) return photoPaths.length < maxPhotos!;
+    return true;
+  }
+
+  int get _visiblePhotoCount {
+    if (maxPhotos == 1 && photoPaths.isNotEmpty) return 1;
+    if (maxPhotos != null) {
+      return photoPaths.length.clamp(0, maxPhotos!);
+    }
+    return photoPaths.length;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +45,8 @@ class RequestPhotoRowField extends StatelessWidget {
           color: const Color(0xFF7C7C7C),
           fontWeight: FontWeight.w700,
         );
+    final itemCount = (_canAddMore ? 1 : 0) + _visiblePhotoCount;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -51,16 +71,17 @@ class RequestPhotoRowField extends StatelessWidget {
           height: 104,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: photoPaths.length + 1,
+            itemCount: itemCount,
             separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              if (index == 0) {
+              if (_canAddMore && index == 0) {
                 return _AddPhotoTile(label: addLabel, onTap: onAddTap);
               }
-              final path = photoPaths[index - 1];
+              final photoIndex = _canAddMore ? index - 1 : index;
+              final path = photoPaths[photoIndex];
               return _PhotoTile(
                 path: path,
-                onRemoveTap: () => onRemoveTap(index - 1),
+                onRemoveTap: () => onRemoveTap(photoIndex),
               );
             },
           ),
@@ -122,14 +143,14 @@ class _PhotoTile extends StatelessWidget {
             width: 140,
             height: 104,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _errorTile(),
+            errorBuilder: (_, _, _) => _errorTile(),
           )
         : Image.file(
             File(path),
             width: 140,
             height: 104,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _errorTile(),
+            errorBuilder: (_, _, _) => _errorTile(),
           );
 
     return Stack(

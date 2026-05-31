@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_unified_image_picker/flutter_unified_image_picker.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
+import 'package:import_service_app/core/util/single_file_path_list.dart';
 import 'package:import_service_app/data/local/request_draft_attachments_space.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
+import 'package:import_service_app/presentation/widgets/bottom_sheets/request_files_exit_confirm_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_filled_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/forms/request_photo_row_field.dart';
 
@@ -70,32 +72,65 @@ class RequestFilesUploadPage extends StatefulWidget {
 
 class _RequestFilesUploadPageState extends State<RequestFilesUploadPage> {
   late final List<String> _passportFrontPaths =
-      List<String>.from(widget.initial.passportFrontPaths);
+      mutableSlotPaths(widget.initial.passportFrontPaths);
   late final List<String> _passportAddressPaths =
-      List<String>.from(widget.initial.passportAddressPaths);
-  late final List<String> _innPaths = List<String>.from(widget.initial.innPaths);
+      mutableSlotPaths(widget.initial.passportAddressPaths);
+  late final List<String> _innPaths =
+      mutableSlotPaths(widget.initial.innPaths);
   late final List<String> _snilsPaths =
-      List<String>.from(widget.initial.snilsPaths);
+      mutableSlotPaths(widget.initial.snilsPaths);
   late final List<String> _invoicePaths =
-      List<String>.from(widget.initial.invoicePaths);
+      mutableSlotPaths(widget.initial.invoicePaths);
   late final List<String> _contractPaths =
-      List<String>.from(widget.initial.contractPaths);
+      mutableSlotPaths(widget.initial.contractPaths);
   late final List<String> _paymentReceiptPaths =
-      List<String>.from(widget.initial.paymentReceiptPaths);
+      mutableSlotPaths(widget.initial.paymentReceiptPaths);
   late final List<String> _vinPlatePhotoPaths =
-      List<String>.from(widget.initial.vinPlatePhotoPaths);
+      mutableSlotPaths(widget.initial.vinPlatePhotoPaths);
   late final List<String> _odometerPhotoPaths =
-      List<String>.from(widget.initial.odometerPhotoPaths);
+      mutableSlotPaths(widget.initial.odometerPhotoPaths);
   late final List<String> _carFrontPhotoPaths =
-      List<String>.from(widget.initial.carFrontPhotoPaths);
+      mutableSlotPaths(widget.initial.carFrontPhotoPaths);
   late final List<String> _carRearPhotoPaths =
-      List<String>.from(widget.initial.carRearPhotoPaths);
+      mutableSlotPaths(widget.initial.carRearPhotoPaths);
   late final List<String> _additionalFile1Paths =
-      List<String>.from(widget.initial.additionalFile1Paths);
+      mutableSlotPaths(widget.initial.additionalFile1Paths);
   late final List<String> _additionalFile2Paths =
-      List<String>.from(widget.initial.additionalFile2Paths);
+      mutableSlotPaths(widget.initial.additionalFile2Paths);
+  bool _allowPop = false;
+
+  bool get _hasAnyFiles =>
+      _passportFrontPaths.isNotEmpty ||
+      _passportAddressPaths.isNotEmpty ||
+      _innPaths.isNotEmpty ||
+      _snilsPaths.isNotEmpty ||
+      _invoicePaths.isNotEmpty ||
+      _contractPaths.isNotEmpty ||
+      _paymentReceiptPaths.isNotEmpty ||
+      _vinPlatePhotoPaths.isNotEmpty ||
+      _odometerPhotoPaths.isNotEmpty ||
+      _carFrontPhotoPaths.isNotEmpty ||
+      _carRearPhotoPaths.isNotEmpty ||
+      _additionalFile1Paths.isNotEmpty ||
+      _additionalFile2Paths.isNotEmpty;
+
+  Future<void> _attemptPop() async {
+    if (_allowPop || !_hasAnyFiles) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    final choice = await RequestFilesExitConfirmBottomSheet.show(context);
+    if (!mounted || choice == null) return;
+    if (choice == RequestFilesExitChoice.save) {
+      _complete();
+      return;
+    }
+    setState(() => _allowPop = true);
+    Navigator.of(context).pop();
+  }
 
   Future<void> _addPhotoTo(List<String> target) async {
+    if (target.isNotEmpty) return;
     final path = await Navigator.push<String>(
       context,
       MaterialPageRoute(
@@ -136,19 +171,19 @@ class _RequestFilesUploadPageState extends State<RequestFilesUploadPage> {
   void _complete() {
     Navigator.of(context).pop(
       RequestFilesPayload(
-        passportFrontPaths: _passportFrontPaths,
-        passportAddressPaths: _passportAddressPaths,
-        innPaths: _innPaths,
-        snilsPaths: _snilsPaths,
-        invoicePaths: _invoicePaths,
-        contractPaths: _contractPaths,
-        paymentReceiptPaths: _paymentReceiptPaths,
-        vinPlatePhotoPaths: _vinPlatePhotoPaths,
-        odometerPhotoPaths: _odometerPhotoPaths,
-        carFrontPhotoPaths: _carFrontPhotoPaths,
-        carRearPhotoPaths: _carRearPhotoPaths,
-        additionalFile1Paths: _additionalFile1Paths,
-        additionalFile2Paths: _additionalFile2Paths,
+        passportFrontPaths: List<String>.from(_passportFrontPaths),
+        passportAddressPaths: List<String>.from(_passportAddressPaths),
+        innPaths: List<String>.from(_innPaths),
+        snilsPaths: List<String>.from(_snilsPaths),
+        invoicePaths: List<String>.from(_invoicePaths),
+        contractPaths: List<String>.from(_contractPaths),
+        paymentReceiptPaths: List<String>.from(_paymentReceiptPaths),
+        vinPlatePhotoPaths: List<String>.from(_vinPlatePhotoPaths),
+        odometerPhotoPaths: List<String>.from(_odometerPhotoPaths),
+        carFrontPhotoPaths: List<String>.from(_carFrontPhotoPaths),
+        carRearPhotoPaths: List<String>.from(_carRearPhotoPaths),
+        additionalFile1Paths: List<String>.from(_additionalFile1Paths),
+        additionalFile2Paths: List<String>.from(_additionalFile2Paths),
       ),
     );
   }
@@ -156,33 +191,40 @@ class _RequestFilesUploadPageState extends State<RequestFilesUploadPage> {
   @override
   Widget build(BuildContext context) {
     final s = sl<JsonStringsService>();
-    return Scaffold(
-      appBar: BrandPrimaryAppBar(title: s.text('requestFilesTitle')),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            children: [
-              _row(s.text('reqPassportFrontLabel'), _passportFrontPaths, markRequired: true),
-              _row(s.text('reqPassportAddressLabel'), _passportAddressPaths, markRequired: true),
-              _row(s.text('reqInnFileLabel'), _innPaths, markRequired: true),
-              _row(s.text('reqSnilsFileLabel'), _snilsPaths, markRequired: true),
-              _row(s.text('reqInvoiceFileLabel'), _invoicePaths, markRequired: true),
-              _row(s.text('reqContractFileLabel'), _contractPaths, markRequired: true),
-              _row(s.text('reqPaymentReceiptFileLabel'), _paymentReceiptPaths, markRequired: true),
-              _row(s.text('reqVinPlateFileLabel'), _vinPlatePhotoPaths, markRequired: true),
-              _row(s.text('reqOdometerFileLabel'), _odometerPhotoPaths, markRequired: true),
-              _row(s.text('reqCarFrontFileLabel'), _carFrontPhotoPaths, markRequired: true),
-              _row(s.text('reqCarRearFileLabel'), _carRearPhotoPaths, markRequired: true),
-              _row(s.text('reqAdditionalFile1Label'), _additionalFile1Paths, markRequired: false),
-              _row(s.text('reqAdditionalFile2Label'), _additionalFile2Paths, markRequired: false),
-              const SizedBox(height: 16),
-              AppPrimaryFilledWideButton(
-                label: s.text('requestFilesDoneButton'),
-                onPressed: _complete,
-              ),
-            ],
+    return PopScope(
+      canPop: _allowPop || !_hasAnyFiles,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _attemptPop();
+      },
+      child: Scaffold(
+        appBar: BrandPrimaryAppBar(title: s.text('requestFilesTitle')),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              children: [
+                _row(s.text('reqPassportFrontLabel'), _passportFrontPaths, markRequired: true),
+                _row(s.text('reqPassportAddressLabel'), _passportAddressPaths, markRequired: true),
+                _row(s.text('reqInnFileLabel'), _innPaths, markRequired: true),
+                _row(s.text('reqSnilsFileLabel'), _snilsPaths, markRequired: true),
+                _row(s.text('reqInvoiceFileLabel'), _invoicePaths, markRequired: true),
+                _row(s.text('reqContractFileLabel'), _contractPaths, markRequired: true),
+                _row(s.text('reqPaymentReceiptFileLabel'), _paymentReceiptPaths, markRequired: true),
+                _row(s.text('reqVinPlateFileLabel'), _vinPlatePhotoPaths, markRequired: true),
+                _row(s.text('reqOdometerFileLabel'), _odometerPhotoPaths, markRequired: true),
+                _row(s.text('reqCarFrontFileLabel'), _carFrontPhotoPaths, markRequired: true),
+                _row(s.text('reqCarRearFileLabel'), _carRearPhotoPaths, markRequired: true),
+                _row(s.text('reqAdditionalFile1Label'), _additionalFile1Paths, markRequired: false),
+                _row(s.text('reqAdditionalFile2Label'), _additionalFile2Paths, markRequired: false),
+                const SizedBox(height: 16),
+                AppPrimaryFilledWideButton(
+                  label: s.text('requestFilesDoneButton'),
+                  onPressed: _complete,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -201,6 +243,7 @@ class _RequestFilesUploadPageState extends State<RequestFilesUploadPage> {
         title: title,
         addLabel: s.text('requestUploadButton'),
         photoPaths: target,
+        maxPhotos: 1,
         onAddTap: () => _addPhotoTo(target),
         onRemoveTap: (index) => _removePhotoFrom(target, index),
         markRequired: markRequired,

@@ -30,7 +30,7 @@ class AppFeedbackService {
           style: TextStyle(color: fg, fontWeight: FontWeight.w500),
         ),
         backgroundColor: bg,
-        behavior: SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.fixed,
         duration: _duration,
       ),
     );

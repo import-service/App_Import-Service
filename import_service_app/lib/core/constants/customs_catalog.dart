@@ -116,3 +116,82 @@ String? receiptDocTypeForPaymentFee(String? feeDocType) {
     _ => null,
   };
 }
+
+/// Состав пакета на подпись по `dealType` (catalog-reference.md §2).
+List<CustomsDocType> signingDocTypesForDealType(DealType dealType) {
+  final types = <CustomsDocType>[
+    CustomsDocType.recyclingFeeCalc,
+    CustomsDocType.kuts,
+    CustomsDocType.explanatoryNote,
+    CustomsDocType.customsRepAgreement,
+    CustomsDocType.contract,
+  ];
+  if (dealType != DealType.cash) {
+    types.add(CustomsDocType.fundsTransferApplication);
+  }
+  types.add(CustomsDocType.passportNotarizedCopy);
+  switch (dealType) {
+    case DealType.cash:
+      types.addAll([
+        CustomsDocType.receipt,
+        CustomsDocType.additionalAgreement,
+      ]);
+    case DealType.tripartite:
+      types.add(CustomsDocType.tripartiteAgreement);
+    case DealType.quadripartite:
+      types.add(CustomsDocType.quadripartiteAgreement);
+    case DealType.bilateral:
+      break;
+  }
+  return types;
+}
+
+/// Подстатусы, с которых начинается пакет на подпись (`primary_documents_sent+`).
+const Set<RequestStatusSubType> kSigningPackageStartedSubTypes = {
+  RequestStatusSubType.primaryDocumentsSent,
+  RequestStatusSubType.originalsPartialNoTransit,
+  RequestStatusSubType.originalsCompleteNoTransit,
+  RequestStatusSubType.signatureRevisionRequired,
+  RequestStatusSubType.originalsMissingTransit,
+  RequestStatusSubType.originalsPartialTransit,
+  RequestStatusSubType.originalsCompleteTransit,
+};
+
+/// Подстатусы, когда показываем client-only слоты без `*_sign` (после раунда оригиналов).
+const Set<RequestStatusSubType> kClientOnlySigningSlotSubTypes = {
+  RequestStatusSubType.originalsPartialNoTransit,
+  RequestStatusSubType.originalsCompleteNoTransit,
+  RequestStatusSubType.signatureRevisionRequired,
+  RequestStatusSubType.originalsMissingTransit,
+  RequestStatusSubType.originalsPartialTransit,
+  RequestStatusSubType.originalsCompleteTransit,
+};
+
+/// Пакет на подпись выдан: `primary_documents_sent+` или есть оригинал из 1С (не creation `contract`).
+bool isSigningPackageStarted({
+  required String? statusSubType,
+  required Iterable<String> fileDocTypes,
+}) {
+  final codes = fileDocTypes.map(CustomsDocType.normalizeCode).where((c) => c.isNotEmpty).toSet();
+  final sub = RequestStatusSubType.tryParse(statusSubType);
+  if (sub != null && kSigningPackageStartedSubTypes.contains(sub)) {
+    return true;
+  }
+  for (final type in CustomsDocType.signingBaseTypes) {
+    if (type.isClientSignOnly || type == CustomsDocType.contract) continue;
+    if (codes.contains(type.apiCode)) return true;
+  }
+  for (final key in codes) {
+    if (!key.endsWith('_sign')) continue;
+    final base = CustomsDocType.tryParse(key.substring(0, key.length - 5));
+    if (base == null || base.isClientSignOnly) continue;
+    if (base == CustomsDocType.contract) continue;
+    return true;
+  }
+  return false;
+}
+
+bool isClientOnlySigningSlotVisible(RequestStatusSubType? statusSubType) {
+  if (statusSubType == null) return false;
+  return kClientOnlySigningSlotSubTypes.contains(statusSubType);
+}

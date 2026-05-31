@@ -1,0 +1,249 @@
+---
+description: Как устроено МП и как течёт данные — читать ПЕРЕД любой задачей, чтобы не ломать рабочие потоки
+alwaysApply: true
+---
+
+# Архитектура Import Service App (runtime)
+
+**Назначение:** единый документ «как всё работает». Флоу заявки — **`D:\Projects\import_servis\docs\request-lifecycle.md`**. Карта файлов — `app-context-map.mdc`. Слои — `architecture.mdc`. API — `D:\Projects\import_servis\docs\api-app.md`, концепция — `project-concept.mdc`.
+
+**Перед правкой:** найди свой сценарий ниже → меняй только указанные точки → не трогай инварианты в конце документа.
+
+---
+
+## 1. Границы системы
+
+```
+МП (этот репо) ←HTTPS→ Сервер (157-22-173-7.sslip.io/api) ←→ 1С
+```
+
+- МП **никогда** не ходит в 1С.
+- Все файлы и статусы — через сервер.
+- Контракт файлов **v2:** create **без** `files[]` → N×`POST /customs-requests/upload` → `GET detail`. `POST …/:id/files` = **410**, не вызывать.
+
+---
+
+## 2. Слои и поток зависимостей
+
+```text
+presentation/          pages, widgets, bloc/cubit, helpers
+    ↓ только domain
+domain/                entities, repository interfaces, use cases (если есть)
+    ↑ implements
+data/                  models (JSON), datasources, repository impl
+    ↓
+core/                  di, network, auth, push, i18n, ui feedback, logging
+```
+
+| Слой | Ответственность | State |
+|------|-----------------|-------|
+| **Page** | UI, локальный UI-state (форма, таб), навигация | `setState` только для чисто локального UI |
+| **Cubit** | Списки, черновики, флаги внимания, unread чата | `emit`, один инстанс в GetIt |
+| **Repository** | Either&lt;Failure,T&gt;, demo/prod ветки | без BuildContext |
+| **Remote DS** | Dio, ErrorHandler → ServerException | без UI |
+
+**DI:** только `sl<T>()` из `lib/core/di/injection_container.dart`. **Не** `BlocProvider` для фич. **Не** GetX.
+
+---
+
+## 3. Старт приложения (порядок жёсткий)
+
+```text
+main()
+  bootstrapLogger()
+  await initDependencies()     ← SharedPreferences, Cubit'ы, SecureStorage, Dio, Auth restore
+  await initializeDateFormatting(ru/zh)
+  await PushNotificationsService.bootstrap()   ← Firebase + bg handler, БЕЗ getToken
+  runApp(MyApp)
+  postFrame → PushNotificationsService.initialize() + registerPushTokenIfNeeded()
+```
+
+**Почему так:** `initDependencies` тяжёлый (Secure Storage на MIUI). `getToken()` до UI → `SERVICE_NOT_AVAILABLE` и краш/нет push.
+
+**AuthSessionController** (`core/auth/`) — `Listenable` для `go_router.refreshListenable`. Токен JWT в памяти + Secure Storage. Демо — отдельный флаг `_isDemo`, не путать с JWT.
+
+---
+
+## 4. Навигация
+
+**Файл:** `lib/presentation/router/app_router.dart`
+
+| Маршрут | Экран |
+|---------|--------|
+| `/login` | Вход, демо-кнопка |
+| `/home` | Shell: вкладки «Мои авто» / профиль |
+| `/request/:id` | Деталка заявки |
+| `/request/:id/chat` | Чат |
+
+**Redirect:** `hasActiveSession` (JWT **или** демо) → без сессии только `/login`.
+
+**Не в GoRouter:** `RequestCreatePage`, `RequestFilesUploadPage`, `CarsFiltersPage` — открываются через `Navigator.push` / `MaterialPageRoute` с **extra/result**, не ломая shell.
+
+---
+
+## 5. Авторизация
+
+```text
+LoginPage._login()
+  → AuthService.login() → POST auth/login
+  → session.setToken + SecureStorage
+  → refreshProfile / me
+  → registerPushTokenIfNeeded()  ← ensureFcmToken + POST push token
+  → CarInventoryCubit.replaceAll([]) + CarsRepository.listVehicles()
+  → context.go('/home')
+```
+
+**Ошибки входа:** `presentation/helpers/login_error_message.dart` → i18n. **Не** показывать `INVALID_CREDENTIALS` и другие коды API.
+
+**Восстановление сессии:** в `initDependencies` — read token → `session.restore` → `refreshProfile`. Push-токен — в `main` postFrame, если уже авторизован.
+
+---
+
+## 6. Режимы: prod vs demo
+
+| | Prod (JWT) | Demo (кнопка на логине) |
+|--|------------|-------------------------|
+| Список заявок | `GET customs-requests`, старт **пустой** + загрузка | `DefaultCarsSeed` через `bootstrapDemoRequests` |
+| Create | API create + upload | Локальный id + симуляция upload в `CarsRepositoryImpl._demoCreateVehicle` |
+| Деталка | `GET :id` | Из `CarInventoryCubit` |
+
+**Запрещено:** автодемо при cold start. Демо только после явного нажатия.
+
+**Источник списка на главной:** `CarInventoryCubit` ← `CarsRepository` ← remote или seed.
+
+---
+
+## 7. Создание заявки (полный поток)
+
+```text
+Home → RequestCreatePage (форма + черновик)
+  RequestDraftCubit / RequestDraftStore (SharedPreferences)
+  RequestFormModel — поля + List<String> путей к файлам на диске
+
+  Кнопка «Файлы» → RequestFilesUploadPage (Navigator)
+    локальные пути в draft attachments: request_draft_attachments/<draftId>/
+    возврат RequestFilesPayload → merge в форму
+
+  Submit → CarsRepository.createVehicle(form)
+    prod: CustomsRequestsRemoteDataSource.createRequestWithFiles
+      1) POST customs-requests (только поля формы)
+      2) uploadRequestFilesBatch (uploadIndex/uploadTotal)
+      3) GET detail → CarListItem в CarInventoryCubit
+    UI: прогресс, _failedUploadDocTypes, retry через retryPendingUploads
+```
+
+**Модель заявки в списке:** `domain/entities/car_list_item.dart` — `files[]`, `advancePayment` / `actualPayment` / `refundAmount`, `statusSubTypeDateTime`. Legacy-поля только для demo-seed, не парсить с API.
+
+---
+
+## 8. Файлы на экране загрузки (КРИТИЧНО — не ломать)
+
+**Файлы:** `request_files_upload_page.dart`, `request_photo_row_field.dart`, `request_draft_attachments_space.dart`, `core/util/single_file_path_list.dart`
+
+### Как работает
+
+1. **13 слотов** (11 обязательных + 2 optional): каждый слот — **отдельный** `List<String>` в `State`.
+2. **Инициализация слота:** `mutableSlotPaths(initial)` → **`List<String>.from(...).take(1)`** — всегда **изменяемый** список.
+3. **Добавление фото:** камера (`CameraView`) → `RequestDraftAttachmentsSpace.ingestPickedFile` → **`target.add(stored)`** если слот пуст.
+4. **Лимит 1 файл:** `RequestPhotoRowField(maxPhotos: 1)` скрывает «+» когда есть файл; `_addPhotoTo` делает `if (target.isNotEmpty) return`.
+5. **Удаление:** `target.removeAt(index)` + удаление файла с диска.
+6. **Завершение:** `pop(RequestFilesPayload)` — копии списков `List<String>.from(...)`.
+
+### Что было сломано (и нельзя повторять)
+
+- `const []` или `singleFilePathList` → `const []` для State → **`.clear()` / `.add()` падает**.
+- Замена `List.from` + `add` на «умные» хелперы без прогона камеры.
+- Несколько фото в одном слоте — контракт v2 **один docType = один файл**.
+
+### Деталка / подпись / чек
+
+- Группировка: `domain/services/request_files_grouper.dart`
+- Upload с деталки: `CarsRepository.attachRequestFile` → `uploadRequestFile` (не `/:id/files`)
+- Picker: `presentation/helpers/request_file_picker.dart`
+
+---
+
+## 9. Push (FCM)
+
+**Файлы:** `push_notifications_service.dart`, `main.dart`, `auth_service.dart` (`registerPushTokenIfNeeded`)
+
+```text
+AndroidManifest: firebase_messaging_auto_init_enabled=false
+bootstrap → setAutoInitEnabled(false)
+postFrame initialize → permission, listeners
+ensureFcmToken → ждать GMS → setAutoInitEnabled(true) → getToken с retry
+onTokenRefresh → register on server
+MyApp слушает requestOpenStream / requestUpdateStream
+  request_files_update → refresh detail + RequestAttentionCubit.markFileHighlights
+```
+
+**Не переносить** `getToken` в `main()` до `runApp`.
+
+---
+
+## 10. UI-обратная связь и i18n
+
+- SnackBar: **только** `sl<AppFeedbackService>().show(text, kind: AppFeedbackKind.*)`
+- Строки: **только** `assets/i18n/ru.json` + `zh.json`, геттеры `JsonStringsService`
+- Подтверждения: **шторки** (`AppModalBottomSheet`), не `AlertDialog`
+
+---
+
+## 11. Ошибки сети
+
+```text
+DioException → ErrorHandler.handle → ServerException
+Repository → Left(ServerFailure(message))  // message может быть кодом API
+Presentation → маппинг в человекочитаемый текст (login_error_message и аналоги)
+```
+
+Коды API в UI **запрещены** для пользователя.
+
+---
+
+## 12. Где что менять (матрица задач)
+
+| Задача | Трогать | Не трогать без нужды |
+|--------|---------|----------------------|
+| Новое поле формы заявки | `RequestFormModel`, create payload в DS, i18n, виджеты формы | upload batch, push init |
+| Новый docType | `customs_catalog.dart`, docs, labels, file slots на create/upload | auth, router redirect |
+| Upload / retry | `customs_requests_remote_data_source.dart`, `cars_repository_impl.dart`, create page progress | `request_files_upload_page` init lists |
+| Деталка / файлы | `car_request_detail_page`, `request_detail_files_sections.dart`, grouper | demo seed unless needed |
+| Push тип | `push_notifications_service`, `main.dart` listener, server contract | file upload page |
+| Новый экран в shell | `home_page`, `go_router` если нужен deep link | `initDependencies` порядок |
+
+---
+
+## 13. Инварианты (нарушение = регрессия)
+
+1. **Данные → сессия → навигация** (список загружен до `go` после login).
+2. **Файловые слоты:** изменяемые `List<String>.from`, один файл, `target.add`, `maxPhotos: 1`.
+3. **FCM:** bootstrap без getToken; token после UI; register после login/restore.
+4. **Demo:** только по кнопке; prod-список не сидится автоматически.
+5. **Upload v2:** create без files; не вызывать `POST …/:id/files`.
+6. **UI-строки и ошибки:** i18n + AppFeedbackService; не сырые коды API.
+7. **Cubit-списки:** `emit` с **новым** списком, не мутировать `state.items` на месте.
+
+---
+
+## 14. Ручной smoke после изменений
+
+- [ ] Cold start → login (или restore) → home, список
+- [ ] Демо → home, seed
+- [ ] Создание заявки → **фото в слот** → submit / retry upload
+- [ ] Деталка → группы файлов
+- [ ] Logcat: FCM token после старта; нет `Unhandled Exception` после камеры
+
+---
+
+## 15. Связанные документы
+
+| Документ | Когда |
+|----------|--------|
+| `app-context-map.mdc` | Где лежит файл/виджет |
+| `api-upload-v2-migration.mdc` | Контракт upload v2 |
+| `pitfalls-and-regression-guards.mdc` | Чек-лист ловушек |
+| `presentation-widgets.mdc` | Новые виджеты |
+| `AGENTS.md` | Точка входа для агента |
+
+**При изменении архитектурного потока** — обнови **этот файл** (§7–§9), иначе следующий агент снова сломает то же место.

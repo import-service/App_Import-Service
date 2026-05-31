@@ -15,7 +15,8 @@ import 'package:import_service_app/presentation/bloc/request_draft/request_draft
 import 'package:import_service_app/data/models/request_draft.dart';
 import 'package:import_service_app/data/models/request_form_model.dart';
 import 'package:import_service_app/data/models/registration_request_model.dart';
-import 'package:import_service_app/domain/entities/car_list_item.dart';
+import 'package:import_service_app/domain/entities/create_vehicle_result.dart';
+import 'package:import_service_app/domain/entities/request_files_batch_upload_result.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/pages/request_files_upload_page.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
@@ -60,6 +61,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   String? _submitRuntimeError;
   int _uploadDone = 0;
   int _uploadTotal = 0;
+  String? _pendingRequestId;
+  List<String> _failedUploadDocTypes = const [];
   OrganizationType _organizationType = OrganizationType.ooo;
 
   bool _hasSunroof = false;
@@ -261,7 +264,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }
 
   String _snilsDigits(String value) => value.replaceAll(RegExp(r'\D'), '');
-  String _innDigits(String value) => value.replaceAll(RegExp(r'\D'), '');
+  String _innDigits(String value) => innDigitsOnly(value);
 
   String _phoneDigits(String value) {
     var digits = value.replaceAll(RegExp(r'\D'), '');
@@ -354,6 +357,94 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     );
   }
 
+  Future<void> _retryPendingUploads() async {
+    final requestId = _pendingRequestId?.trim() ?? '';
+    if (requestId.isEmpty || _failedUploadDocTypes.isEmpty) return;
+    setState(() {
+      _submitting = true;
+      _submitRuntimeError = null;
+      _uploadDone = 0;
+      _uploadTotal = 0;
+    });
+    await _runUpload(
+      upload: () => sl<CarsRepository>().retryPendingUploads(
+        requestId: requestId,
+        items: sl<CarsRepository>().fileUploadEntriesFromForm(
+          _buildForm(),
+          onlyDocTypes: _failedUploadDocTypes.toSet(),
+        ),
+        onUploadProgress: _onUploadProgress,
+      ),
+      onSuccess: _onUploadBatchSuccess,
+    );
+  }
+
+  void _onUploadProgress(int done, int total) {
+    if (!mounted) return;
+    setState(() {
+      _uploadDone = done;
+      _uploadTotal = total;
+    });
+  }
+
+  Future<void> _onUploadBatchSuccess() async {
+    final strings = sl<JsonStringsService>();
+    final prefs = sl<SharedPreferences>();
+    await prefs.setString(
+      SessionPreferencesKeys.authLastEmail,
+      _companyEmailController.text.trim(),
+    );
+    await sl<RequestDraftCubit>().delete(_draftId);
+    if (!mounted) return;
+    setState(() {
+      _submitRuntimeError = null;
+      _pendingRequestId = null;
+      _failedUploadDocTypes = const [];
+    });
+    sl<AppFeedbackService>().show(
+      strings.text('requestCreateSuccess'),
+      kind: AppFeedbackKind.success,
+    );
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _runUpload({
+    required Future<Either<Failure, RequestFilesBatchUploadResult>>
+        Function() upload,
+    required Future<void> Function() onSuccess,
+  }) async {
+    final strings = sl<JsonStringsService>();
+    final result = await upload();
+    if (!mounted) return;
+    await result.fold<Future<void>>(
+      (Failure f) async {
+        final msg = _userFriendlySubmitError(f, strings);
+        if (mounted) {
+          setState(() => _submitRuntimeError = msg);
+        }
+        sl<AppFeedbackService>().show(msg, kind: AppFeedbackKind.error);
+      },
+      (RequestFilesBatchUploadResult batch) async {
+        if (!batch.allSucceeded) {
+          if (mounted) {
+            setState(() {
+              _pendingRequestId = batch.item.id;
+              _failedUploadDocTypes = List<String>.from(batch.failedDocTypes);
+              _submitRuntimeError = strings.text('requestCreatePartialUpload');
+            });
+          }
+          sl<AppFeedbackService>().show(
+            strings.text('requestCreatePartialUpload'),
+            kind: AppFeedbackKind.warning,
+          );
+          return;
+        }
+        await onSuccess();
+      },
+    );
+    if (mounted) setState(() => _submitting = false);
+  }
+
   Future<void> _submitRequest() async {
     final strings = sl<JsonStringsService>();
     if (!_validateForSubmit()) return;
@@ -364,17 +455,22 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       _submitRuntimeError = null;
       _uploadDone = 0;
       _uploadTotal = 0;
+      if (_pendingRequestId == null) {
+        _failedUploadDocTypes = const [];
+      }
     });
-    final Either<Failure, CarListItem> result =
+
+    if (_pendingRequestId != null &&
+        _pendingRequestId!.isNotEmpty &&
+        _failedUploadDocTypes.isNotEmpty) {
+      await _retryPendingUploads();
+      return;
+    }
+
+    final Either<Failure, CreateVehicleResult> result =
         await sl<CarsRepository>().createVehicle(
       _buildForm(),
-      onUploadProgress: (done, total) {
-        if (!mounted) return;
-        setState(() {
-          _uploadDone = done;
-          _uploadTotal = total;
-        });
-      },
+      onUploadProgress: _onUploadProgress,
     );
     if (!mounted) return;
     await result.fold<Future<void>>(
@@ -383,28 +479,29 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         if (mounted) {
           setState(() => _submitRuntimeError = msg);
         }
-        sl<AppFeedbackService>().show(
-          msg,
-          kind: AppFeedbackKind.error,
-        );
+        sl<AppFeedbackService>().show(msg, kind: AppFeedbackKind.error);
+        if (mounted) setState(() => _submitting = false);
       },
-      (_) async {
-        final prefs = sl<SharedPreferences>();
-        await prefs.setString(
-          SessionPreferencesKeys.authLastEmail,
-          _companyEmailController.text.trim(),
-        );
-        await sl<RequestDraftCubit>().delete(_draftId);
-        if (!mounted) return;
-        setState(() => _submitRuntimeError = null);
-        sl<AppFeedbackService>().show(
-          strings.text('requestCreateSuccess'),
-          kind: AppFeedbackKind.success,
-        );
-        Navigator.of(context).pop();
+      (CreateVehicleResult created) async {
+        if (!created.allFilesUploaded) {
+          if (mounted) {
+            setState(() {
+              _pendingRequestId = created.item.id;
+              _failedUploadDocTypes = List<String>.from(created.failedDocTypes);
+              _submitRuntimeError = strings.text('requestCreatePartialUpload');
+            });
+          }
+          sl<AppFeedbackService>().show(
+            strings.text('requestCreatePartialUpload'),
+            kind: AppFeedbackKind.warning,
+          );
+          if (mounted) setState(() => _submitting = false);
+          return;
+        }
+        await _onUploadBatchSuccess();
+        if (mounted) setState(() => _submitting = false);
       },
     );
-    if (mounted) setState(() => _submitting = false);
   }
 
   String _userFriendlySubmitError(Failure f, JsonStringsService s) {
@@ -423,6 +520,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }
 
   Future<void> _saveDraftExplicit() async {
+    _debounce?.cancel();
     _explicitDraftSaved = true;
     await _writeDraft();
     if (!mounted) return;
@@ -436,7 +534,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   void _applyDraft(RequestFormModel f) {
     _organizationType = f.organizationType;
     _companyNameController.text = f.companyName;
-    _companyInnController.text = f.companyInn;
+    _companyInnController.text = InnInputFormatter.formatDigits(f.companyInn);
     _companyEmailController.text = f.companyEmail;
     _companyPhoneController.text = f.companyPhone;
     _personNameController.text = f.personFullName;
@@ -485,7 +583,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       _companyNameController.text = companyName.trim();
     }
     if (_companyInnController.text.trim().isEmpty && inn.trim().isNotEmpty) {
-      _companyInnController.text = inn.trim();
+      _companyInnController.text = InnInputFormatter.formatDigits(inn);
     }
     if (_companyEmailController.text.trim().isEmpty && email.trim().isNotEmpty) {
       _companyEmailController.text = email.trim();
@@ -770,7 +868,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       ),
       const SizedBox(height: 10),
       AppPrimaryFilledWideButton(
-        label: s.text('requestSubmitButton'),
+        label: _failedUploadDocTypes.isNotEmpty
+            ? s.text('requestCreateRetryUpload')
+            : s.text('requestSubmitButton'),
         onPressed: (_submitting || !_isSubmitEnabled) ? null : _submitRequest,
         isLoading: _submitting,
         height: 56,
@@ -780,7 +880,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         Text(
           _uploadDone >= _uploadTotal
               ? 'Создаем заявку...'
-              : 'Загрузка файлов: $_uploadDone/$_uploadTotal',
+              : s
+                  .text('requestCreateUploadProgress')
+                  .replaceAll('{done}', '$_uploadDone')
+                  .replaceAll('{total}', '$_uploadTotal'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: const Color(0xFF4A4A4A),
                 fontWeight: FontWeight.w500,

@@ -12,6 +12,11 @@ class DemoCar {
     required this.requestStatus,
     this.managerFullName,
     this.external1cId,
+    this.hasUnreadChat = false,
+    this.hasStatusUpdate = false,
+    this.hasDocsAction = false,
+    this.statusUpdateSummary,
+    this.pendingActionHints = const [],
   });
 
   final String id;
@@ -23,6 +28,15 @@ class DemoCar {
   final RequestStatus requestStatus;
   final String? managerFullName;
   final String? external1cId;
+  final bool hasUnreadChat;
+  final bool hasStatusUpdate;
+  final bool hasDocsAction;
+  final String? statusUpdateSummary;
+
+  /// Что нужно сделать в заявке (подпись, чек…) — из данных item, не только push.
+  final List<String> pendingActionHints;
+
+  bool get hasPendingActions => pendingActionHints.isNotEmpty;
 
   String get displayCarLine {
     final a = carMake.trim();

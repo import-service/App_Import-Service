@@ -1,6 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const { verifyIntegrationBearer } = require('../util/integrationAuth');
 const { sendUserMessageTo1C } = require('../services/oneCChatOut');
+const { notifyMessageFrom1C } = require('../services/pushNotifications');
+const { handleDemoUserChatMessage, isDemoExternal1cId } = require('../services/demoFlow');
 
 const MAX_TEXT = 2000;
 
@@ -200,16 +202,31 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       const messageRow = rowRows[0];
 
       let oneC;
-      if (!fastify.config.chat?.oneC?.url) {
-        oneC = { status: 0, error: { code: 'ONE_C_CHAT_URL_NOT_SET' } };
+      if (!ar.row.external_1c_id) {
+        oneC = { status: 0, error: { code: 'MISSING_EXTERNAL_1C_ID' } };
         await fastify.pool.query(
           `UPDATE customs_request_messages
            SET delivery_status='failed', last_1c_error=?
            WHERE id=? AND deleted_at IS NULL`,
-          ['ONE_C_CHAT_URL_NOT_SET', messageId],
+          ['MISSING_EXTERNAL_1C_ID', messageId],
         );
         messageRow.delivery_status = 'failed';
-        messageRow.last_1c_error = 'ONE_C_CHAT_URL_NOT_SET';
+        messageRow.last_1c_error = 'MISSING_EXTERNAL_1C_ID';
+      } else if (isDemoExternal1cId(ar.row.external_1c_id)) {
+        oneC = { status: 200, demo: true };
+        await fastify.pool.query(
+          `UPDATE customs_request_messages
+           SET delivery_status='delivered',
+               delivered_to_1c_at=NOW(3),
+               last_1c_error=NULL
+           WHERE id=? AND deleted_at IS NULL`,
+          [messageId],
+        );
+        messageRow.delivery_status = 'delivered';
+        messageRow.delivered_to_1c_at = new Date();
+        handleDemoUserChatMessage(fastify, id, text).catch((e) => {
+          fastify.log.warn({ requestId: id, err: e.message }, 'demo chat reply failed');
+        });
       } else {
         try {
           const { json } = await sendUserMessageTo1C(fastify, {
@@ -332,6 +349,71 @@ module.exports = async function customsRequestChatRoutes(fastify) {
     },
   );
 
+  fastify.get(
+    '/integration/customs-request-messages',
+    {
+      preHandler: verifyIntegrationBearer,
+      schema: {
+        querystring: {
+          type: 'object',
+          required: ['external1cId'],
+          properties: {
+            external1cId: { type: 'string', minLength: 1, maxLength: 255 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const external1cId = normalize(request.query.external1cId);
+
+      const [reqRows] = await fastify.pool.query(
+        `SELECT id, external_1c_id, deleted_at
+         FROM customs_requests
+         WHERE external_1c_id = ? AND deleted_at IS NULL
+         LIMIT 1`,
+        [external1cId],
+      );
+      if (!reqRows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      const requestId = reqRows[0].id;
+
+      const [rows] = await fastify.pool.query(
+        `SELECT id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
+                text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
+                read_by_user_at, created_at, updated_at
+         FROM customs_request_messages
+         WHERE request_id = ? AND deleted_at IS NULL
+         ORDER BY id ASC`,
+        [requestId],
+      );
+
+      const items = rows.map((r) => ({
+        id: r.id,
+        requestId: r.request_id,
+        external1cId,
+        authorType: r.author_type,
+        direction: r.direction,
+        clientMessageId: r.client_message_id,
+        message1cId: r.message_1c_id,
+        text: r.text_content,
+        attachments: parseRowAttachments(r.attachments_json),
+        deliveryStatus: r.delivery_status,
+        deliveredTo1cAt: r.delivered_to_1c_at,
+        last1cError: r.last_1c_error,
+        readByUserAt: r.read_by_user_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      }));
+
+      return reply.send({
+        items,
+        requestId,
+        external1cId,
+      });
+    },
+  );
+
   fastify.post(
     '/integration/customs-request-messages',
     {
@@ -437,6 +519,15 @@ module.exports = async function customsRequestChatRoutes(fastify) {
           fastify.log.error(e, 'chat broadcast failed (incoming 1C message)');
         }
       }
+
+      notifyMessageFrom1C(fastify, {
+        requestId,
+        external1cId,
+        messageId: newId,
+        text,
+      }).catch((e) => {
+        fastify.log.warn({ requestId, err: e.message }, 'push notify incoming 1c message failed');
+      });
 
       return reply.send({
         ok: true,

@@ -5,6 +5,8 @@ alwaysApply: true
 
 # Карта приложения (для агента)
 
+**Полные потоки данных и инварианты:** `app-runtime-architecture.mdc` (читать перед задачей).
+
 Краткий ориентир по коду. Детали слоёв — `architecture.mdc`; виджеты — `presentation-widgets.mdc`.
 
 ## Стили и тема
@@ -57,6 +59,7 @@ alwaysApply: true
 | `presentation/widgets/bottom_sheets/language_selection_bottom_sheet.dart` | Выбор языка |
 | `presentation/widgets/bottom_sheets/registration_request_bottom_sheet.dart` | Заявка на регистрацию |
 | `presentation/widgets/bottom_sheets/request_drafts_bottom_sheet.dart` | Список черновиков заявки |
+| `presentation/widgets/bottom_sheets/request_files_exit_confirm_bottom_sheet.dart` | Подтверждение выхода с экрана файлов без сохранения |
 | `presentation/widgets/buttons/app_primary_filled_wide_button.dart` | Синяя широкая CTA |
 | `presentation/widgets/buttons/app_primary_outlined_wide_button.dart` | Широкая outlined |
 | `presentation/widgets/buttons/app_logout_outlined_wide_button.dart` | Выход |
@@ -64,12 +67,18 @@ alwaysApply: true
 | `presentation/widgets/buttons/app_accent_filled_compact_button.dart` | Компактная красная кнопка |
 | `presentation/widgets/cards/car_card.dart` | Карточка авто в списке |
 | `presentation/widgets/requests/car_request_file_slot_row.dart` | Строка слота фото/файла на детализации (те же поля, что [RequestFilesUploadPage]) |
-| `presentation/widgets/requests/request_detail_finance_card.dart` | Финансы: сумма, заглушки квитанция/QR, кнопка (демо) |
+| `presentation/widgets/requests/request_detail_finance_card.dart` | Финансы (legacy demo): сумма, QR, чек |
+| `presentation/widgets/requests/request_detail_collapsible_section.dart` | Сворачиваемая секция деталки + persist + красная рамка |
+| `presentation/widgets/requests/request_detail_owner_section.dart` | «О заявке»: владелец, сделка, авто |
+| `presentation/widgets/requests/request_detail_finances_block.dart` | Финансы: аванс/факт/возврат + строки оплат |
+| `presentation/widgets/requests/request_detail_customs_amounts_section.dart` | (legacy) суммы — логика перенесена в finances_block |
+| `data/models/customs_request_upload_result.dart` | Ответ upload, результат батча create |
 | `presentation/widgets/requests/request_detail_photo_placeholders_row.dart` | Ряд плиток-заглушек вместо фото авто |
 | `presentation/widgets/requests/request_detail_files_sections.dart` | Секции файлов заявки: подача, подпись, оплата |
 | `presentation/widgets/requests/request_detail_file_upload_chip.dart` | Загрузка подписи/чека на деталке |
 | `presentation/helpers/request_file_picker.dart` | Фото/PDF для загрузки на деталке |
 | `presentation/helpers/request_status_action_hint.dart` | Подсказки по statusSubType на деталке |
+| `presentation/helpers/deal_type_labels.dart` | Подпись вида сделки (`DealType`) |
 | `presentation/widgets/requests/request_detail_action_hint_banner.dart` | Баннер подсказки на деталке |
 | `core/constants/customs_catalog.dart` | Справочник docType / подстатусов (синхрон с сервером) |
 | `domain/services/request_files_grouper.dart` | Группировка `files[]`, пары `*_sign`, нужность подписи |
@@ -89,4 +98,5 @@ alwaysApply: true
 | `presentation/widgets/tabs/cars_tab_view.dart` | Вкладка «Мои авто»: один UI для демо и прод (список из мока или пусто + черновики) |
 | `presentation/widgets/tabs/profile_tab_view.dart` | Вкладка профиля |
 | `presentation/pages/request_create_page.dart` | Создание / редактирование заявки |
-| `presentation/pages/cars_filters_page.dart` | Экран фильтров |
+| `presentation/helpers/login_error_message.dart` | Коды API → текст SnackBar на входе |
+| `core/util/single_file_path_list.dart` | `mutableSlotPaths`, `singleFilePathList` — один файл, изменяемые списки |

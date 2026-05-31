@@ -99,19 +99,7 @@ enum CustomsDocType {
 
   static const List<CustomsDocType> finalTypes = [epts, sbkts, tpo, ptd];
 
-  /// Нормализация API-кода (legacy-алиасы).
-  static String normalizeCode(String? raw) {
-    final code = (raw ?? '').trim();
-    if (code.isEmpty) return '';
-    switch (code) {
-      case 'title_doc':
-        return CustomsDocType.invoice.apiCode;
-      case 'transport_application':
-        return CustomsDocType.fundsTransferApplication.apiCode;
-      default:
-        return code;
-    }
-  }
+  static String normalizeCode(String? raw) => (raw ?? '').trim();
 
   /// Базовый тип без суффикса `_sign`.
   static CustomsDocType? tryParse(String? raw) {

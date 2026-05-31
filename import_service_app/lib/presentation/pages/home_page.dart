@@ -4,6 +4,7 @@ import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
+import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
@@ -12,6 +13,7 @@ import 'package:import_service_app/core/ui/app_feedback_kind.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
+import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/settings_app_bar_action.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/logout_confirm_bottom_sheet.dart';
@@ -32,6 +34,27 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   /// Стартовый таб — «Мои авто» (индекс 1).
   int _tabIndex = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    sl<HomeCarsNavigationController>().addListener(_onCarsNavigationIntent);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onCarsNavigationIntent());
+  }
+
+  @override
+  void dispose() {
+    sl<HomeCarsNavigationController>().removeListener(_onCarsNavigationIntent);
+    super.dispose();
+  }
+
+  void _onCarsNavigationIntent() {
+    final nav = sl<HomeCarsNavigationController>();
+    if (!nav.focusCarsTab || !mounted) return;
+    if (_tabIndex != 1) {
+      setState(() => _tabIndex = 1);
+    }
+  }
 
   Future<void> _clearPrefsKeepLanguage() async {
     final prefs = sl<SharedPreferences>();
@@ -79,6 +102,10 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _refreshCars() async {
+    await sl<CarsRepository>().listVehicles();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -103,6 +130,11 @@ class _HomePageState extends State<HomePage> {
             : strings.carsTabTitle;
         final appBarActions = _tabIndex == 1
             ? <Widget>[
+                IconButton(
+                  onPressed: () async => _refreshCars(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: strings.carsRefreshTooltip,
+                ),
                 IconButton(
                   onPressed: () {
                     Navigator.of(context).push(

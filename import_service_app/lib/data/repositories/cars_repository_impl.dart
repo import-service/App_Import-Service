@@ -12,9 +12,11 @@ import 'package:import_service_app/data/local/default_cars_seed.dart';
 import 'package:import_service_app/data/models/request_form_model.dart';
 import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
+import 'package:import_service_app/domain/entities/create_vehicle_result.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
+import 'package:import_service_app/domain/entities/request_file_upload_entry.dart';
+import 'package:import_service_app/domain/entities/request_files_batch_upload_result.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
-import 'package:import_service_app/domain/entities/vehicle_finance_item.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,8 +52,9 @@ final class CarsRepositoryImpl implements CarsRepository {
           offset: offset,
           status: status,
         );
-        await _carInventory.replaceAll(remoteItems);
-        return Right(remoteItems);
+        final patched = remoteItems.map(_patchMissingLegalInn).toList(growable: false);
+        await _carInventory.replaceAll(patched);
+        return Right(patched);
       }
       return Right(_carInventory.items);
     } on ServerException catch (e) {
@@ -68,7 +71,7 @@ final class CarsRepositoryImpl implements CarsRepository {
     }
     try {
       if (!_session.isDemo) {
-        final item = await _remoteDataSource.getRequestById(id);
+        final item = _patchMissingLegalInn(await _remoteDataSource.getRequestById(id));
         await _carInventory.upsertItem(item);
         return Right(item);
       }
@@ -86,37 +89,167 @@ final class CarsRepositoryImpl implements CarsRepository {
   }
 
   @override
-  Future<Either<Failure, CarListItem>> createVehicle(
+  Future<Either<Failure, CreateVehicleResult>> createVehicle(
     RequestFormModel form, {
     void Function(int done, int total)? onUploadProgress,
   }) async {
     try {
       if (!_session.isDemo) {
-        final created = await _remoteDataSource.createRequest(
+        final created = await _remoteDataSource.createRequestWithFiles(
           form,
           onUploadProgress: onUploadProgress,
         );
+        final patchedItem = created.item.legalInn?.trim().isNotEmpty == true
+            ? created.item
+            : created.item.copyWith(legalInn: form.companyInn.trim());
         final remoteItems = await _remoteDataSource.listRequests();
-        await _carInventory.replaceAll(remoteItems);
-        return Right(created);
+        await _carInventory.replaceAll(
+          remoteItems.map(_patchMissingLegalInn).toList(growable: false),
+        );
+        await _carInventory.upsertItem(patchedItem);
+        return Right(
+          CreateVehicleResult(
+            item: patchedItem,
+            failedDocTypes: created.failedDocTypes,
+          ),
+        );
       }
-      await Future<void>.delayed(_networkLatency);
-      final vin = form.vin.trim();
-      final item = CarListItem(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
-        ownerFullName: form.personFullName.trim(),
-        carMake: form.carBrand.trim(),
-        carModel: form.carModel.trim(),
-        vin: vin,
-        status: RequestStatus.newRequest,
-      );
-      await _carInventory.add(item);
-      return Right(item);
+      return Right(await _demoCreateVehicle(form, onUploadProgress: onUploadProgress));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));
     } catch (e) {
       return Left(CacheFailure(e.toString()));
     }
+  }
+
+  @override
+  List<RequestFileUploadEntry> fileUploadEntriesFromForm(
+    RequestFormModel form, {
+    Set<String>? onlyDocTypes,
+  }) {
+    final all = CustomsRequestsRemoteDataSource.fileEntriesFromForm(form);
+    if (onlyDocTypes == null || onlyDocTypes.isEmpty) {
+      return all;
+    }
+    final allowed = onlyDocTypes.map((e) => e.trim().toLowerCase()).toSet();
+    return all
+        .where((e) => allowed.contains(e.docType.trim().toLowerCase()))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Either<Failure, RequestFilesBatchUploadResult>> retryPendingUploads({
+    required String requestId,
+    required List<RequestFileUploadEntry> items,
+    void Function(int done, int total)? onUploadProgress,
+  }) async {
+    if (requestId.isEmpty) {
+      return const Left(CacheFailure('Пустой идентификатор заявки'));
+    }
+    if (items.isEmpty) {
+      return const Left(CacheFailure('Нет файлов для загрузки'));
+    }
+    try {
+      if (_session.isDemo) {
+        await Future<void>.delayed(_networkLatency);
+        CarListItem? current;
+        for (final e in _carInventory.items) {
+          if (e.id == requestId) {
+            current = e;
+            break;
+          }
+        }
+        if (current == null) {
+          return const Left(CacheFailure('Заявка не найдена'));
+        }
+        var updated = current;
+        final failed = <String>[];
+        for (final entry in items) {
+          final file = File(entry.localPath);
+          if (!await file.exists()) {
+            failed.add(entry.docType);
+            continue;
+          }
+          updated = _demoAttachFile(
+            item: updated,
+            docType: entry.docType,
+            localPath: entry.localPath,
+            fileName: p.basename(entry.localPath),
+          );
+        }
+        await _carInventory.upsertItem(updated);
+        return Right(
+          RequestFilesBatchUploadResult(item: updated, failedDocTypes: failed),
+        );
+      }
+      final batch = await _remoteDataSource.uploadRequestFilesBatch(
+        requestId: requestId,
+        items: items,
+        onProgress: onUploadProgress,
+      );
+      await _carInventory.upsertItem(batch.item);
+      return Right(
+        RequestFilesBatchUploadResult(
+          item: batch.item,
+          failedDocTypes: batch.failedDocTypes,
+        ),
+      );
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e, st) {
+      AppLog.error('retryPendingUploads', error: e, stackTrace: st, tag: 'CarsRepo');
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  Future<CreateVehicleResult> _demoCreateVehicle(
+    RequestFormModel form, {
+    void Function(int done, int total)? onUploadProgress,
+  }) async {
+    await Future<void>.delayed(_networkLatency);
+    final id = 'local_${DateTime.now().millisecondsSinceEpoch}';
+    var item = CarListItem(
+      id: id,
+      ownerFullName: form.personFullName.trim(),
+      carMake: form.carBrand.trim(),
+      carModel: form.carModel.trim(),
+      vin: form.vin.trim(),
+      status: RequestStatus.newRequest,
+      legalInn: form.companyInn.trim(),
+      createdAt: DateTime.now().toUtc().toIso8601String(),
+    );
+    await _carInventory.add(item);
+
+    final entries = CustomsRequestsRemoteDataSource.fileEntriesFromForm(form);
+    final total = entries.length;
+    var done = 0;
+    if (total > 0) {
+      onUploadProgress?.call(0, total);
+    }
+    final failed = <String>[];
+    for (final entry in entries) {
+      final file = File(entry.localPath);
+      if (!await file.exists()) {
+        failed.add(entry.docType);
+      } else {
+        item = _demoAttachFile(
+          item: item,
+          docType: entry.docType,
+          localPath: entry.localPath,
+          fileName: p.basename(entry.localPath),
+        );
+      }
+      done += 1;
+      onUploadProgress?.call(done, total);
+    }
+    if (failed.isEmpty && entries.isNotEmpty) {
+      item = item.copyWith(
+        status: RequestStatus.onReview,
+        external1cId: 'GUID-DEMO-$id',
+      );
+    }
+    await _carInventory.upsertItem(item);
+    return CreateVehicleResult(item: item, failedDocTypes: failed);
   }
 
   @override
@@ -187,85 +320,32 @@ final class CarsRepositoryImpl implements CarsRepository {
     }
   }
 
+  CarListItem _patchMissingLegalInn(CarListItem item) {
+    if (item.legalInn?.trim().isNotEmpty == true) return item;
+    final sessionInn = _session.inn?.trim() ?? '';
+    if (sessionInn.isEmpty) return item;
+    return item.copyWith(legalInn: sessionInn);
+  }
+
   CarListItem _demoAttachFile({
     required CarListItem item,
     required String docType,
     required String localPath,
     required String fileName,
   }) {
+    final normalized = normalizeDocType(docType);
     final newFile = CustomsRequestFile(
-      docType: docType,
+      docType: normalized,
       fileName: fileName,
       mimeType: _mimeFromFileName(fileName),
       fileUrl: localPath,
       createdAt: DateTime.now().toUtc().toIso8601String(),
     );
     final nextFiles = <CustomsRequestFile>[
-      ...item.files.where((f) => normalizeDocType(f.docType) != docType),
+      ...item.files.where((f) => normalizeDocType(f.docType) != normalized),
       newFile,
     ];
-    var finance = item.financeItems;
-    if (docType == 'payment_recycling_fee_receipt') {
-      finance = finance
-          .map(
-            (line) => line.lineType == 'recycling_fee'
-                ? VehicleFinanceItem(
-                    lineType: line.lineType,
-                    amountText: line.amountText,
-                    title: line.title,
-                    paymentQrUrl: line.paymentQrUrl,
-                    receiptUrl: localPath,
-                  )
-                : line,
-          )
-          .toList();
-    } else if (docType == 'payment_customs_duty_receipt') {
-      finance = finance
-          .map(
-            (line) => line.lineType == 'customs_duty'
-                ? VehicleFinanceItem(
-                    lineType: line.lineType,
-                    amountText: line.amountText,
-                    title: line.title,
-                    paymentQrUrl: line.paymentQrUrl,
-                    receiptUrl: localPath,
-                  )
-                : line,
-          )
-          .toList();
-    }
-    return CarListItem(
-      id: item.id,
-      ownerFullName: item.ownerFullName,
-      carMake: item.carMake,
-      carModel: item.carModel,
-      vin: item.vin,
-      status: item.status,
-      legalEntityName: item.legalEntityName,
-      legalEmail: item.legalEmail,
-      legalPhone: item.legalPhone,
-      individualFullName: item.individualFullName,
-      individualPhone: item.individualPhone,
-      individualSnils: item.individualSnils,
-      hasSunroof: item.hasSunroof,
-      hasAllWheelDrive: item.hasAllWheelDrive,
-      importedLast12Months: item.importedLast12Months,
-      ownsOtherCars: item.ownsOtherCars,
-      commentText: item.commentText,
-      engineSpec: item.engineSpec,
-      engineVolume: item.engineVolume,
-      statusSinceDateLabel: item.statusSinceDateLabel,
-      statusSubType: item.statusSubType,
-      external1cId: item.external1cId,
-      managerExternal1cId: item.managerExternal1cId,
-      managerFullName: item.managerFullName,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-      financeItems: finance,
-      vehiclePhotoUrls: item.vehiclePhotoUrls,
-      deliveredDocuments: item.deliveredDocuments,
-      files: nextFiles,
-    );
+    return item.copyWith(files: nextFiles);
   }
 
   static String _mimeFromFileName(String name) {

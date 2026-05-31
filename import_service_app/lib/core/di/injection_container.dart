@@ -8,6 +8,8 @@ import 'package:import_service_app/core/auth/auth_storage_keys.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/network/dio_client.dart';
+import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
+import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/storage/secure_storage_service.dart';
 import 'package:import_service_app/data/datasources/remote/auth_remote_data_source.dart';
@@ -17,10 +19,13 @@ import 'package:import_service_app/data/repositories/request_chat_repository_imp
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
 import 'package:import_service_app/data/datasources/remote/registration_request_remote_data_source.dart';
 import 'package:import_service_app/data/local/car_inventory_state_holder.dart';
+import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
 import 'package:import_service_app/data/repositories/cars_repository_impl.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
+import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
+import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 
 /// Глобальный контейнер зависимостей. Регистрации добавляй в [initDependencies].
 final sl = GetIt.instance;
@@ -29,10 +34,16 @@ final sl = GetIt.instance;
 Future<void> initDependencies() async {
   final prefs = await SharedPreferences.getInstance();
   sl.registerSingleton<SharedPreferences>(prefs);
+  sl.registerLazySingleton<RequestDetailSectionPrefs>(
+    () => RequestDetailSectionPrefs(sl()),
+  );
 
   final requestDraftCubit = RequestDraftCubit(prefs);
   sl.registerSingleton<RequestDraftCubit>(requestDraftCubit);
   requestDraftCubit.reloadFromDisk();
+  sl.registerSingleton<RequestAttentionCubit>(RequestAttentionCubit());
+  sl.registerSingleton<RequestChatUnreadCubit>(RequestChatUnreadCubit());
+  sl.registerSingleton<HomeCarsNavigationController>(HomeCarsNavigationController());
 
   final carInventoryCubit = CarInventoryCubit(prefs);
   sl.registerSingleton<CarInventoryCubit>(carInventoryCubit);
@@ -40,6 +51,9 @@ Future<void> initDependencies() async {
   await carInventoryCubit.reloadFromDisk();
 
   sl.registerLazySingleton<AppFeedbackService>(AppFeedbackService.new);
+  sl.registerLazySingleton<PushNotificationsService>(
+    PushNotificationsService.new,
+  );
 
   sl.registerLazySingleton<SecureStorageService>(SecureStorageService.new);
   sl.registerLazySingleton<AuthSessionController>(AuthSessionController.new);
@@ -95,6 +109,8 @@ Future<void> initDependencies() async {
       sl<SecureStorageService>(),
       sl<AuthSessionController>(),
       sl<SharedPreferences>(),
+      sl<Dio>(),
+      sl<PushNotificationsService>(),
     ),
   );
 

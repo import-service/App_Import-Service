@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Концепция проекта Import Service
 
-**Назначение файла:** любой агент (сервер, МП, админка) перед задачей **сверяется с этим документом**.  
+**Назначение файла:** краткая концепция для агентов. **Жизненный цикл заявки — один документ:** `docs/request-lifecycle.md` (сначала его).  
 Детальное ТЗ: `docs/TZ-zayavka-mp-server-1c.md`. Кратко на проде: https://157-22-173-7.sslip.io/docs → вкладка **ТЗ**.
 
 **Целевая модель важнее текущего кода** — код могут переделывать; логика ниже — эталон.
@@ -62,20 +62,16 @@ alwaysApply: true
 | `managerExternal1cId` | 1С | Менеджер заявки |
 | `docType` | Контракт | Тип файла (стабильный код) |
 | `statusSubType` | 1С | Подстатус (текст/код из 1С) |
+| `statusSubTypeDateTime` | 1С | Момент подстатуса, ISO 8601 |
+| `advancePayment` / `actualPayment` | 1С | Аванс и факт таможенного платежа |
 
 ---
 
-## 5. Жизненный цикл заявки (бизнес)
+## 5. Жизненный цикл заявки
 
-| # | Этап | Направление | Примечание |
-|---|------|-------------|------------|
-| 1 | Создание | МП → сервер → 1С | Форма + начальные файлы (как import-service.su) |
-| 2 | Обработка | 1С | Менеджер, суммы, статусы |
-| 3 | Первичный пакет на подпись | 1С → МП → 1С | По **виду сделки** |
-| 4 | Утилизационный сбор | 1С ↔ МП | Квитанция + чек; **параллельно** п.3 |
-| 5 | Госпошлина | 1С ↔ МП | При транзите; **параллельно** п.3 |
-| 6 | Архив перед транзитом | 1С → МП | Фото/видео, только скачивание |
-| 7 | Итог (ЭПТС, СБКТС…) | 1С → МП | Только скачивание |
+**Полный пошаговый эталон (статусы, upload, push, секции МП, demo):** [`docs/request-lifecycle.md`](../docs/request-lifecycle.md).
+
+Кратко: создание → `on_review` → менеджер/`in_progress` → пакет на подпись (по `dealType`) ∥ оплаты → транзит → итог → `closed`.
 
 ---
 
@@ -107,10 +103,11 @@ alwaysApply: true
 
 - Поле **`statusSubType`** (из 1С) — **не** отдельный верхний статус «ожидает клиента».
 - Использование: детализация для оператора; в МП — **подсказки** («подпишите документы», «загрузите чек»), подсветка незакрытых действий.
+- **`statusSubTypeDateTime`** — ISO 8601, момент смены подстатуса (для логики и подписи даты в МП).
 
 **Подстатусы 1С** — машинные коды `statusSubType` (как в настройке 1С на скрине): `draft`; `manager_execution`, `primary_documents_sent`, `originals_*_no_transit`; `originals_*_transit`; `svh_*`, `ptd_*`, `sent_to_lab`, `issued_to_client`, `request_closed`; `signature_revision_required`. Полная таблица: `docs/catalog-reference.md`, сервер: `src/constants/customsCatalog.js`.
 
-**Все docType заявки:** `docs/catalog-reference.md` (создание, подпись, оплаты, итог, legacy).
+**Все docType заявки:** `docs/catalog-reference.md` (создание, подпись, оплаты, архив, итог).
 
 ---
 
@@ -118,7 +115,7 @@ alwaysApply: true
 
 ### Поля формы (обязательные, если не указано иное)
 
-**Организация / физлицо:** наименование ЮЛ/ИП, email, телефон; ФИО физлица, телефон, СНИЛС.  
+**Организация / физлицо:** наименование ЮЛ/ИП, **ИНН (`legalInn`, 10/12 цифр)**, email, телефон; ФИО физлица, телефон, СНИЛС.  
 **Авто:** марка, модель, VIN.  
 **Да/нет:** люк/панорама; полный привод; ввоз за 12 мес; другие авто в собственности.  
 **Комментарий** — необязательный.
@@ -131,7 +128,7 @@ alwaysApply: true
 |---------|--------|
 | `passport_front` | Паспорт, лицевая |
 | `passport_registration` | Паспорт, прописка |
-| `inn` | ИНН |
+| `inn` | Скан/фото ИНН (**файл**, docType) — не путать с полем анкеты `legalInn` |
 | `snils` | СНИЛС |
 | `invoice` | Инвойс |
 | `contract` | Контракт |
@@ -142,8 +139,6 @@ alwaysApply: true
 | `car_back_photo` | Фото сзади |
 
 **Опционально:** `add_doc1`, `add_doc2`.
-
-**Не использовать** устаревшие коды `title_doc`, `additional_file` — только список выше.
 
 В МП на экране создания — **только** эти поля/файлы, без лишних слотов.
 
@@ -173,7 +168,7 @@ alwaysApply: true
 | Оригинал | `contract`, `kuts`, … | 1С → сервер → МП (скачать) |
 | Подписанный | `contract_sign`, `kuts_sign`, … | МП → сервер → 1С |
 
-Оригинал **не перезаписывается**. Если подпись/печать неверные — менеджер в 1С шлёт подстатус **`signature_revision_required`**; клиент загружает новый `*_sign`.
+1С может **пере-upload** оригинал (тот же `docType`) — файл перезаписывается, push в МП с `changedDocTypes`. При браке подписи — **`state`**: `signature_revision_required`; клиент upload нового `*_sign`.
 
 ---
 
@@ -190,25 +185,31 @@ alwaysApply: true
 
 - `funds_transfer_application` (заявление на **перевод остатков** после растаможивания), `passport_notarized_copy` — **не выгружаются** из 1С в МП, только `*_sign` от клиента.
 
-### Поток файлов (upload → URL → state)
+### Поток файлов (см. `docs/contract-files-v2.md`)
 
-1. **Upload:** `POST /api/customs-requests/upload` (1С — integration Bearer, МП — user JWT) → `fileUrl`.  
-2. **Привязка:** 1С шлёт `signingFiles[]` в `state`; МП — `POST /customs-requests/:id/files` с `docType_sign`.  
-3. **Подстатус:** задаёт 1С в `state` или **сервер** после получения `signingFiles` / подписи от МП.
-- Любой документ пакета может быть **перезагружен** (новая версия).
+1. **Upload:** `POST /api/customs-requests/upload` — файл сразу в заявке (`external1cId` или `requestId`, `docType`, `uploadIndex`, `uploadTotal`).  
+2. **Батч:** после `uploadIndex === uploadTotal` — sync: 1С → push МП; МП → update/create в 1С.  
+3. **State:** только метаданные (статус, менеджер, суммы) — **без** `files[]`.  
+4. **МП create:** `POST /customs-requests` без файлов → N×upload → create в 1С на последнем файле.
 
 ---
 
 ## 11. Оплаты и финал
 
-| Этап | 1С → МП | МП → 1С |
-|------|---------|---------|
-| Утиль | `payment_recycling_fee` (квитанция) | `payment_recycling_fee_receipt` (чек) |
-| Госпошлина | `payment_customs_duty` | `payment_customs_duty_receipt` |
-| Архив транзита | фото/видео | — |
-| Итог | `epts`, `sbkts`, … | — |
+### 11.1. Аванс и фактический платёж (таможня)
 
-Квитанции PDF создаёт **только 1С**. Этапы оплаты **не ждут** полного комплекта подписей.
+В **`state`** (строка/число, рубли): `advancePayment`, `actualPayment`. В ответе API: `refundAmount` = аванс − факт (считает сервер).
+
+### 11.2. Квитанции и прочие файлы
+
+Всё через **`files[]`** и **upload** с `docType` (квитанция, чек, фото, ЭПТС).
+
+| Этап | docType (пример) |
+|------|------------------|
+| Утиль | `payment_recycling_fee`, `payment_recycling_fee_receipt` |
+| Госпошлина | `payment_customs_duty`, `payment_customs_duty_receipt` |
+| Архив | `transit_archive_photo_1`, … |
+| Итог | `epts`, `sbkts`, … |
 
 ---
 
@@ -216,9 +217,13 @@ alwaysApply: true
 
 **Создание:** сервер POST на URL из админки → тело как у МП + `requestId` + `files[]` с URL → ответ `{ requestId, external1cId }`.
 
-**Обновления от 1С:** `POST /api/integration/customs-requests/state` — `external1cId`, опционально `status`, `statusSubType`, `managerExternal1cId`, `managerFullName`, `financeItems`, фото, итоговые документы.
+**Обновления от 1С:** `state` — только метаданные; файлы — `upload` (батч), затем при необходимости `state`.
 
-**Обновления в 1С (инициатор сервер):** исходящий POST на `customs-request-update` (тот же URL/Bearer, что create в админке); payload зеркален `state` + `requestId`. При сбое — `oneCUpdatePending` в БД; повтор из админки: `POST /api/admin/customs-requests/:id/resend-update-to-1c`. Входящий `state` от 1С не шлёт update обратно.
+**Файлы из МП в 1С:** после батча upload сервер вызывает `customs-request-update` с изменёнными `docType`. Статусы — только через `state` от 1С.
+
+**Карточка для МП:** единый `files[]` в `GET` / ответе `state`. Push файлов: `request_files_update` + `changedDocTypes`.
+
+Подробно: `docs/contract-files-v2.md`.
 
 **Организации:** `POST /api/integration/organizations` (уже в проде).
 
@@ -242,9 +247,11 @@ alwaysApply: true
 
 ## 14. При расхождении документов
 
-1. Этот файл (`project-concept.mdc`)  
-2. `docs/TZ-zayavka-mp-server-1c.md`  
-3. `docs/api-app.md`, `docs/api-1c.md`  
-4. HTML `/docs` (вкладка ТЗ)
+1. **`docs/request-lifecycle.md`** — жизненный цикл  
+2. `docs/catalog-reference.md`, `docs/contract-files-v2.md`  
+3. Этот файл (`project-concept.mdc`)  
+4. `docs/TZ-zayavka-mp-server-1c.md`  
+5. `docs/api-app.md`, `docs/api-1c.md`  
+6. HTML `/docs` (вкладка ТЗ)
 
-Специфичные промпты агента: `agent-server.mdc`, `agent-mobile-app.mdc`, `agent-admin-web.mdc` — **не заменяют** концепцию, а дополняют её по зоне каталога.
+Агентские rules (`agent-server.mdc`, …) — только зона каталога, **не** отдельные флоу.

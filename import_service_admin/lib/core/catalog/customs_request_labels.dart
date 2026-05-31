@@ -87,9 +87,8 @@ const Map<String, String> kDocTypeLabels = {
   'epts': 'ЭПТС',
   'sbkts': 'СБКТС',
   'uploaded_file': 'Загруженный файл',
-  'title_doc': 'Инвойс (устар.)',
-  'additional_file': 'Доп. файл (устар.)',
-  'transport_application': 'Заявление на перевод (устар.)',
+  'transit_archive_photo': 'Фото архива перед транзитом',
+  'transit_archive_video': 'Видео архива перед транзитом',
 };
 
 String requestStatusLabel(String code) =>
@@ -113,13 +112,8 @@ String docTypeLabel(String? code, {String? fileName}) {
     final base = c.substring(0, c.length - 5);
     return '${docTypeLabel(base)} (подпись)';
   }
-  switch (c) {
-    case 'title_doc':
-      c = 'invoice';
-      break;
-    case 'transport_application':
-      c = 'funds_transfer_application';
-      break;
+  if (RegExp(r'^transit_archive_photo_\d+$').hasMatch(c)) {
+    return 'Фото архива перед транзитом';
   }
   final label = kDocTypeLabels[c];
   if (label != null) return label;

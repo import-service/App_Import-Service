@@ -6,45 +6,63 @@ import 'package:gap/gap.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
-import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/extensions/navigation_context.dart';
-import 'package:import_service_app/core/util/vin_display.dart';
+import 'package:import_service_app/core/push/push_request_handler.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
+import 'package:go_router/go_router.dart';
+import 'package:import_service_app/core/themes/request_status_list_style.dart';
+import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
+import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_state.dart';
+import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
+import 'package:import_service_app/presentation/bloc/request_attention/request_attention_state.dart';
+import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_state.dart';
+import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
-import 'package:import_service_app/presentation/helpers/request_detail_line_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_status_action_hint.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
+import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/request_status_sub_type_labels.dart';
+import 'package:import_service_app/presentation/pages/request_create_page.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_action_hint_banner.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_files_sections.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_deliverable_doc_row.dart';
-import 'package:import_service_app/presentation/widgets/requests/request_detail_finance_card.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_finances_block.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_owner_section.dart';
 import 'package:import_service_app/presentation/helpers/request_file_picker.dart';
 
-/// Детализация заявки. Чат — после появления [CarListItem.external1cId].
+/// Детализация заявки.
 class CarRequestDetailPage extends StatefulWidget {
-  const CarRequestDetailPage({super.key, required this.requestId});
+  const CarRequestDetailPage({
+    super.key,
+    required this.requestId,
+    this.focusDocumentsOnOpen = false,
+  });
 
   final String requestId;
+  final bool focusDocumentsOnOpen;
 
   @override
   State<CarRequestDetailPage> createState() => _CarRequestDetailPageState();
 }
 
 class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _documentsAnchorKey = GlobalKey();
   String? _uploadingDocType;
+  bool _documentsFocused = false;
 
   @override
   void initState() {
@@ -56,6 +74,34 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         await sl<CarsRepository>().getVehicle(widget.requestId);
         if (mounted) setState(() {});
       }
+      if (widget.focusDocumentsOnOpen) {
+        _focusDocumentsIfPossible();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    syncCarsTabFromInventory(widget.requestId);
+    sl<RequestAttentionCubit>().clearFileHighlights(widget.requestId);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _focusDocumentsIfPossible() {
+    if (_documentsFocused || !mounted) return;
+    final ctx = _documentsAnchorKey.currentContext;
+    if (ctx == null) return;
+    _documentsFocused = true;
+    sl<RequestAttentionCubit>().clearDocsAction(widget.requestId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignment: 0.05,
+      );
     });
   }
 
@@ -80,11 +126,40 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     setState(() => _uploadingDocType = null);
     final feedback = sl<AppFeedbackService>();
     final s = sl<JsonStringsService>();
-    result.fold(
-      (failure) => feedback.show(failure.message, kind: AppFeedbackKind.error),
-      (_) => feedback.show(s.requestFileAttachSuccess, kind: AppFeedbackKind.success),
+    await result.fold(
+      (failure) async {
+        feedback.show(failure.message, kind: AppFeedbackKind.error);
+      },
+      (_) async {
+        feedback.show(s.requestFileAttachSuccess, kind: AppFeedbackKind.success);
+        final sectionKey = sectionKeyForUploadedDocType(docType);
+        if (sectionKey != null) {
+          await sl<RequestDetailSectionPrefs>().saveExpanded(
+            widget.requestId,
+            sectionKey,
+            false,
+          );
+        }
+        await sl<CarsRepository>().getVehicle(item.id);
+        if (!mounted) return;
+        setState(() {});
+        final updated = _itemFromInventory(item.id);
+        if (updated != null && !hasPendingClientUploadActions(updated)) {
+          context.pop();
+        }
+      },
     );
   }
+
+  CarListItem? _itemFromInventory(String id) {
+    for (final candidate in sl<CarInventoryCubit>().state.items) {
+      if (candidate.id == id) return candidate;
+    }
+    return null;
+  }
+
+  // Сохранение черновика с деталки временно отключено (v0.1.6).
+  // Future<void> _saveAsDraft(CarListItem item) async { ... }
 
   Widget _buildServerFileRow({
     required ThemeData theme,
@@ -113,53 +188,69 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         : AppTheme.requestCardBorder;
     final bg = highlight ? AppTheme.accentRed.withValues(alpha: 0.06) : AppTheme.white;
 
+    const outerRadius = 12.0;
+    const thumbRadius = 8.0;
+
     return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(outerRadius),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: tappable ? onTap : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
+        borderRadius: BorderRadius.circular(outerRadius),
+        child: Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(outerRadius),
+            border: Border.all(color: borderColor),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: AppTheme.pageBackground,
-                    border: Border.all(color: borderColor),
+              Container(
+                width: 64,
+                height: 64,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppTheme.pageBackground,
+                  borderRadius: BorderRadius.circular(thumbRadius),
+                  border: Border.all(
+                    color: highlight
+                        ? AppTheme.requestCardBorder
+                        : borderColor,
                   ),
-                  child: tappable
-                      ? localFile != null
-                          ? Image.file(
-                              localFile,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Icon(
-                                Icons.insert_drive_file_outlined,
-                                size: 24,
-                                color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                              ),
-                            )
-                          : Image.network(
-                              url!,
-                              headers: headers,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Icon(
-                                Icons.insert_drive_file_outlined,
-                                size: 24,
-                                color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                              ),
-                            )
-                      : Icon(
-                          Icons.insert_drive_file_outlined,
-                          size: 24,
-                          color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                        ),
                 ),
+                child: tappable
+                    ? localFile != null
+                        ? Image.file(
+                            localFile,
+                            fit: BoxFit.cover,
+                            width: 64,
+                            height: 64,
+                            errorBuilder: (_, _, _) => Icon(
+                              Icons.insert_drive_file_outlined,
+                              size: 24,
+                              color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                            ),
+                          )
+                        : Image.network(
+                            url!,
+                            headers: headers,
+                            fit: BoxFit.cover,
+                            width: 64,
+                            height: 64,
+                            errorBuilder: (_, _, _) => Icon(
+                              Icons.insert_drive_file_outlined,
+                              size: 24,
+                              color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                            ),
+                          )
+                    : Icon(
+                        Icons.insert_drive_file_outlined,
+                        size: 24,
+                        color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                      ),
               ),
               const Gap(12),
               Expanded(
@@ -212,6 +303,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     required JsonStringsService s,
     required ThemeData theme,
     required CarListItem item,
+    required RequestAttentionState attentionState,
   }) {
     final chipText = requestStatusLabel(item.status, s);
     final subTypeLabel = requestStatusSubTypeLabel(item.statusSubType, s);
@@ -237,7 +329,11 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    RequestStatusPill(label: chipText),
+                    RequestStatusPill(
+                      label: chipText,
+                      backgroundColor: item.status.listChipBackground,
+                      foregroundColor: item.status.listChipForeground,
+                    ),
                   ],
                 ),
                 if (subTypeLabel != null) ...[
@@ -248,6 +344,30 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                       color: AppTheme.textSecondary,
                       height: 1.3,
                     ),
+                  ),
+                ],
+                if (attentionState.hasDocsAction(item.id)) ...[
+                  const Gap(6),
+                  Text(
+                    s.requestCardDocsActionHint,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: AppTheme.accentRed,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ] else if (attentionState.hasStatusUpdate(item.id)) ...[
+                  const Gap(6),
+                  Text(
+                    attentionState.statusUpdateSummaryFor(item.id)?.trim().isNotEmpty == true
+                        ? attentionState.statusUpdateSummaryFor(item.id)!.trim()
+                        : s.requestCardStatusUpdatedHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.primaryBlue,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ],
@@ -269,105 +389,64 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       const Gap(20),
     ];
 
-    out
-      ..add(
-        _LabeledValue(
-          label: s.requestDetailOwner,
-          value: item.ownerFullName,
-          theme: theme,
-        ),
-      )
-      ..add(const Gap(14))
-      ..add(
-        _LabeledValue(
-          label: s.requestDetailVehicle,
-          value: item.displayCarLine,
-          theme: theme,
-        ),
-      );
+    final urgentHints = requestDetailUrgentActionHints(item, s).toSet().toList();
+    for (var i = 0; i < urgentHints.length; i++) {
+      if (i > 0) out.add(const Gap(10));
+      out.add(RequestDetailActionHintBanner(message: urgentHints[i], urgent: true));
+    }
 
-    if ((item.engineSpec != null && item.engineSpec!.trim().isNotEmpty) ||
-        (item.engineVolume != null && item.engineVolume!.trim().isNotEmpty)) {
-      out
-        ..add(const Gap(14))
-        ..add(
-          _EngineLabeled(
-            label: s.requestDetailEngine,
-            specLine: item.engineSpec != null && item.engineSpec!.trim().isNotEmpty
-                ? item.engineSpec!.trim()
-                : null,
-            volumeLine: item.engineVolume != null && item.engineVolume!.trim().isNotEmpty
-                ? item.engineVolume!.trim()
-                : null,
-            theme: theme,
-          ),
-        );
+    final infoHint = requestStatusActionHint(item, s);
+    if (infoHint != null && !urgentHints.contains(infoHint)) {
+      if (urgentHints.isNotEmpty) out.add(const Gap(10));
+      out.add(RequestDetailActionHintBanner(message: infoHint));
+    }
+
+    if (urgentHints.isNotEmpty || infoHint != null) {
+      out.add(const Gap(20));
     }
 
     out
-      ..add(const Gap(14))
-      ..add(
-        _LabeledValue(
-          label: s.requestDetailVin,
-          value: formatVinForDetail(item.vin),
-          theme: theme,
-        ),
-      );
+      ..add(RequestDetailOwnerSection(
+        requestId: widget.requestId,
+        item: item,
+        strings: s,
+      ))
+      ..add(const Gap(16));
 
-    if (item.financeItems.isNotEmpty) {
+    if (RequestDetailFinancesBlock.shouldShow(item)) {
       out
-        ..add(const Gap(24))
         ..add(
-          Text(
-            s.requestDetailFinances,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+          RequestDetailFinancesBlock(
+            requestId: widget.requestId,
+            item: item,
+            strings: s,
+            onUploadReceipt: (docType) => _attachDocType(docType, item),
           ),
         )
-        ..add(const Gap(10));
-      for (var i = 0; i < item.financeItems.length; i++) {
-        final line = item.financeItems[i];
-        out.add(
-          RequestDetailFinanceCard(
-            line: line,
-            label: financeItemLabel(line, s),
-            receiptCaption: s.requestDetailReceiptCaption,
-            uploadLabel: (line.receiptUrl != null && line.receiptUrl!.trim().isNotEmpty)
-                ? s.requestDetailUploadReceiptAgain
-                : s.requestDetailUploadReceipt,
-            openReceiptLabel: s.requestDetailOpenReceipt,
-            onUploadTap: () {
-              final docType = receiptDocTypeForFinanceLineType(line.lineType);
-              if (docType == null) return;
-              _attachDocType(docType, item);
-            },
-          ),
-        );
-        if (i < item.financeItems.length - 1) {
-          out.add(const Gap(10));
-        }
-      }
-      out.add(const Gap(20));
+        ..add(const Gap(16));
     }
 
     if (requestDetailShouldShowDocumentsBlock(item, s)) {
       out
-        ..add(const Gap(24))
+        ..add(const Gap(8))
         ..add(
-          Text(
-            s.requestDetailDocumentsTitle,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w600,
+          KeyedSubtree(
+            key: _documentsAnchorKey,
+            child: Text(
+              s.requestDetailDocumentsTitle,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         )
         ..add(const Gap(10))
         ..add(
           RequestDetailFilesSections(
+            requestId: widget.requestId,
             item: item,
+            highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
             uploadingDocType: _uploadingDocType,
             onUploadDocType: (docType) => _attachDocType(docType, item),
             onTransitPhotoTap: (url) => _openExternalUrl(url),
@@ -391,6 +470,16 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
           ),
         );
     }
+
+    // Кнопка временно отключена (v0.1.6).
+    // out
+    //   ..add(const Gap(20))
+    //   ..add(
+    //     AppPrimaryOutlinedWideButton(
+    //       label: s.requestSaveDraftButton,
+    //       onPressed: () => _saveAsDraft(item),
+    //     ),
+    //   );
 
     out.add(
       SizedBox(
@@ -472,42 +561,72 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final s = sl<JsonStringsService>();
     final theme = Theme.of(context);
     final title = item.displayCarLine;
-    final showChatFab = requestChatAvailable(item.external1cId);
-    return Scaffold(
+    final showChatFab = requestChatAvailable(
+      status: item.status,
+      external1cId: item.external1cId,
+      managerFullName: item.managerFullName,
+    );
+    final sub = RequestStatusSubType.tryParse(item.statusSubType);
+    final shouldFocusDocs = sub == RequestStatusSubType.primaryDocumentsSent ||
+        sub == RequestStatusSubType.signatureRevisionRequired;
+    if (shouldFocusDocs || widget.focusDocumentsOnOpen) {
+      _focusDocumentsIfPossible();
+    } else {
+      _documentsFocused = false;
+    }
+    return BlocBuilder<RequestAttentionCubit, RequestAttentionState>(
+      bloc: sl<RequestAttentionCubit>(),
+      builder: (context, attentionState) => BlocBuilder<RequestChatUnreadCubit, RequestChatUnreadState>(
+        bloc: sl<RequestChatUnreadCubit>(),
+        builder: (context, unreadState) {
+          final hasUnreadChat = unreadState.has(item.id);
+          return Scaffold(
       backgroundColor: AppTheme.pageBackground,
       appBar: BrandPrimaryAppBar(title: title),
       floatingActionButton: showChatFab
           ? FloatingActionButton(
               onPressed: () {
+                sl<RequestChatUnreadCubit>().clearUnread(item.id);
                 context.pushRequestChat(item.id);
               },
               backgroundColor: AppTheme.accentRed,
               foregroundColor: AppTheme.white,
               shape: const CircleBorder(),
               tooltip: s.requestDetailChatA11y,
-              child: const Icon(Icons.chat_bubble_outline_rounded),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.chat_bubble_outline_rounded),
+                  if (hasUnreadChat)
+                    const Positioned(
+                      right: -1,
+                      top: -1,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppTheme.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: SizedBox(width: 8, height: 8),
+                      ),
+                    ),
+                ],
+              ),
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      body: Stack(
-        children: [
-          ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            children: _buildScrollChildren(
-              context: context,
-              s: s,
-              theme: theme,
-              item: item,
-            ),
-          ),
-          if (_uploadingDocType != null)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Color(0x44000000),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-        ],
+      body: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        children: _buildScrollChildren(
+          context: context,
+          s: s,
+          theme: theme,
+          item: item,
+          attentionState: attentionState,
+        ),
+      ),
+          );
+        },
       ),
     );
   }
@@ -524,10 +643,15 @@ String? _resolveFileUrl(String? rawUrl) {
 }
 
 String? _statusDateText(CarListItem item) {
+  final subDt = item.statusSubTypeDateTime?.trim();
+  if (subDt != null && subDt.isNotEmpty) {
+    final parsed = DateTime.tryParse(subDt);
+    if (parsed != null) {
+      return 'С ${DateFormat('dd.MM.yyyy').format(parsed.toLocal())}';
+    }
+  }
   final source = item.status == RequestStatus.delivered
-      ? (item.statusSinceDateLabel?.trim().isNotEmpty == true
-          ? item.statusSinceDateLabel!.trim()
-          : item.updatedAt?.trim())
+      ? item.updatedAt?.trim()
       : item.createdAt?.trim();
   if (source == null || source.isEmpty) return null;
   final prefix = item.status == RequestStatus.delivered ? 'Прибыл' : 'Создано';
@@ -730,89 +854,6 @@ class _NotFoundBody extends StatelessWidget {
   }
 }
 
-class _LabeledValue extends StatelessWidget {
-  const _LabeledValue({
-    required this.label,
-    required this.value,
-    required this.theme,
-  });
-
-  final String label;
-  final String value;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        const Gap(4),
-        Text(
-          value,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EngineLabeled extends StatelessWidget {
-  const _EngineLabeled({
-    required this.label,
-    this.specLine,
-    this.volumeLine,
-    required this.theme,
-  });
-
-  final String label;
-  final String? specLine;
-  final String? volumeLine;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        const Gap(4),
-        if (specLine != null)
-          Text(
-            specLine!,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        if (specLine != null && volumeLine != null) const Gap(4),
-        if (volumeLine != null)
-          Text(
-            volumeLine!,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-      ],
-    );
-  }
-}
 
 CarListItem? _findItem(List<CarListItem> items, String id) {
   for (final e in items) {

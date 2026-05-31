@@ -3,15 +3,22 @@ import 'package:import_service_app/core/themes/app_theme.dart';
 
 /// Красный чип статуса (список и детализация заявки) — низкая высота, без `InkWell`.
 class RequestStatusPill extends StatelessWidget {
-  const RequestStatusPill({super.key, required this.label});
+  const RequestStatusPill({
+    super.key,
+    required this.label,
+    this.backgroundColor = AppTheme.accentRed,
+    this.foregroundColor = AppTheme.white,
+  });
 
   final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppTheme.accentRed,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
@@ -21,7 +28,7 @@ class RequestStatusPill extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppTheme.white,
+                color: foregroundColor,
                 fontWeight: FontWeight.w600,
                 fontSize: 12.5,
                 height: 1.2,

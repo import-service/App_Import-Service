@@ -2,9 +2,10 @@ import 'package:equatable/equatable.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/delivered_vehicle_document.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
+import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 import 'package:import_service_app/domain/entities/vehicle_finance_item.dart';
 
-/// Контракт заявки: [api-app.md] (camelCase). Список/деталка; `files` только в деталке.
+/// Контракт заявки v2: [contract-files-v2.md], [api-app.md] (camelCase).
 final class CarListItem extends Equatable {
   const CarListItem({
     required this.id,
@@ -14,6 +15,7 @@ final class CarListItem extends Equatable {
     required this.vin,
     required this.status,
     this.legalEntityName,
+    this.legalInn,
     this.legalEmail,
     this.legalPhone,
     this.individualFullName,
@@ -26,11 +28,15 @@ final class CarListItem extends Equatable {
     this.commentText,
     this.engineSpec,
     this.engineVolume,
-    this.statusSinceDateLabel,
+    this.statusSubTypeDateTime,
     this.statusSubType,
     this.external1cId,
     this.managerExternal1cId,
     this.managerFullName,
+    this.dealType,
+    this.advancePayment,
+    this.actualPayment,
+    this.refundAmount,
     this.createdAt,
     this.updatedAt,
     this.financeItems = const [],
@@ -47,6 +53,7 @@ final class CarListItem extends Equatable {
   final RequestStatus status;
 
   final String? legalEntityName;
+  final String? legalInn;
   final String? legalEmail;
   final String? legalPhone;
   final String? individualFullName;
@@ -60,18 +67,27 @@ final class CarListItem extends Equatable {
 
   final String? engineSpec;
   final String? engineVolume;
-  final String? statusSinceDateLabel;
+  /// ISO 8601 — дата подстатуса для UI.
+  final String? statusSubTypeDateTime;
   final String? statusSubType;
   final String? external1cId;
   final String? managerExternal1cId;
-  /// ФИО менеджера из 1С (после привязки заявки).
   final String? managerFullName;
+  final String? dealType;
+
+  /// Аванс / факт / к возврату — строки в рублях (API v2).
+  final String? advancePayment;
+  final String? actualPayment;
+  final String? refundAmount;
+
   final String? createdAt;
   final String? updatedAt;
 
+  /// Только демо-seed до полной миграции UI; с API не приходит.
   final List<VehicleFinanceItem> financeItems;
   final List<String> vehiclePhotoUrls;
   final List<DeliveredVehicleDocument> deliveredDocuments;
+
   final List<CustomsRequestFile> files;
 
   String get displayCarLine {
@@ -89,28 +105,17 @@ final class CarListItem extends Equatable {
     return '$a $b';
   }
 
+  CustomsRequestFile? fileByDocType(String docType) {
+    final code = docType.trim().toLowerCase();
+    if (code.isEmpty) return null;
+    for (final f in files) {
+      final dt = (f.docType ?? '').trim().toLowerCase();
+      if (dt == code) return f;
+    }
+    return null;
+  }
+
   factory CarListItem.fromJson(Map<String, dynamic> json) {
-    final rawNewFin = json['financeItems'] as List<dynamic>?;
-    final rawOldFin = json['detailFinanceLines'] as List<dynamic>?;
-    final fin = (rawNewFin ?? rawOldFin) != null
-        ? (rawNewFin ?? rawOldFin)!
-            .whereType<Map<String, dynamic>>()
-            .map(VehicleFinanceItem.fromJson)
-            .toList()
-        : const <VehicleFinanceItem>[];
-
-    final vUrls = json['vehiclePhotoUrls'] as List<dynamic>?;
-    final dUrls = json['detailPhotoUrls'] as List<dynamic>?;
-    final rawUrls = vUrls ?? dUrls;
-    final detailUrls = rawUrls is List<dynamic>
-        ? rawUrls.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
-        : const <String>[];
-
-    final rawDel = json['deliveredDocuments'] as List<dynamic>?;
-    final delivered = rawDel is List<dynamic>
-        ? rawDel.whereType<Map<String, dynamic>>().map(DeliveredVehicleDocument.fromJson).toList()
-        : const <DeliveredVehicleDocument>[];
-
     final rawFiles = json['files'] as List<dynamic>?;
     final fileList = rawFiles is List<dynamic>
         ? rawFiles.whereType<Map<String, dynamic>>().map(CustomsRequestFile.fromJson).toList()
@@ -118,14 +123,17 @@ final class CarListItem extends Equatable {
 
     final idRaw = json['id'];
     final (mk, mo) = _readMakeModel(json);
+    final statusSubType = _readStatusSubType(json);
     return CarListItem(
       id: idRaw == null ? '' : idRaw.toString(),
       ownerFullName: (json['ownerFullName'] as String?)?.trim() ?? '',
       carMake: mk,
       carModel: mo,
       vin: _readVinField(json),
-      status: RequestStatus.fromApiValue(json['status'] as String?),
+      status: _readStatus(json, statusSubType),
       legalEntityName: json['legalEntityName'] as String? ?? json['legal_entity_name'] as String?,
+      legalInn: _readTrimmedString(json, 'legalInn', 'legal_inn') ??
+          _readTrimmedString(json, 'inn', 'inn'),
       legalEmail: json['legalEmail'] as String? ?? json['legal_email'] as String?,
       legalPhone: json['legalPhone'] as String? ?? json['legal_phone'] as String?,
       individualFullName: json['individualFullName'] as String? ?? json['individual_full_name'] as String?,
@@ -138,18 +146,30 @@ final class CarListItem extends Equatable {
       commentText: json['commentText'] as String? ?? json['comment_text'] as String?,
       engineSpec: json['engineSpec'] as String? ?? json['engine_spec'] as String?,
       engineVolume: json['engineVolume'] as String? ?? json['engine_volume'] as String?,
-      statusSinceDateLabel: json['statusSinceDateLabel'] as String? ?? json['status_since_date_label'] as String?,
-      statusSubType: _readStatusSubType(json),
+      statusSubTypeDateTime: _readTrimmedString(
+        json,
+        'statusSubTypeDateTime',
+        'status_sub_type_date_time',
+      ),
+      statusSubType: statusSubType,
       external1cId: _readId(json, 'external1cId', 'external_1c_id'),
       managerExternal1cId: _readId(json, 'managerExternal1cId', 'manager_external_1c_id'),
       managerFullName: _readTrimmedString(json, 'managerFullName', 'manager_full_name'),
+      dealType: _readTrimmedString(json, 'dealType', 'deal_type'),
+      advancePayment: _readAmountString(json, 'advancePayment', 'advance_payment'),
+      actualPayment: _readAmountString(json, 'actualPayment', 'actual_payment'),
+      refundAmount: _readAmountString(json, 'refundAmount', 'refund_amount'),
       createdAt: json['createdAt'] as String? ?? json['created_at'] as String?,
       updatedAt: json['updatedAt'] as String? ?? json['updated_at'] as String?,
-      financeItems: fin,
-      vehiclePhotoUrls: detailUrls,
-      deliveredDocuments: delivered,
       files: fileList,
     );
+  }
+
+  static String? _readAmountString(Map<String, dynamic> j, String camel, String snake) {
+    final raw = j[camel] ?? j[snake];
+    if (raw == null) return null;
+    final s = raw.toString().trim();
+    return s.isEmpty ? null : s;
   }
 
   static String? _readId(Map<String, dynamic> j, String a, String b) {
@@ -189,6 +209,18 @@ final class CarListItem extends Equatable {
     return null;
   }
 
+  static RequestStatus _readStatus(Map<String, dynamic> json, String? statusSubType) {
+    final raw = (json['status'] as String?)?.trim();
+    if (raw != null && raw.isNotEmpty) {
+      return RequestStatus.fromApiValue(raw);
+    }
+    final sub = RequestStatusSubType.tryParse(statusSubType);
+    if (sub != null) {
+      return sub.typicalStatus;
+    }
+    return RequestStatus.newRequest;
+  }
+
   static (String, String) _readMakeModel(Map<String, dynamic> json) {
     var m = (json['carMake'] as String? ?? json['car_make'] as String?)?.trim() ?? '';
     var o = (json['carModel'] as String? ?? json['car_model'] as String?)?.trim() ?? '';
@@ -211,6 +243,82 @@ final class CarListItem extends Equatable {
     return '';
   }
 
+  CarListItem copyWith({
+    String? id,
+    String? ownerFullName,
+    String? carMake,
+    String? carModel,
+    String? vin,
+    RequestStatus? status,
+    String? legalEntityName,
+    String? legalInn,
+    String? legalEmail,
+    String? legalPhone,
+    String? individualFullName,
+    String? individualPhone,
+    String? individualSnils,
+    bool? hasSunroof,
+    bool? hasAllWheelDrive,
+    bool? importedLast12Months,
+    bool? ownsOtherCars,
+    String? commentText,
+    String? engineSpec,
+    String? engineVolume,
+    String? statusSubTypeDateTime,
+    String? statusSubType,
+    String? external1cId,
+    String? managerExternal1cId,
+    String? managerFullName,
+    String? dealType,
+    String? advancePayment,
+    String? actualPayment,
+    String? refundAmount,
+    String? createdAt,
+    String? updatedAt,
+    List<VehicleFinanceItem>? financeItems,
+    List<String>? vehiclePhotoUrls,
+    List<DeliveredVehicleDocument>? deliveredDocuments,
+    List<CustomsRequestFile>? files,
+  }) {
+    return CarListItem(
+      id: id ?? this.id,
+      ownerFullName: ownerFullName ?? this.ownerFullName,
+      carMake: carMake ?? this.carMake,
+      carModel: carModel ?? this.carModel,
+      vin: vin ?? this.vin,
+      status: status ?? this.status,
+      legalEntityName: legalEntityName ?? this.legalEntityName,
+      legalInn: legalInn ?? this.legalInn,
+      legalEmail: legalEmail ?? this.legalEmail,
+      legalPhone: legalPhone ?? this.legalPhone,
+      individualFullName: individualFullName ?? this.individualFullName,
+      individualPhone: individualPhone ?? this.individualPhone,
+      individualSnils: individualSnils ?? this.individualSnils,
+      hasSunroof: hasSunroof ?? this.hasSunroof,
+      hasAllWheelDrive: hasAllWheelDrive ?? this.hasAllWheelDrive,
+      importedLast12Months: importedLast12Months ?? this.importedLast12Months,
+      ownsOtherCars: ownsOtherCars ?? this.ownsOtherCars,
+      commentText: commentText ?? this.commentText,
+      engineSpec: engineSpec ?? this.engineSpec,
+      engineVolume: engineVolume ?? this.engineVolume,
+      statusSubTypeDateTime: statusSubTypeDateTime ?? this.statusSubTypeDateTime,
+      statusSubType: statusSubType ?? this.statusSubType,
+      external1cId: external1cId ?? this.external1cId,
+      managerExternal1cId: managerExternal1cId ?? this.managerExternal1cId,
+      managerFullName: managerFullName ?? this.managerFullName,
+      dealType: dealType ?? this.dealType,
+      advancePayment: advancePayment ?? this.advancePayment,
+      actualPayment: actualPayment ?? this.actualPayment,
+      refundAmount: refundAmount ?? this.refundAmount,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      financeItems: financeItems ?? this.financeItems,
+      vehiclePhotoUrls: vehiclePhotoUrls ?? this.vehiclePhotoUrls,
+      deliveredDocuments: deliveredDocuments ?? this.deliveredDocuments,
+      files: files ?? this.files,
+    );
+  }
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
         'ownerFullName': ownerFullName,
@@ -219,6 +327,7 @@ final class CarListItem extends Equatable {
         'vin': vin,
         'status': status.apiValue,
         if (legalEntityName != null) 'legalEntityName': legalEntityName,
+        if (legalInn != null) 'legalInn': legalInn,
         if (legalEmail != null) 'legalEmail': legalEmail,
         if (legalPhone != null) 'legalPhone': legalPhone,
         if (individualFullName != null) 'individualFullName': individualFullName,
@@ -231,11 +340,15 @@ final class CarListItem extends Equatable {
         if (commentText != null) 'commentText': commentText,
         'engineSpec': engineSpec,
         'engineVolume': engineVolume,
-        'statusSinceDateLabel': statusSinceDateLabel,
+        if (statusSubTypeDateTime != null) 'statusSubTypeDateTime': statusSubTypeDateTime,
         'statusSubType': statusSubType,
         if (external1cId != null) 'external1cId': external1cId,
         if (managerExternal1cId != null) 'managerExternal1cId': managerExternal1cId,
         if (managerFullName != null) 'managerFullName': managerFullName,
+        if (dealType != null) 'dealType': dealType,
+        if (advancePayment != null) 'advancePayment': advancePayment,
+        if (actualPayment != null) 'actualPayment': actualPayment,
+        if (refundAmount != null) 'refundAmount': refundAmount,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
         'financeItems': financeItems.map((e) => e.toJson()).toList(),
@@ -253,6 +366,7 @@ final class CarListItem extends Equatable {
         vin,
         status,
         legalEntityName,
+        legalInn,
         legalEmail,
         legalPhone,
         individualFullName,
@@ -265,11 +379,15 @@ final class CarListItem extends Equatable {
         commentText,
         engineSpec,
         engineVolume,
-        statusSinceDateLabel,
+        statusSubTypeDateTime,
         statusSubType,
         external1cId,
         managerExternal1cId,
         managerFullName,
+        dealType,
+        advancePayment,
+        actualPayment,
+        refundAmount,
         createdAt,
         updatedAt,
         financeItems,
