@@ -19,15 +19,26 @@ function serializeOneCBody(body) {
   return { truncated: true, preview: text.slice(0, MAX_ONE_C_BODY_CHARS) };
 }
 
-/** URL update: тот же хост/база, что в админке для create; путь — customs-request-update. */
-function buildOneCUpdateUrl(createUrl) {
-  const raw = String(createUrl || '').trim();
-  if (!raw) return '';
-  if (/\/customs-request-update\/?$/i.test(raw)) return raw;
-  if (/\/customs-request\/?$/i.test(raw)) {
-    return raw.replace(/\/customs-request\/?$/i, '/customs-request-update');
-  }
-  return `${raw.replace(/\/$/, '')}/customs-request-update`;
+/**
+ * URL обновления файлов в 1С:
+ * 1) явный oneCRequestUpdateUrl из админки;
+ * 2) иначе URL создания + суффикс /files (договорённость с 1С).
+ */
+function resolveOneCUpdateUrl(settings) {
+  const explicit = String(settings?.oneCRequestUpdateUrl || '').trim();
+  if (explicit) return explicit;
+
+  const createUrl = String(settings?.oneCRequestCreateUrl || '').trim();
+  if (!createUrl) return '';
+
+  return `${createUrl.replace(/\/$/, '')}/files`;
+}
+
+function resolveOneCUpdateBearerToken(settings) {
+  return (
+    String(settings?.oneCRequestUpdateBearerToken || '').trim() ||
+    String(settings?.oneCRequestCreateBearerToken || '').trim()
+  );
 }
 
 async function postJson({ url, body, bearerToken, timeoutMs }) {
@@ -92,7 +103,7 @@ function formatUpdateFailureForClient(err) {
 
 async function submitCustomsRequestUpdateTo1CFromDb(fastify, requestId, options = {}) {
   const settings = await getAppSettings(fastify.pool);
-  const updateUrl = buildOneCUpdateUrl(settings.oneCRequestCreateUrl);
+  const updateUrl = resolveOneCUpdateUrl(settings);
   if (!updateUrl) {
     return { ok: false, skipped: true, reason: 'URL_NOT_CONFIGURED' };
   }
@@ -112,10 +123,10 @@ async function submitCustomsRequestUpdateTo1CFromDb(fastify, requestId, options 
     const json = await postJson({
       url: updateUrl,
       body: payload,
-      bearerToken: settings.oneCRequestCreateBearerToken,
+      bearerToken: resolveOneCUpdateBearerToken(settings),
       timeoutMs: DEFAULT_TIMEOUT_MS,
     });
-    fastify.log.info({ requestId }, 'ONE_C_UPDATE ok');
+    fastify.log.info({ requestId, updateUrl }, 'ONE_C_UPDATE ok');
     return { ok: true, oneCResponse: serializeOneCBody(json) };
   } catch (e) {
     const failure = formatUpdateFailureForClient(e);
@@ -127,6 +138,5 @@ async function submitCustomsRequestUpdateTo1CFromDb(fastify, requestId, options 
 module.exports = {
   submitCustomsRequestUpdateTo1CFromDb,
   formatUpdateFailureForClient,
-  buildOneCUpdateUrl,
+  resolveOneCUpdateUrl,
 };
-

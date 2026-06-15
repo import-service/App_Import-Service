@@ -4,6 +4,7 @@ const { expiresInToMs } = require('../util/time');
 const { getAppSettings, updateOneCRequestCreateSettings } = require('../services/appSettings');
 const { submitCustomsRequestTo1CFromDb } = require('../services/oneCRequestCreate');
 const { pushCustomsRequestUpdateTo1C } = require('../services/oneCUpdateSync');
+const { resolveOneCUpdateUrl } = require('../services/oneCRequestUpdate');
 const { CUSTOMS_REQUEST_SELECT, toCustomsRequestDto } = require('../util/customsRequestDto');
 const { toOrganizationDto } = require('../util/organizationDto');
 
@@ -188,6 +189,8 @@ module.exports = async function adminRoutes(fastify) {
       const settings = await getAppSettings(fastify.pool);
       return reply.send({
         oneCRequestCreateUrl: settings.oneCRequestCreateUrl || null,
+        oneCRequestUpdateUrl: settings.oneCRequestUpdateUrl || null,
+        oneCRequestUpdateUrlEffective: resolveOneCUpdateUrl(settings) || null,
         oneCRequestCreateBearerTokenMasked: maskToken(settings.oneCRequestCreateBearerToken),
         hasBearerToken: Boolean(settings.oneCRequestCreateBearerToken),
         updatedAt: settings.updatedAt,
@@ -206,18 +209,29 @@ module.exports = async function adminRoutes(fastify) {
           properties: {
             oneCRequestCreateUrl: { type: 'string', minLength: 1, maxLength: 2048 },
             oneCRequestCreateBearerToken: { type: 'string', minLength: 1, maxLength: 512 },
+            oneCRequestUpdateUrl: { type: 'string', maxLength: 2048 },
           },
         },
       },
     },
     async (request, reply) => {
       const url = String(request.body.oneCRequestCreateUrl || '').trim();
+      const updateUrl = request.body.oneCRequestUpdateUrl;
       const bearerToken = String(request.body.oneCRequestCreateBearerToken || '').trim();
       if (!url || !/^https?:\/\//i.test(url)) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
           message: 'oneCRequestCreateUrl должен быть http(s) URL',
         });
+      }
+      if (updateUrl !== undefined && updateUrl !== null && String(updateUrl).trim()) {
+        const u = String(updateUrl).trim();
+        if (!/^https?:\/\//i.test(u)) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: 'oneCRequestUpdateUrl должен быть http(s) URL',
+          });
+        }
       }
       if (/[^\x00-\x7F]/.test(bearerToken)) {
         return reply.code(400).send({
@@ -228,11 +242,14 @@ module.exports = async function adminRoutes(fastify) {
       }
       const updated = await updateOneCRequestCreateSettings(fastify.pool, {
         url,
+        updateUrl: updateUrl === undefined ? undefined : String(updateUrl || '').trim(),
         bearerToken,
       });
       return reply.send({
         ok: true,
         oneCRequestCreateUrl: updated.oneCRequestCreateUrl,
+        oneCRequestUpdateUrl: updated.oneCRequestUpdateUrl || null,
+        oneCRequestUpdateUrlEffective: resolveOneCUpdateUrl(updated) || null,
         oneCRequestCreateBearerTokenMasked: maskToken(updated.oneCRequestCreateBearerToken),
         hasBearerToken: Boolean(updated.oneCRequestCreateBearerToken),
         updatedAt: updated.updatedAt,

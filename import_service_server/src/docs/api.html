@@ -246,10 +246,6 @@
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>{ "ok": true }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/:id/files</code><span class="desc">Устарело — используйте upload.</span></summary>
-          <div class="body"><p><b>Статус:</b> <code>410 Gone</code></p><p>Используйте <code>POST /api/customs-requests/upload</code> с <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code>.</p></div>
-        </details>
-        <details class="card">
           <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id/files/:fileId</code><span class="desc">Мягко удалить файл заявки.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>{ "ok": true }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
@@ -407,11 +403,11 @@
       <section class="group">
         <h2>Исходящий update файлов (HTTP на стороне 1С)</h2>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">…/customs-request-update</code><span class="desc">Сервер передаёт в 1С файлы, загруженные клиентом из МП.</span></summary>
+          <summary class="summary"><span class="method post">POST</span><code class="path">URL обновления файлов</code><span class="desc">Сервер передаёт в 1С файлы, загруженные клиентом из МП.</span></summary>
           <div class="body">
             <p><b>Auth:</b> тот же Bearer, что для создания (<code>oneCRequestCreateBearerToken</code> в админке).</p>
-            <p><b>URL:</b> в админке указывается URL <b>создания</b> (<code>…/customs-request</code>). Сервер сам вызывает <code>…/customs-request-update</code> на том же хосте. Если в админке уже указан <code>…/customs-request-update</code> — используется он.</p>
-            <div class="callout"><b>Один массив <code>files[]</code>:</b> только изменённые <code>docType</code> после upload из МП. Статусы — через <a href="/docs/integration">state</a> (1С → сервер). Файлы от 1С в МП — через <code>upload</code>, не через <code>state</code>.</div>
+            <p><b>URL:</b> отдельное поле <code>oneCRequestUpdateUrl</code> в админке. Если пусто — к URL создания добавляется <code>/files</code>.</p>
+            <div class="callout"><b>Отдельный роут в 1С:</b> только <code>requestId</code>, <code>external1cId</code>, <code>files[]</code> — файлы после upload из МП. Статусы — через <a href="/docs/integration">state</a> (1С → сервер).</div>
             <p><b>Поля тела (сервер → 1С):</b></p>
             <table class="fields">
               <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
@@ -452,7 +448,7 @@
           <div class="body">
             <p><b>Назначение:</b> как только клиент написал в чате МП, сервер синхронно отправляет это сообщение в 1С по HTTP.</p>
             <p><b>Auth:</b> тот же Bearer, что и для создания/обновления заявки (из админки).</p>
-            <p><b>URL:</b> отдельный маршрут чата <code>…/customs-request-chat</code> (не смешивается с файловым <code>…/customs-request-update</code>).</p>
+            <p><b>URL:</b> отдельный маршрут чата на стороне 1С (не смешивается с созданием заявки и обновлением файлов).</p>
             <table class="fields">
               <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
               <tr><td><code>external1cId</code></td><td>да</td><td>Id заявки в 1С, к которой относится чат.</td></tr>
@@ -947,26 +943,31 @@
       <section class="group">
         <h2>Настройки и заявки</h2>
         <details class="card">
-          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/settings/one-c-request-create</code><span class="desc">URL и Bearer для исходящих вызовов в 1С (create + update).</span></summary>
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/settings/one-c-request-create</code><span class="desc">URL создания и обновления файлов в 1С.</span></summary>
           <div class="body"><p><b>Success:</b></p><pre>{
-  "oneCRequestCreateUrl": "https://1c.example/hs/import/customs-request",
+  "oneCRequestCreateUrl": "https://1c.example/hs/MobileAppIntegration/customs-requests",
+  "oneCRequestUpdateUrl": "https://1c.example/hs/MobileAppIntegration/customs-requests/files",
+  "oneCRequestUpdateUrlEffective": "https://1c.example/hs/MobileAppIntegration/customs-requests/files",
   "oneCRequestCreateBearerTokenMasked": "…abcd",
   "hasBearerToken": true,
   "updatedAt": "2026-05-16T12:00:00.000Z"
-}</pre></div>
+}</pre><p><code>oneCRequestUpdateUrlEffective</code> — фактический URL update (явный или create + <code>/files</code>).</p></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method put">PUT</span><code class="path">/api/admin/settings/one-c-request-create</code><span class="desc">Задать URL и Bearer для POST в 1С (создание и update).</span></summary>
+          <summary class="summary"><span class="method put">PUT</span><code class="path">/api/admin/settings/one-c-request-create</code><span class="desc">Задать URL и Bearer для POST в 1С.</span></summary>
           <div class="body"><p><b>Request:</b></p><pre>{
-  "oneCRequestCreateUrl": "https://1c.example/hs/import/customs-request",
+  "oneCRequestCreateUrl": "https://1c.example/hs/MobileAppIntegration/customs-requests",
+  "oneCRequestUpdateUrl": "https://1c.example/hs/MobileAppIntegration/customs-requests/files",
   "oneCRequestCreateBearerToken": "secret-token"
 }</pre><p><b>Success:</b></p><pre>{
   "ok": true,
-  "oneCRequestCreateUrl": "https://1c.example/hs/import/customs-request",
+  "oneCRequestCreateUrl": "https://1c.example/hs/MobileAppIntegration/customs-requests",
+  "oneCRequestUpdateUrl": "https://1c.example/hs/MobileAppIntegration/customs-requests/files",
+  "oneCRequestUpdateUrlEffective": "https://1c.example/hs/MobileAppIntegration/customs-requests/files",
   "oneCRequestCreateBearerTokenMasked": "…oken",
   "hasBearerToken": true,
   "updatedAt": "2026-05-16T12:00:00.000Z"
-}</pre><p><b>Update в 1С:</b> тот же Bearer; URL = <code>customs-request</code> → <code>customs-request-update</code> (см. <code>docs/api-1c.md</code>).</p></div>
+}</pre><p><b>Update файлов:</b> отдельный URL в 1С; если <code>oneCRequestUpdateUrl</code> пуст — сервер добавляет <code>/files</code> к URL создания.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/customs-requests/:id/resend-update-to-1c</code><span class="desc">Повтор update в 1С (oneCUpdatePending).</span></summary>
@@ -1104,7 +1105,7 @@ sequenceDiagram
               <li>1С возвращает серверу: <code>{ requestId, external1cId }</code>.</li>
             </ul>
             <p><b>1С → сервер:</b> <code>upload</code> (файлы) + <code>state</code> (метаданные) — вкладка <a href="/docs/integration">API для 1С</a>, <code>docs/contract-files-v2.md</code>.</p>
-            <p><b>Сервер → 1С</b> (<code>POST …/customs-request-update</code>): <b>только</b> <code>requestId</code>, <code>external1cId</code>, <code>files[]</code> — файлы, которые клиент загрузил из МП (подпись, чек оплаты и т.д.). Статусы и прочие поля в этот вызов <b>не</b> передаются.</p>
+            <p><b>Сервер → 1С</b> (отдельный URL обновления файлов): <b>только</b> <code>requestId</code>, <code>external1cId</code>, <code>files[]</code> — подписи, чеки и т.д. из МП. URL задаётся в админке (<code>oneCRequestUpdateUrl</code>) или как create + <code>/files</code>.</p>
             <p><b>Создание заявки (МП):</b> <code>POST /customs-requests</code> без файлов → N×upload → create в 1С на последнем файле.</p>
             <p><b>Создание (сервер → 1С):</b> после upload из МП — <code>requestId</code> + <code>files[]</code> с URL.</p>
 
@@ -1113,7 +1114,7 @@ sequenceDiagram
             <p><b>Особые правила по документам:</b></p>
             <ul>
               <li><code>funds_transfer_application</code> (перевод остатков) и <code>passport_notarized_copy</code> — не из 1С в МП, только <code>*_sign</code> из МП.</li>
-              <li>Файлы везде <code>files[]</code>, частично: 1С → <code>state</code>; МП → сервер → 1С <code>update</code>.</li>
+              <li>Файлы от 1С — <code>upload</code>; от МП в 1С — отдельный URL (<code>oneCRequestUpdateUrl</code> или create + <code>/files</code>).</li>
               <li>Перезагрузка документов допустима с любой стороны (новая версия по тому же <code>docType</code>).</li>
             </ul>
           </div>

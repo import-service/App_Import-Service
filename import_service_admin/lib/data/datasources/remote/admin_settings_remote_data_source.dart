@@ -26,6 +26,7 @@ class AdminSettingsRemoteDataSource {
   Future<OneCSettings> updateOneCRequestCreate({
     required String url,
     required String bearerToken,
+    String? updateUrl,
   }) async {
     try {
       final response = await _dio.put<dynamic>(
@@ -33,6 +34,7 @@ class AdminSettingsRemoteDataSource {
         data: <String, dynamic>{
           'oneCRequestCreateUrl': url,
           'oneCRequestCreateBearerToken': bearerToken,
+          if (updateUrl != null) 'oneCRequestUpdateUrl': updateUrl,
         },
       );
       final data = response.data;

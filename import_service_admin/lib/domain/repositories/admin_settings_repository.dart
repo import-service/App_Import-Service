@@ -6,5 +6,6 @@ abstract class AdminSettingsRepository {
   Future<OneCSettings> updateOneCRequestCreate({
     required String url,
     required String bearerToken,
+    String? updateUrl,
   });
 }

@@ -22,7 +22,7 @@ alwaysApply: false
 
 ## Фокус админки
 
-- URL/Bearer исходящих вызовов в 1С (создание и update — **одни** настройки `one-c-request-create`)
+- URL/Bearer исходящих вызовов в 1С: **создание** (`oneCRequestCreateUrl`) и **обновление файлов** (`oneCRequestUpdateUrl`, fallback create + `/files`)
 - Повторная отправка при статусе **`new`** — `POST …/resend-to-1c`
 - Повтор **update** при **`oneCUpdatePending: true`** — `POST …/resend-update-to-1c` (красная карточка + кнопка «Повторить update в 1С»)
 - Список: сначала `new`, затем `oneCUpdatePending`, поле в DTO — `oneCUpdatePending`

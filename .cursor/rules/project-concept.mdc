@@ -219,7 +219,7 @@ alwaysApply: true
 
 **Обновления от 1С:** `state` — только метаданные; файлы — `upload` (батч), затем при необходимости `state`.
 
-**Файлы из МП в 1С:** после батча upload сервер вызывает `customs-request-update` с изменёнными `docType`. Статусы — только через `state` от 1С.
+**Файлы из МП в 1С:** после батча upload сервер вызывает **отдельный URL** (`oneCRequestUpdateUrl` в админке, иначе create + `/files`) с изменёнными `docType`. Статусы — только через `state` от 1С.
 
 **Карточка для МП:** единый `files[]` в `GET` / ответе `state`. Push файлов: `request_files_update` + `changedDocTypes`.
 

@@ -14,6 +14,11 @@ class AdminSettingsRepositoryImpl implements AdminSettingsRepository {
   Future<OneCSettings> updateOneCRequestCreate({
     required String url,
     required String bearerToken,
+    String? updateUrl,
   }) =>
-      _remote.updateOneCRequestCreate(url: url, bearerToken: bearerToken);
+      _remote.updateOneCRequestCreate(
+        url: url,
+        bearerToken: bearerToken,
+        updateUrl: updateUrl,
+      );
 }
