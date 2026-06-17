@@ -618,7 +618,7 @@
     <section id="panel-integration" class="panel">
       <div class="panel-intro">
         <strong>Направление: 1С → сервер.</strong> Эндпоинты на <code>{{BASE_URL}}</code> с интеграционным Bearer.
-        <p><b>Файлы:</b> <code>POST /api/customs-requests/upload</code>. <code>state</code> — статус, менеджер, суммы. Файлы из МП в 1С — <a href="/docs/onec">update в 1С</a>. Коды: <a href="/docs/catalogs">Справочники</a>.</p>
+        <p><b>Файлы 1С → МП:</b> <code>POST /api/customs-requests/upload</code> + <code>state</code>. <b>Файлы МП → 1С</b> — отдельный HTTP-роут <b>на стороне 1С</b> (см. карточку ниже и вкладку <a href="/docs/onec">API 1С (внешний HTTP)</a>). Коды: <a href="/docs/catalogs">Справочники</a>.</p>
       </div>
 
       <section class="group">
@@ -638,6 +638,47 @@
               <li>Сразу push в МП</li>
             </ol>
             <p><b>3. Суммы и менеджер</b> — <code>state</code>: <code>advancePayment</code>, <code>actualPayment</code> (строка, руб.), <code>managerExternal1cId</code>, …</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Сервер → 1С (исходящие вызовы)</h2>
+        <details class="card" open>
+          <summary class="summary"><span class="method post">POST</span><code class="path">URL обновления файлов в 1С</code><span class="desc">Подписи, чеки и прочие файлы из МП — отдельный роут в 1С.</span></summary>
+          <div class="body">
+            <div class="callout"><b>Не эндпоинт нашего API.</b> Это HTTP-сервис, который <b>реализует 1С</b>. Сервер вызывает его после батча <code>upload</code> из МП (<code>uploadIndex === uploadTotal</code>).</div>
+            <p><b>Направление:</b> сервер → 1С (обратно вкладке «API для 1С»).</p>
+            <p><b>URL задаётся в админке</b> (<code>oneCRequestUpdateUrl</code>). Если пусто — к URL создания добавляется <code>/files</code>.</p>
+            <table class="fields">
+              <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
+              <tr><td><code>requestId</code></td><td>да</td><td>Id заявки на сервере.</td></tr>
+              <tr><td><code>external1cId</code></td><td>да</td><td>Id заявки в 1С.</td></tr>
+              <tr><td><code>files[]</code></td><td>да</td><td>Только изменённые <code>docType</code> этого батча (подписи, чеки, …).</td></tr>
+            </table>
+            <p><b>Пример URL в 1С:</b> <code>https://1c.example/hs/MobileAppIntegration/customs-requests/files</code></p>
+            <p><b>Пример тела:</b></p><pre>{
+  "requestId": 123,
+  "external1cId": "GUID-REQUEST-1C",
+  "files": [
+    {
+      "docType": "contract_sign",
+      "fileName": "contract_sign.pdf",
+      "mimeType": "application/pdf",
+      "fileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/GUID__contract_sign.pdf"
+    }
+  ]
+}</pre>
+            <p><b>Auth:</b> <code>Authorization: Bearer</code> — тот же токен, что для создания заявки (настройки админки).</p>
+            <p><b>Полное описание</b> (создание + файлы + чат): вкладка <a href="/docs/onec">API 1С (внешний HTTP)</a>. Настройки URL: <a href="/docs/admin">API админки</a> → <code>one-c-request-create</code>.</p>
+            <p><b>Не смешивать</b> с созданием заявки и с <code>state</code>: статусы и суммы 1С получает только входящим <code>POST /api/integration/customs-requests/state</code>.</p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">URL создания заявки в 1С</code><span class="desc">После upload из МП — данные анкеты + files[] на создание.</span></summary>
+          <div class="body">
+            <p>Отдельный роут в 1С для <b>создания</b> карточки заявки. Тело — как у МП + <code>requestId</code>; ответ — <code>external1cId</code>.</p>
+            <p>Подробно: <a href="/docs/onec">API 1С (внешний HTTP)</a> → «Исходящее создание заявки».</p>
           </div>
         </details>
       </section>

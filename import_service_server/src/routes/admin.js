@@ -191,6 +191,7 @@ module.exports = async function adminRoutes(fastify) {
         oneCRequestCreateUrl: settings.oneCRequestCreateUrl || null,
         oneCRequestUpdateUrl: settings.oneCRequestUpdateUrl || null,
         oneCRequestUpdateUrlEffective: resolveOneCUpdateUrl(settings) || null,
+        oneCRequestCreateBearerToken: settings.oneCRequestCreateBearerToken || null,
         oneCRequestCreateBearerTokenMasked: maskToken(settings.oneCRequestCreateBearerToken),
         hasBearerToken: Boolean(settings.oneCRequestCreateBearerToken),
         updatedAt: settings.updatedAt,
@@ -205,10 +206,10 @@ module.exports = async function adminRoutes(fastify) {
       schema: {
         body: {
           type: 'object',
-          required: ['oneCRequestCreateUrl', 'oneCRequestCreateBearerToken'],
+          required: ['oneCRequestCreateUrl'],
           properties: {
             oneCRequestCreateUrl: { type: 'string', minLength: 1, maxLength: 2048 },
-            oneCRequestCreateBearerToken: { type: 'string', minLength: 1, maxLength: 512 },
+            oneCRequestCreateBearerToken: { type: 'string', maxLength: 512 },
             oneCRequestUpdateUrl: { type: 'string', maxLength: 2048 },
           },
         },
@@ -217,7 +218,11 @@ module.exports = async function adminRoutes(fastify) {
     async (request, reply) => {
       const url = String(request.body.oneCRequestCreateUrl || '').trim();
       const updateUrl = request.body.oneCRequestUpdateUrl;
-      const bearerToken = String(request.body.oneCRequestCreateBearerToken || '').trim();
+      const bearerTokenRaw = request.body.oneCRequestCreateBearerToken;
+      const bearerToken =
+        bearerTokenRaw === undefined || bearerTokenRaw === null
+          ? ''
+          : String(bearerTokenRaw).trim();
       if (!url || !/^https?:\/\//i.test(url)) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
@@ -233,7 +238,14 @@ module.exports = async function adminRoutes(fastify) {
           });
         }
       }
-      if (/[^\x00-\x7F]/.test(bearerToken)) {
+      const settingsBefore = await getAppSettings(fastify.pool);
+      if (!bearerToken && !settingsBefore.oneCRequestCreateBearerToken) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: 'oneCRequestCreateBearerToken обязателен при первой настройке',
+        });
+      }
+      if (bearerToken && /[^\x00-\x7F]/.test(bearerToken)) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
           message:
@@ -243,7 +255,7 @@ module.exports = async function adminRoutes(fastify) {
       const updated = await updateOneCRequestCreateSettings(fastify.pool, {
         url,
         updateUrl: updateUrl === undefined ? undefined : String(updateUrl || '').trim(),
-        bearerToken,
+        bearerToken: bearerToken || undefined,
       });
       return reply.send({
         ok: true,

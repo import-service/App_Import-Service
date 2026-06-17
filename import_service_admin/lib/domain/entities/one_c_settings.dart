@@ -5,6 +5,7 @@ class OneCSettings extends Equatable {
     this.oneCRequestCreateUrl,
     this.oneCRequestUpdateUrl,
     this.oneCRequestUpdateUrlEffective,
+    this.oneCRequestCreateBearerToken,
     this.oneCRequestCreateBearerTokenMasked,
     this.hasBearerToken = false,
     this.updatedAt,
@@ -13,6 +14,7 @@ class OneCSettings extends Equatable {
   final String? oneCRequestCreateUrl;
   final String? oneCRequestUpdateUrl;
   final String? oneCRequestUpdateUrlEffective;
+  final String? oneCRequestCreateBearerToken;
   final String? oneCRequestCreateBearerTokenMasked;
   final bool hasBearerToken;
   final String? updatedAt;
@@ -22,6 +24,7 @@ class OneCSettings extends Equatable {
         oneCRequestCreateUrl,
         oneCRequestUpdateUrl,
         oneCRequestUpdateUrlEffective,
+        oneCRequestCreateBearerToken,
         hasBearerToken,
         updatedAt,
       ];

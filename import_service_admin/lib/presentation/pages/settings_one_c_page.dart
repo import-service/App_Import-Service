@@ -22,7 +22,6 @@ class _SettingsOneCPageState extends State<SettingsOneCPage> {
   bool _loading = true;
   bool _saving = false;
   bool _obscureToken = true;
-  String? _maskedToken;
   bool _hasToken = false;
   String? _updatedAt;
   String? _effectiveUpdateUrl;
@@ -52,7 +51,7 @@ class _SettingsOneCPageState extends State<SettingsOneCPage> {
         _createUrlController.text = settings.oneCRequestCreateUrl ?? '';
         _updateUrlController.text = settings.oneCRequestUpdateUrl ?? '';
         _effectiveUpdateUrl = settings.oneCRequestUpdateUrlEffective;
-        _maskedToken = settings.oneCRequestCreateBearerTokenMasked;
+        _tokenController.text = settings.oneCRequestCreateBearerToken ?? '';
         _hasToken = settings.hasBearerToken;
         _updatedAt = settings.updatedAt;
         _loading = false;
@@ -73,11 +72,7 @@ class _SettingsOneCPageState extends State<SettingsOneCPage> {
     final updateUrl = _updateUrlController.text.trim();
     final token = _tokenController.text.trim();
     if (createUrl.isEmpty || token.isEmpty) {
-      if (_hasToken && token.isEmpty) {
-        _showError('Введите новый Bearer-токен для замены сохранённого');
-      } else {
-        _showError('Укажите URL создания и Bearer-токен');
-      }
+      _showError('Укажите URL создания и Bearer-токен');
       return;
     }
     if (!AsciiTextInputFormatter.isValidAscii(token)) {
@@ -106,15 +101,12 @@ class _SettingsOneCPageState extends State<SettingsOneCPage> {
       if (!mounted) return;
       final at = updated.updatedAt;
       setState(() {
-        _maskedToken = updated.oneCRequestCreateBearerTokenMasked;
         _hasToken = updated.hasBearerToken;
         _updatedAt = at;
         _effectiveUpdateUrl = updated.oneCRequestUpdateUrlEffective;
-        _tokenController.clear();
         _obscureToken = true;
         _saveSuccessMessage =
-            'Настройки сохранены на сервере${at != null ? ' · $at' : ''}. '
-            'Токен на сервере: ${_maskedToken ?? '••••'} — полный текст не показывается.';
+            'Настройки сохранены на сервере${at != null ? ' · $at' : ''}.';
       });
       AppSnackBars.showSuccess(
         'Настройки 1С сохранены на сервере',
@@ -234,39 +226,16 @@ class _SettingsOneCPageState extends State<SettingsOneCPage> {
               ),
             ],
             const Gap(24),
-            if (_hasToken) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.lock_outline,
-                    size: 20,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const Gap(8),
-                  Expanded(
-                    child: Text(
-                      'На сервере сохранён токен: ${_maskedToken ?? '••••'}. '
-                      'Полный текст не отдаётся API — введите новый ниже, чтобы заменить.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const Gap(8),
-            ],
             TextField(
               controller: _tokenController,
               onChanged: (_) => _clearSaveBanner(),
               decoration: InputDecoration(
                 labelText: 'Bearer-токен (для обоих URL)',
                 hintText: _hasToken
-                    ? 'Новый токен (латиница, цифры, ASCII)'
+                    ? 'Токен из БД подставлен автоматически'
                     : 'Введите токен (латиница, цифры, ASCII)',
                 helperText:
-                    'Кириллица в токене недопустима — запрос в 1С не отправится.',
+                    'Обязательное поле. Загружается с сервера при открытии страницы.',
                 suffixIcon: IconButton(
                   tooltip: _obscureToken ? 'Показать' : 'Скрыть',
                   onPressed: () =>

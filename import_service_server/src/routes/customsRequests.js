@@ -152,7 +152,7 @@ function rejectDeprecatedStateFields(body, reply) {
     if (body[key] !== undefined) {
       reply.code(400).send({
         error: 'VALIDATION_ERROR',
-        message: `Поле ${key} не передаётся в state. Файлы — через POST /api/customs-requests/upload.`,
+        message: `Поле ${key} не поддерживается в state`,
       });
       return true;
     }

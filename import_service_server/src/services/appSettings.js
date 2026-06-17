@@ -15,13 +15,24 @@ async function getAppSettings(pool) {
 }
 
 async function updateOneCRequestCreateSettings(pool, { url, updateUrl, bearerToken }) {
-  const normalizedUpdateUrl = updateUrl === undefined ? undefined : String(updateUrl || '').trim() || null;
+  const current = await getAppSettings(pool);
+  const incomingToken =
+    bearerToken === undefined ? undefined : String(bearerToken || '').trim();
+  let tokenToSave;
+  if (incomingToken === undefined || incomingToken === '') {
+    tokenToSave = current.oneCRequestCreateBearerToken || null;
+  } else {
+    tokenToSave = incomingToken;
+  }
+
+  const normalizedUpdateUrl =
+    updateUrl === undefined ? undefined : String(updateUrl || '').trim() || null;
   if (normalizedUpdateUrl === undefined) {
     await pool.query(
       `UPDATE app_settings
        SET one_c_request_create_url = ?, one_c_request_create_bearer_token = ?
        WHERE id = 1`,
-      [url || null, bearerToken || null],
+      [url || null, tokenToSave],
     );
   } else {
     await pool.query(
@@ -29,7 +40,7 @@ async function updateOneCRequestCreateSettings(pool, { url, updateUrl, bearerTok
        SET one_c_request_create_url = ?, one_c_request_create_bearer_token = ?,
            one_c_request_update_url = ?
        WHERE id = 1`,
-      [url || null, bearerToken || null, normalizedUpdateUrl],
+      [url || null, tokenToSave, normalizedUpdateUrl],
     );
   }
   return getAppSettings(pool);

@@ -27,23 +27,6 @@ function toIntegrationFileRef(file) {
   };
 }
 
-/**
- * Файлы из тела state (1С → сервер).
- * Основное поле: files[]. Совместимость: unsigned[], signingFiles[].
- */
-function resolveFilesFromStateBody(body) {
-  if (Array.isArray(body?.files) && body.files.length > 0) {
-    return body.files;
-  }
-  if (Array.isArray(body?.unsigned) && body.unsigned.length > 0) {
-    return body.unsigned;
-  }
-  if (Array.isArray(body?.signingFiles) && body.signingFiles.length > 0) {
-    return body.signingFiles;
-  }
-  return [];
-}
-
 const INTEGRATION_FILE_ITEM_SCHEMA = {
   type: 'object',
   required: ['docType', 'fileName', 'fileUrl'],
@@ -59,6 +42,5 @@ module.exports = {
   isSignedDocType,
   isClientUploadedDocType,
   toIntegrationFileRef,
-  resolveFilesFromStateBody,
   INTEGRATION_FILE_ITEM_SCHEMA,
 };

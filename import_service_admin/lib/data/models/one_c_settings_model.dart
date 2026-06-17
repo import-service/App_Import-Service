@@ -5,6 +5,7 @@ class OneCSettingsModel {
     this.oneCRequestCreateUrl,
     this.oneCRequestUpdateUrl,
     this.oneCRequestUpdateUrlEffective,
+    this.oneCRequestCreateBearerToken,
     this.oneCRequestCreateBearerTokenMasked,
     this.hasBearerToken = false,
     this.updatedAt,
@@ -13,6 +14,7 @@ class OneCSettingsModel {
   final String? oneCRequestCreateUrl;
   final String? oneCRequestUpdateUrl;
   final String? oneCRequestUpdateUrlEffective;
+  final String? oneCRequestCreateBearerToken;
   final String? oneCRequestCreateBearerTokenMasked;
   final bool hasBearerToken;
   final String? updatedAt;
@@ -23,6 +25,8 @@ class OneCSettingsModel {
       oneCRequestUpdateUrl: json['oneCRequestUpdateUrl'] as String?,
       oneCRequestUpdateUrlEffective:
           json['oneCRequestUpdateUrlEffective'] as String?,
+      oneCRequestCreateBearerToken:
+          json['oneCRequestCreateBearerToken'] as String?,
       oneCRequestCreateBearerTokenMasked:
           json['oneCRequestCreateBearerTokenMasked'] as String?,
       hasBearerToken: json['hasBearerToken'] as bool? ?? false,
@@ -34,6 +38,7 @@ class OneCSettingsModel {
         oneCRequestCreateUrl: oneCRequestCreateUrl,
         oneCRequestUpdateUrl: oneCRequestUpdateUrl,
         oneCRequestUpdateUrlEffective: oneCRequestUpdateUrlEffective,
+        oneCRequestCreateBearerToken: oneCRequestCreateBearerToken,
         oneCRequestCreateBearerTokenMasked: oneCRequestCreateBearerTokenMasked,
         hasBearerToken: hasBearerToken,
         updatedAt: updatedAt,
