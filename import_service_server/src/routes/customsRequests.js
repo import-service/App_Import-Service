@@ -1,7 +1,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { randomUUID } = require('crypto');
-const { verifyIntegrationBearer } = require('../util/integrationAuth');
+const { verifyIntegrationBearer, isIntegrationBearerRequest } = require('../util/integrationAuth');
 const { timingSafeEqualString } = require('../util/security');
 const {
   CUSTOMS_REQUEST_SELECT,
@@ -24,6 +24,7 @@ const {
   upsertRequestFile,
 } = require('../util/requestFileStorage');
 const { recordUploadAndMaybeSync } = require('../services/uploadBatchSync');
+const { parseOneCUploadJsonBody } = require('../util/uploadBase64');
 
 const REQUEST_STATUSES = [
   'new',
@@ -209,6 +210,63 @@ async function fetchRequestByExternal1cId(pool, external1cId) {
   return { row, files: fileRows };
 }
 
+async function finalizeCustomsUpload(fastify, request, reply, {
+  row,
+  docType,
+  uploadIndex,
+  uploadTotal,
+  source,
+  buf,
+  mimeType,
+}) {
+  if (!docType) {
+    return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'docType обязателен' });
+  }
+  if (!buf || !buf.length) {
+    return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Пустой файл' });
+  }
+
+  const storageKey = storageKeyForRequest(row);
+  const saved = await upsertRequestFile(
+    fastify.pool,
+    UPLOAD_ROOT,
+    row.id,
+    storageKey,
+    docType,
+    buf,
+    normalize(mimeType) || 'application/octet-stream',
+  );
+
+  let batchInfo = { batchComplete: false };
+  try {
+    batchInfo = await recordUploadAndMaybeSync(fastify, {
+      requestId: row.id,
+      docType,
+      uploadIndex,
+      uploadTotal,
+      source,
+      requestLike: request,
+    });
+  } catch (e) {
+    return reply.code(400).send({
+      error: 'VALIDATION_ERROR',
+      message: e.message || 'Ошибка батча upload',
+    });
+  }
+
+  return reply.code(201).send({
+    ok: true,
+    batchComplete: batchInfo.batchComplete,
+    file: {
+      docType: saved.docType,
+      mimeType: saved.mimeType,
+      fileSizeBytes: saved.fileSizeBytes,
+      fileUrl: saved.fileUrl,
+      replaced: saved.replaced,
+    },
+  });
+}
+
 module.exports = async function customsRequestsRoutes(fastify) {
   await ensureUploadDir();
 
@@ -219,6 +277,40 @@ module.exports = async function customsRequestsRoutes(fastify) {
     '/customs-requests/upload',
     { onRequest: [authenticateUserOrIntegrationBearer(fastify)] },
     async (request, reply) => {
+      const contentType = String(request.headers['content-type'] || '').toLowerCase();
+
+      if (contentType.includes('application/json')) {
+        if (!isIntegrationBearerRequest(request)) {
+          return reply.code(403).send({
+            error: 'FORBIDDEN',
+            message:
+              'JSON upload с base64 доступен только для 1С (Bearer INTEGRATION_BEARER_TOKEN). МП — multipart.',
+          });
+        }
+        let parsed;
+        try {
+          parsed = parseOneCUploadJsonBody(request.body || {});
+        } catch (e) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: e.message || 'Некорректное тело JSON',
+          });
+        }
+        const data = await fetchRequestByExternal1cId(fastify.pool, parsed.external1cId);
+        if (!data) {
+          return reply.code(404).send({ error: 'NOT_FOUND', message: 'Заявка не найдена' });
+        }
+        return finalizeCustomsUpload(fastify, request, reply, {
+          row: data.row,
+          docType: normalizeDocType(parsed.docType),
+          uploadIndex: parsed.uploadIndex,
+          uploadTotal: parsed.uploadTotal,
+          source: 'integration',
+          buf: parsed.buffer,
+          mimeType: parsed.mimeType,
+        });
+      }
+
       const mp = await request.file();
       if (!mp) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нужен multipart: file' });
@@ -231,18 +323,11 @@ module.exports = async function customsRequestsRoutes(fastify) {
       const external1cId = multipartFieldValue(fields, 'external1cId');
       const requestIdRaw = multipartFieldValue(fields, 'requestId');
 
-      if (!docType) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'docType обязателен' });
-      }
-
       const chunks = [];
       for await (const chunk of mp.file) {
         chunks.push(chunk);
       }
       const buf = Buffer.concat(chunks);
-      if (!buf.length) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Пустой файл' });
-      }
 
       let row = null;
       let source = 'user';
@@ -268,44 +353,14 @@ module.exports = async function customsRequestsRoutes(fastify) {
         row = data.row;
       }
 
-      const storageKey = storageKeyForRequest(row);
-      const saved = await upsertRequestFile(
-        fastify.pool,
-        UPLOAD_ROOT,
-        row.id,
-        storageKey,
+      return finalizeCustomsUpload(fastify, request, reply, {
+        row,
         docType,
+        uploadIndex,
+        uploadTotal,
+        source,
         buf,
-        normalize(mp.mimetype) || 'application/octet-stream',
-      );
-
-      let batchInfo = { batchComplete: false };
-      try {
-        batchInfo = await recordUploadAndMaybeSync(fastify, {
-          requestId: row.id,
-          docType,
-          uploadIndex,
-          uploadTotal,
-          source,
-          requestLike: request,
-        });
-      } catch (e) {
-        return reply.code(400).send({
-          error: 'VALIDATION_ERROR',
-          message: e.message || 'Ошибка батча upload',
-        });
-      }
-
-      return reply.code(201).send({
-        ok: true,
-        batchComplete: batchInfo.batchComplete,
-        file: {
-          docType: saved.docType,
-          mimeType: saved.mimeType,
-          fileSizeBytes: saved.fileSizeBytes,
-          fileUrl: saved.fileUrl,
-          replaced: saved.replaced,
-        },
+        mimeType: normalize(mp.mimetype) || 'application/octet-stream',
       });
     },
   );

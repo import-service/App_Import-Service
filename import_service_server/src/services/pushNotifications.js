@@ -1,8 +1,13 @@
 const admin = require('firebase-admin');
-const { statusSubTypeLabel } = require('../constants/customsCatalog');
+const {
+  statusSubTypeLabel,
+  docTypeLabel,
+  docTypeCategory,
+  normalizeDocType,
+} = require('../constants/customsCatalog');
 
-const MAX_BODY_LEN = 160;
-const MAX_CHANGE_SUMMARY_LEN = 120;
+const MAX_BODY_LEN = 200;
+const MAX_TITLE_LEN = 64;
 
 const REQUEST_STATUS_LABELS = {
   new: 'Новая',
@@ -14,6 +19,15 @@ const REQUEST_STATUS_LABELS = {
   cancelled: 'Отменена',
 };
 
+/** Короткие формулировки для пуша (остальное — из справочника подстатусов). */
+const SUBTYPE_USER_HINTS = {
+  manager_execution: 'Назначен менеджер',
+  primary_documents_sent: 'Отправлены документы на подпись',
+  signature_revision_required: 'Нужно переподписать документы',
+  issued_to_client: 'Автомобиль выдан',
+  request_closed: 'Заявка закрыта',
+};
+
 function clipText(text, maxLen = MAX_BODY_LEN) {
   const s = String(text || '').trim();
   if (!s) return '';
@@ -21,61 +35,153 @@ function clipText(text, maxLen = MAX_BODY_LEN) {
   return `${s.slice(0, maxLen - 1)}…`;
 }
 
-function clipChangeSummary(text) {
-  return clipText(text, MAX_CHANGE_SUMMARY_LEN);
-}
-
 function statusLabel(code) {
   const c = String(code ?? '').trim();
-  return REQUEST_STATUS_LABELS[c] || c;
+  return REQUEST_STATUS_LABELS[c] || '';
 }
 
-function normalizeSub(code) {
-  return String(code ?? '').trim();
+function requestRef(requestId) {
+  const id = String(requestId ?? '').trim();
+  return id ? `Заявка №${id}` : 'Заявка';
+}
+
+function subtypeUserHint(code) {
+  const c = String(code ?? '').trim();
+  if (!c) return '';
+  return SUBTYPE_USER_HINTS[c] || statusSubTypeLabel(c) || '';
+}
+
+function formatStatusPhrase(status) {
+  const label = statusLabel(status);
+  return label ? `«${label}»` : '';
 }
 
 /**
- * Готовая строка для списка заявок в МП (RU).
+ * Текст пуша при смене state от 1С.
  */
 function buildStateChangeSummary({
+  requestId,
   previousStatus,
   status,
   previousStatusSubType,
   statusSubType,
 }) {
+  const req = requestRef(requestId);
   const prev = String(previousStatus ?? '').trim();
   const next = String(status ?? '').trim();
-  const prevSub = normalizeSub(previousStatusSubType);
-  const nextSub = normalizeSub(statusSubType);
+  const prevSub = String(previousStatusSubType ?? '').trim();
+  const nextSub = String(statusSubType ?? '').trim();
+  const parts = [];
 
   if (prev && next && prev !== next) {
-    return clipChangeSummary(`Статус: ${statusLabel(prev)} → ${statusLabel(next)}`);
-  }
-
-  if (nextSub === 'signature_revision_required') {
-    return 'Требуется подпись документов';
+    parts.push(`статус изменён на ${formatStatusPhrase(next)}`);
+  } else if (next && !prev) {
+    parts.push(`статус ${formatStatusPhrase(next)}`);
   }
 
   if (nextSub && nextSub !== prevSub) {
-    const label = statusSubTypeLabel(nextSub);
-    if (label) {
-      return clipChangeSummary(`Обновлён подстатус: ${label}`);
-    }
+    const hint = subtypeUserHint(nextSub);
+    if (hint) parts.push(hint);
   }
 
-  return '';
+  if (!parts.length) {
+    if (next) {
+      return clipText(`${req}: обновление — ${formatStatusPhrase(next)}`);
+    }
+    return clipText(`${req}: обновление по заявке`);
+  }
+
+  return clipText(`${req}: ${parts.join('. ')}`);
 }
 
-function buildFilesChangeSummary(changedDocTypes) {
-  const changed = Array.isArray(changedDocTypes)
-    ? changedDocTypes.map((d) => String(d || '').trim()).filter(Boolean)
-    : [];
-  if (!changed.length) {
-    return 'Появились новые файлы';
+function buildStatePushTitle({ requestId, status, statusSubType }) {
+  const req = requestRef(requestId);
+  const sub = String(statusSubType ?? '').trim();
+  if (sub === 'primary_documents_sent' || sub === 'signature_revision_required') {
+    return clipText('Документы на подпись', MAX_TITLE_LEN);
   }
-  const list = changed.slice(0, 8).join(', ');
-  const suffix = changed.length > 8 ? '…' : '';
-  return clipChangeSummary(`Новые документы: ${list}${suffix}`);
+  if (sub === 'request_closed') {
+    return clipText('Заявка закрыта', MAX_TITLE_LEN);
+  }
+  if (sub === 'issued_to_client') {
+    return clipText('Автомобиль выдан', MAX_TITLE_LEN);
+  }
+  const st = statusLabel(status);
+  if (st) {
+    return clipText(`${req}: ${st}`, MAX_TITLE_LEN);
+  }
+  return clipText('Обновление заявки', MAX_TITLE_LEN);
+}
+
+function classifyChangedFiles(changedDocTypes) {
+  const types = (changedDocTypes || []).map((d) => normalizeDocType(d)).filter(Boolean);
+  const categories = new Set(types.map((t) => docTypeCategory(t)));
+  return { types, categories };
+}
+
+/**
+ * Текст пуша при upload файлов от 1С.
+ */
+function buildFilesChangeSummary({ requestId, status, changedDocTypes }) {
+  const req = requestRef(requestId);
+  const statusPhrase = formatStatusPhrase(status);
+  const { types, categories } = classifyChangedFiles(changedDocTypes);
+
+  if (!types.length) {
+    return clipText(`${req}: появились новые файлы`);
+  }
+
+  const signingTypes = types.filter(
+    (t) => !t.endsWith('_sign') && (docTypeCategory(t) === 'signing' || t === 'contract'),
+  );
+  const paymentTypes = types.filter(
+    (t) => t === 'payment_recycling_fee' || t === 'payment_customs_duty',
+  );
+  const finalTypes = types.filter((t) => t === 'epts' || t === 'sbkts');
+  const transitTypes = types.filter((t) => docTypeCategory(t) === 'transit_archive');
+
+  if (signingTypes.length) {
+    const names = signingTypes.map(docTypeLabel).filter(Boolean).slice(0, 3).join(', ');
+    const suffix = signingTypes.length > 3 ? '…' : '';
+    const statusPart = statusPhrase ? `, ${statusPhrase}` : '';
+    return clipText(
+      `${req}${statusPart}: документы на подпись${names ? ` — ${names}${suffix}` : ''}`,
+    );
+  }
+
+  if (paymentTypes.length) {
+    const kind = paymentTypes.some((t) => t === 'payment_recycling_fee')
+      ? 'утилизационного сбора'
+      : 'госпошлины';
+    return clipText(`${req}: квитанция ${kind} — оплатите и загрузите чек`);
+  }
+
+  if (finalTypes.length) {
+    const names = finalTypes.map(docTypeLabel).join(', ');
+    return clipText(`${req}: итоговые документы — ${names}`);
+  }
+
+  if (transitTypes.length || categories.has('transit_archive')) {
+    return clipText(`${req}: архив перед транзитом — скачайте файлы`);
+  }
+
+  const names = types.map(docTypeLabel).filter(Boolean).slice(0, 3).join(', ');
+  const suffix = types.length > 3 ? '…' : '';
+  return clipText(`${req}: новые документы — ${names}${suffix}`);
+}
+
+function buildFilesPushTitle({ requestId, changedDocTypes }) {
+  const { types } = classifyChangedFiles(changedDocTypes);
+  const signingTypes = types.filter(
+    (t) => !t.endsWith('_sign') && (docTypeCategory(t) === 'signing' || t === 'contract'),
+  );
+  if (signingTypes.length) {
+    return clipText('Документы на подпись', MAX_TITLE_LEN);
+  }
+  if (types.some((t) => t === 'payment_recycling_fee' || t === 'payment_customs_duty')) {
+    return clipText('Квитанция к оплате', MAX_TITLE_LEN);
+  }
+  return clipText(requestRef(requestId), MAX_TITLE_LEN);
 }
 
 let app = null;
@@ -147,8 +253,8 @@ async function sendPushToOrganization(fastify, orgId, message) {
   const multicast = {
     tokens,
     notification: {
-      title: String(message.title || 'Обновление заявки'),
-      body: clipText(message.body || ''),
+      title: clipText(message.title || 'Импорт Сервис', MAX_TITLE_LEN),
+      body: clipText(message.body || '', MAX_BODY_LEN),
     },
     data: Object.fromEntries(
       Object.entries(message.data || {}).map(([k, v]) => [k, String(v ?? '')]),
@@ -184,10 +290,18 @@ async function notifyFilesChangedFrom1C(fastify, dto) {
   const orgId = await resolveOrgIdByRequestId(fastify.pool, dto.requestId);
   const requestId = String(dto.requestId || '');
   const changed = Array.isArray(dto.changedDocTypes) ? dto.changedDocTypes : [];
-  const changeSummary = dto.changeSummary || buildFilesChangeSummary(changed);
+  const changeSummary =
+    dto.changeSummary ||
+    buildFilesChangeSummary({
+      requestId,
+      status: dto.status,
+      changedDocTypes: changed,
+    });
 
   return sendPushToOrganization(fastify, orgId, {
-    title: 'Новые документы по заявке',
+    title:
+      dto.title ||
+      buildFilesPushTitle({ requestId, changedDocTypes: changed }),
     body: changeSummary,
     data: {
       type: 'request_files_update',
@@ -195,6 +309,7 @@ async function notifyFilesChangedFrom1C(fastify, dto) {
       request_id: requestId,
       id: requestId,
       external1cId: dto.external1cId || '',
+      status: dto.status || '',
       changedDocTypes: changed.join(','),
       changeSummary,
     },
@@ -213,6 +328,7 @@ async function notifyStateChangedFrom1C(fastify, dto) {
   const changeSummary =
     dto.changeSummary ||
     buildStateChangeSummary({
+      requestId,
       previousStatus: previousStatusRaw || dto.previousStatus,
       status,
       previousStatusSubType: dto.previousStatusSubType,
@@ -235,13 +351,11 @@ async function notifyStateChangedFrom1C(fastify, dto) {
     data.changeSummary = changeSummary;
   }
 
-  const fallbackBody = statusSubType
-    ? `Статус: ${status}. Деталь: ${statusSubType}`
-    : `Статус заявки изменён: ${status}`;
-
   return sendPushToOrganization(fastify, orgId, {
-    title: 'Обновление по заявке',
-    body: changeSummary || fallbackBody,
+    title:
+      dto.title ||
+      buildStatePushTitle({ requestId, status, statusSubType }),
+    body: changeSummary,
     data,
   });
 }
@@ -249,9 +363,10 @@ async function notifyStateChangedFrom1C(fastify, dto) {
 async function notifyMessageFrom1C(fastify, dto) {
   const orgId = await resolveOrgIdByRequestId(fastify.pool, dto.requestId);
   const requestId = String(dto.requestId || '');
+  const req = requestRef(requestId);
   return sendPushToOrganization(fastify, orgId, {
-    title: 'Новое сообщение менеджера',
-    body: dto.text || 'У вас новое сообщение по заявке',
+    title: 'Сообщение от менеджера',
+    body: clipText(dto.text || `${req}: новое сообщение в чате`),
     data: {
       type: 'new_message',
       requestId,
@@ -270,4 +385,6 @@ module.exports = {
   notifyMessageFrom1C,
   buildStateChangeSummary,
   buildFilesChangeSummary,
+  buildStatePushTitle,
+  buildFilesPushTitle,
 };

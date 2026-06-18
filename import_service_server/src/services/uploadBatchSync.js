@@ -23,7 +23,7 @@ function parseBatchIndices(json) {
 
 async function fetchRequestRow(pool, requestId) {
   const [rows] = await pool.query(
-    `SELECT id, status, external_1c_id, legal_email, individual_full_name
+    `SELECT id, status, status_sub_type, external_1c_id, legal_email, individual_full_name
      FROM customs_requests
      WHERE id = ? AND deleted_at IS NULL
      LIMIT 1`,
@@ -118,6 +118,7 @@ async function syncAfterBatchComplete(fastify, requestId, source, changedDocType
     await notifyFilesChangedFrom1C(fastify, {
       requestId,
       external1cId: row.external_1c_id,
+      status: row.status,
       changedDocTypes,
     }).catch((e) => {
       fastify.log.warn({ requestId, err: e.message }, 'push files changed failed');

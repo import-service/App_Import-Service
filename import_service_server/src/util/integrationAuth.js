@@ -1,13 +1,25 @@
 const { timingSafeEqualString } = require('./security');
 
-async function verifyIntegrationBearer(request, reply) {
-  const expected = request.server.config.integrationBearerToken;
+function integrationBearerTokenFromRequest(request) {
   const header = request.headers.authorization || '';
   const match = /^Bearer\s+(.+)$/i.exec(header);
-  const token = match ? match[1].trim() : '';
-  if (!timingSafeEqualString(token, expected)) {
+  return match ? match[1].trim() : '';
+}
+
+function isIntegrationBearerRequest(request) {
+  const expected = String(request.server?.config?.integrationBearerToken || '').trim();
+  const token = integrationBearerTokenFromRequest(request);
+  return Boolean(expected && token && timingSafeEqualString(token, expected));
+}
+
+async function verifyIntegrationBearer(request, reply) {
+  if (!isIntegrationBearerRequest(request)) {
     return reply.code(401).send({ error: 'INVALID_INTEGRATION_TOKEN' });
   }
 }
 
-module.exports = { verifyIntegrationBearer };
+module.exports = {
+  verifyIntegrationBearer,
+  isIntegrationBearerRequest,
+  integrationBearerTokenFromRequest,
+};

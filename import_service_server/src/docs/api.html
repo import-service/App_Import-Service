@@ -734,6 +734,8 @@
           <div class="body">
             <p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN (1С) или Bearer accessToken (МП)</p>
             <p><b>Назначение:</b> файл сразу привязывается к заявке; re-upload перезаписывает по <code>docType</code>.</p>
+            <div class="callout"><b>1С без multipart:</b> <code>Content-Type: application/json</code> + base64 (только Bearer интеграции). МП — только <code>multipart/form-data</code>.</div>
+            <p><b>Формат A — multipart</b> (МП и 1С, если умеет):</p>
             <table class="fields">
               <tr><th>Поле</th><th>1С</th><th>МП</th><th>Назначение</th></tr>
               <tr><td><code>file</code></td><td>да</td><td>да</td><td>Файл (multipart).</td></tr>
@@ -743,6 +745,17 @@
               <tr><td><code>uploadIndex</code></td><td>да</td><td>да</td><td>Номер в пачке, с 1.</td></tr>
               <tr><td><code>uploadTotal</code></td><td>да</td><td>да</td><td>Размер пачки (1 для одного файла).</td></tr>
             </table>
+            <p><b>Формат B — JSON + base64 (только 1С):</b></p>
+            <pre>{
+  "external1cId": "GUID-REQUEST-1C",
+  "docType": "contract",
+  "uploadIndex": 1,
+  "uploadTotal": 1,
+  "mimeType": "application/pdf",
+  "fileName": "contract.pdf",
+  "fileBase64": "JVBERi0xLjQK..."
+}</pre>
+            <p>Поле с файлом: <code>fileBase64</code> (или <code>file</code>, <code>fileContent</code>, <code>base64</code>). Один запрос = один файл.</p>
             <p><b>После <code>uploadIndex === uploadTotal</code>:</b> 1С → push МП; МП → create/update в 1С. Файлы в <code>state</code> не передаются.</p>
             <p><b>Success:</b></p><pre>{
   "ok": true,

@@ -247,6 +247,36 @@ function statusSubTypeLabel(code) {
   return STATUS_SUB_TYPE_BY_CODE[String(code ?? '').trim()]?.label || '';
 }
 
+const DOCUMENT_TYPE_BY_CODE = Object.fromEntries(DOCUMENT_TYPES.map((d) => [d.code, d]));
+
+function docTypeLabel(code) {
+  const c = normalizeDocType(code);
+  if (!c) return '';
+  const row = DOCUMENT_TYPE_BY_CODE[c];
+  if (row) return row.label;
+  if (c.endsWith('_sign')) {
+    const base = c.replace(/_sign$/, '');
+    const baseRow = DOCUMENT_TYPE_BY_CODE[base];
+    if (baseRow) return `Подпись: ${baseRow.label}`;
+  }
+  if (/^transit_archive_photo_\d+$/.test(c)) {
+    return 'Фото архива перед транзитом';
+  }
+  return c;
+}
+
+function docTypeCategory(code) {
+  const c = normalizeDocType(code);
+  if (!c) return 'other';
+  const row = DOCUMENT_TYPE_BY_CODE[c];
+  if (row) return row.category || 'other';
+  if (c.endsWith('_sign')) return 'signing';
+  if (/^transit_archive_photo_\d+$/.test(c)) return 'transit_archive';
+  if (c === 'transit_archive_video') return 'transit_archive';
+  if (c.startsWith('payment_')) return 'payment';
+  return 'other';
+}
+
 /** Суффикс подписи для docType пакета на подпись. */
 function signedDocType(baseDocType) {
   const base = normalizeDocType(baseDocType);
@@ -269,5 +299,7 @@ module.exports = {
   isKnownStatusSubType,
   suggestedStatusForSubType,
   statusSubTypeLabel,
+  docTypeLabel,
+  docTypeCategory,
   signedDocType,
 };
