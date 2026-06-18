@@ -618,7 +618,7 @@
     <section id="panel-integration" class="panel">
       <div class="panel-intro">
         <strong>Направление: 1С → сервер.</strong> Эндпоинты на <code>{{BASE_URL}}</code> с интеграционным Bearer.
-        <p><b>Файлы 1С → МП:</b> <code>POST /api/customs-requests/upload</code> + <code>state</code>. <b>Файлы МП → 1С</b> — отдельный HTTP-роут <b>на стороне 1С</b> (см. карточку ниже и вкладку <a href="/docs/onec">API 1С (внешний HTTP)</a>). Коды: <a href="/docs/catalogs">Справочники</a>.</p>
+        <p><b>Файлы 1С → МП:</b> <code>POST /api/customs-requests/upload</code> — для 1С <b>JSON + base64</b> (см. карточку upload). Метаданные — <code>state</code>. <b>Файлы МП → 1С</b> — отдельный роут на стороне 1С (вкладка <a href="/docs/onec">API 1С (внешний HTTP)</a>). Коды: <a href="/docs/catalogs">Справочники</a>.</p>
       </div>
 
       <section class="group">
@@ -628,8 +628,8 @@
           <div class="body">
             <p><b>1. Пакет документов в МП</b></p>
             <ol>
-              <li>N× <code>upload</code>: <code>external1cId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code> 1…N, <code>uploadTotal</code>=N</li>
-              <li>После N/N — push в МП (<code>request_files_update</code>, <code>changedDocTypes</code>)</li>
+              <li>N× <code>POST /api/customs-requests/upload</code> — один файл на запрос. Для 1С: <code>Content-Type: application/json</code>, файл в <code>fileBase64</code> (см. карточку upload ниже). Поля: <code>external1cId</code>, <code>docType</code>, <code>uploadIndex</code> 1…N, <code>uploadTotal</code>=N</li>
+              <li>После N/N — push в МП (<code>request_files_update</code>)</li>
               <li>При смене статуса — <code>state</code> (без файлов)</li>
             </ol>
             <p><b>2. Один файл (re-upload)</b></p>
@@ -729,35 +729,63 @@
   }
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
         </details>
-        <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/upload</code><span class="desc">Файл в заявку (1С/МП), батч uploadIndex/Total.</span></summary>
+        <details class="card" open>
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/upload</code><span class="desc">Файл в заявку из 1С (JSON + base64) или multipart.</span></summary>
           <div class="body">
-            <p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN (1С) или Bearer accessToken (МП)</p>
-            <p><b>Назначение:</b> файл сразу привязывается к заявке; re-upload перезаписывает по <code>docType</code>.</p>
-            <div class="callout"><b>1С без multipart:</b> <code>Content-Type: application/json</code> + base64 (только Bearer интеграции). МП — только <code>multipart/form-data</code>.</div>
-            <p><b>Формат A — multipart</b> (МП и 1С, если умеет):</p>
-            <table class="fields">
-              <tr><th>Поле</th><th>1С</th><th>МП</th><th>Назначение</th></tr>
-              <tr><td><code>file</code></td><td>да</td><td>да</td><td>Файл (multipart).</td></tr>
-              <tr><td><code>docType</code></td><td>да</td><td>да</td><td>Код (<a href="/docs/catalogs">справочник</a>).</td></tr>
-              <tr><td><code>external1cId</code></td><td>да</td><td>—</td><td>Id заявки в 1С.</td></tr>
-              <tr><td><code>requestId</code></td><td>—</td><td>да</td><td>Id заявки на сервере.</td></tr>
-              <tr><td><code>uploadIndex</code></td><td>да</td><td>да</td><td>Номер в пачке, с 1.</td></tr>
-              <tr><td><code>uploadTotal</code></td><td>да</td><td>да</td><td>Размер пачки (1 для одного файла).</td></tr>
-            </table>
-            <p><b>Формат B — JSON + base64 (только 1С):</b></p>
+            <p><b>Auth:</b> <code>Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</code> (1С). МП — Bearer accessToken, только multipart.</p>
+            <p><b>Назначение:</b> прикрепить файл к заявке по <code>docType</code>; повторная загрузка перезаписывает тот же <code>docType</code>.</p>
+
+            <div class="callout"><b>Для 1С (рекомендуется):</b> HTTP-запрос с телом JSON. Файл — строка <b>base64</b> в поле <code>fileBase64</code>. Multipart в 1С обычно недоступен — не используйте <code>multipart/form-data</code>.</div>
+
+            <p><b>Заголовки (1С, JSON):</b></p>
+            <pre>POST {{BASE_URL}}/customs-requests/upload HTTP/1.1
+Content-Type: application/json; charset=utf-8
+Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
+
+            <p><b>Тело запроса (1С) — один файл на один POST:</b></p>
             <pre>{
   "external1cId": "GUID-REQUEST-1C",
   "docType": "contract",
   "uploadIndex": 1,
-  "uploadTotal": 1,
+  "uploadTotal": 3,
   "mimeType": "application/pdf",
   "fileName": "contract.pdf",
   "fileBase64": "JVBERi0xLjQK..."
 }</pre>
-            <p>Поле с файлом: <code>fileBase64</code> (или <code>file</code>, <code>fileContent</code>, <code>base64</code>). Один запрос = один файл.</p>
-            <p><b>После <code>uploadIndex === uploadTotal</code>:</b> 1С → push МП; МП → create/update в 1С. Файлы в <code>state</code> не передаются.</p>
-            <p><b>Success:</b></p><pre>{
+
+            <table class="fields">
+              <tr><th>Поле JSON</th><th>Обяз.</th><th>Назначение</th></tr>
+              <tr><td><code>external1cId</code></td><td>да</td><td>Id заявки в 1С.</td></tr>
+              <tr><td><code>docType</code></td><td>да</td><td>Код документа (<a href="/docs/catalogs">справочник</a>).</td></tr>
+              <tr><td><code>uploadIndex</code></td><td>да</td><td>Номер файла в пачке, с 1.</td></tr>
+              <tr><td><code>uploadTotal</code></td><td>да</td><td>Сколько файлов в пачке (для одного файла: 1 и 1).</td></tr>
+              <tr><td><code>fileBase64</code></td><td>да</td><td>Содержимое файла в base64. Альтернативные имена: <code>file</code>, <code>fileContent</code>, <code>base64</code>.</td></tr>
+              <tr><td><code>mimeType</code></td><td>нет</td><td>Например <code>application/pdf</code>, <code>image/jpeg</code>.</td></tr>
+              <tr><td><code>fileName</code></td><td>нет</td><td>Имя для справки (на сервере имя строится из <code>docType</code>).</td></tr>
+            </table>
+
+            <p><b>1С:</b> в <code>HTTPЗапрос</code> задайте <code>Content-Type: application/json</code> и тело — сериализованная структура (файл предварительно в base64). Не отправляйте бинарник как multipart.</p>
+
+            <p><b>Ошибки:</b></p>
+            <ul>
+              <li><code>406 FST_INVALID_MULTIPART_CONTENT_TYPE</code> — 1С отправила не JSON и не multipart; для 1С нужен <code>application/json</code>.</li>
+              <li><code>403 FORBIDDEN</code> — JSON upload без интеграционного Bearer (только 1С).</li>
+              <li><code>400 VALIDATION_ERROR</code> — нет <code>fileBase64</code>, пустой base64, нет <code>external1cId</code> / <code>docType</code>.</li>
+              <li><code>401 INVALID_INTEGRATION_TOKEN</code> — неверный Bearer.</li>
+            </ul>
+
+            <p><b>Формат multipart</b> (опционально, если платформа умеет; МП — только так):</p>
+            <table class="fields">
+              <tr><th>Поле</th><th>1С</th><th>МП</th><th>Назначение</th></tr>
+              <tr><td><code>file</code></td><td>опц.</td><td>да</td><td>Файл (multipart).</td></tr>
+              <tr><td><code>docType</code></td><td>да</td><td>да</td><td>Код.</td></tr>
+              <tr><td><code>external1cId</code></td><td>да</td><td>—</td><td>Id заявки в 1С.</td></tr>
+              <tr><td><code>requestId</code></td><td>—</td><td>да</td><td>Id заявки на сервере.</td></tr>
+              <tr><td><code>uploadIndex</code> / <code>uploadTotal</code></td><td>да</td><td>да</td><td>Батч.</td></tr>
+            </table>
+
+            <p><b>После <code>uploadIndex === uploadTotal</code>:</b> сервер шлёт push в МП. Файлы в <code>state</code> не передаются.</p>
+            <p><b>Success (201):</b></p><pre>{
   "ok": true,
   "batchComplete": true,
   "file": {
