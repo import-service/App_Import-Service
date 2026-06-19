@@ -157,15 +157,6 @@ const Set<RequestStatusSubType> kSigningPackageStartedSubTypes = {
   RequestStatusSubType.originalsCompleteTransit,
 };
 
-/// Подстатусы, когда показываем client-only слоты без `*_sign` (после раунда оригиналов).
-const Set<RequestStatusSubType> kClientOnlySigningSlotSubTypes = {
-  RequestStatusSubType.originalsPartialNoTransit,
-  RequestStatusSubType.originalsCompleteNoTransit,
-  RequestStatusSubType.signatureRevisionRequired,
-  RequestStatusSubType.originalsMissingTransit,
-  RequestStatusSubType.originalsPartialTransit,
-  RequestStatusSubType.originalsCompleteTransit,
-};
 
 /// Пакет на подпись выдан: `primary_documents_sent+` или есть оригинал из 1С (не creation `contract`).
 bool isSigningPackageStarted({
@@ -191,7 +182,9 @@ bool isSigningPackageStarted({
   return false;
 }
 
+/// Client-only типы (`funds_transfer_application`, `passport_notarized_copy`):
+/// оригинал из 1С не приходит — слот upload `*_sign` с начала пакета на подпись.
 bool isClientOnlySigningSlotVisible(RequestStatusSubType? statusSubType) {
   if (statusSubType == null) return false;
-  return kClientOnlySigningSlotSubTypes.contains(statusSubType);
+  return kSigningPackageStartedSubTypes.contains(statusSubType);
 }

@@ -76,6 +76,8 @@ alwaysApply: true
 | `presentation/widgets/requests/request_detail_photo_placeholders_row.dart` | Ряд плиток-заглушек вместо фото авто |
 | `presentation/widgets/requests/request_detail_files_sections.dart` | Секции файлов заявки: подача, подпись, оплата |
 | `presentation/widgets/requests/request_detail_file_upload_chip.dart` | Загрузка подписи/чека на деталке |
+| `presentation/widgets/requests/request_detail_doc_upload_group.dart` | Блок «документ + загрузить снова» в одной карточке |
+| `presentation/pages/request_pdf_viewer_page.dart` | Встроенный просмотр PDF заявки |
 | `presentation/helpers/request_file_picker.dart` | Фото/PDF для загрузки на деталке |
 | `presentation/helpers/request_status_action_hint.dart` | Подсказки по statusSubType на деталке |
 | `presentation/helpers/deal_type_labels.dart` | Подпись вида сделки (`DealType`) |

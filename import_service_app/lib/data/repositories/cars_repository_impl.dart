@@ -310,10 +310,23 @@ final class CarsRepositoryImpl implements CarsRepository {
         items: [(docType: normalized, localPath: localFilePath)],
       );
       await _carInventory.upsertItem(updated);
-      return Right(updated);
+      final refreshed = await getVehicle(requestId);
+      return refreshed.fold(
+        (_) => Right(updated),
+        (item) => Right(item),
+      );
     } on ServerException catch (e) {
       AppLog.error('attachRequestFile', error: e, tag: 'CarsRepo');
-      return Left(ServerFailure(e.message));
+      final recovered = await getVehicle(requestId);
+      return recovered.fold(
+        (_) => Left(ServerFailure(e.message)),
+        (item) {
+          if (_itemHasDocType(item, normalized)) {
+            return Right(item);
+          }
+          return Left(ServerFailure(e.message));
+        },
+      );
     } catch (e, st) {
       AppLog.error('attachRequestFile', error: e, stackTrace: st, tag: 'CarsRepo');
       return Left(CacheFailure(e.toString()));
@@ -360,5 +373,11 @@ final class CarsRepositoryImpl implements CarsRepository {
       default:
         return 'image/jpeg';
     }
+  }
+
+  static bool _itemHasDocType(CarListItem item, String docType) {
+    final code = normalizeDocType(docType);
+    if (code.isEmpty) return false;
+    return item.files.any((f) => normalizeDocType(f.docType) == code);
   }
 }

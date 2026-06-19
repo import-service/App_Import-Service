@@ -6,6 +6,7 @@ import 'package:gap/gap.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/extensions/navigation_context.dart';
@@ -18,6 +19,7 @@ import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/themes/request_status_list_style.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
+import 'package:import_service_app/domain/entities/customs_doc_type.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
 import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
@@ -33,6 +35,9 @@ import 'package:import_service_app/presentation/widgets/chips/request_status_pil
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_status_action_hint.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
+import 'package:import_service_app/presentation/pages/request_pdf_viewer_page.dart';
+import 'package:import_service_app/presentation/helpers/request_file_preview_helper.dart';
+import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/request_status_sub_type_labels.dart';
 import 'package:import_service_app/presentation/pages/request_create_page.dart';
@@ -128,27 +133,50 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final s = sl<JsonStringsService>();
     await result.fold(
       (failure) async {
-        feedback.show(failure.message, kind: AppFeedbackKind.error);
-      },
-      (_) async {
-        feedback.show(s.requestFileAttachSuccess, kind: AppFeedbackKind.success);
-        final sectionKey = sectionKeyForUploadedDocType(docType);
-        if (sectionKey != null) {
-          await sl<RequestDetailSectionPrefs>().saveExpanded(
-            widget.requestId,
-            sectionKey,
-            false,
-          );
-        }
         await sl<CarsRepository>().getVehicle(item.id);
         if (!mounted) return;
         setState(() {});
         final updated = _itemFromInventory(item.id);
-        if (updated != null && !hasPendingClientUploadActions(updated)) {
-          context.pop();
+        final code = normalizeDocType(docType);
+        final uploadedDespiteError = updated != null &&
+            updated.files.any((f) => normalizeDocType(f.docType) == code);
+        if (uploadedDespiteError) {
+          await _onAttachSucceeded(docType: docType, itemId: item.id);
+        } else {
+          feedback.show(
+            requestAttachFailureMessage(failure.message, s),
+            kind: AppFeedbackKind.error,
+          );
         }
       },
+      (_) async {
+        await _onAttachSucceeded(docType: docType, itemId: item.id);
+      },
     );
+  }
+
+  Future<void> _onAttachSucceeded({
+    required String docType,
+    required String itemId,
+  }) async {
+    final feedback = sl<AppFeedbackService>();
+    final s = sl<JsonStringsService>();
+    feedback.show(s.requestFileAttachSuccess, kind: AppFeedbackKind.success);
+    final sectionKey = sectionKeyForUploadedDocType(docType);
+    if (sectionKey != null) {
+      await sl<RequestDetailSectionPrefs>().saveExpanded(
+        widget.requestId,
+        sectionKey,
+        false,
+      );
+    }
+    await sl<CarsRepository>().getVehicle(itemId);
+    if (!mounted) return;
+    setState(() {});
+    final updated = _itemFromInventory(itemId);
+    if (updated != null && !hasPendingClientUploadActions(updated)) {
+      context.pop();
+    }
   }
 
   CarListItem? _itemFromInventory(String id) {
@@ -167,8 +195,12 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     required VoidCallback? onTap,
     bool highlight = false,
     String? badge,
+    bool embedded = false,
   }) {
     final title = docTypeLabel(f, sl<JsonStringsService>());
+    final (_, isSignedUpload) = CustomsDocType.parseWithSign(f.docType);
+    final showImagePreview = isRequestFileImage(f);
+    final showPdfIcon = isRequestFilePdf(f);
     final rawPath = f.fileUrl?.trim();
     final localFile = rawPath != null &&
             rawPath.isNotEmpty &&
@@ -191,6 +223,120 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     const outerRadius = 12.0;
     const thumbRadius = 8.0;
 
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppTheme.pageBackground,
+            borderRadius: BorderRadius.circular(thumbRadius),
+            border: Border.all(
+              color: highlight && !embedded
+                  ? AppTheme.requestCardBorder
+                  : borderColor,
+            ),
+          ),
+          child: tappable && showImagePreview
+              ? localFile != null
+                  ? Image.file(
+                      localFile,
+                      fit: BoxFit.cover,
+                      width: 64,
+                      height: 64,
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.insert_drive_file_outlined,
+                        size: 24,
+                        color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                      ),
+                    )
+                  : Image.network(
+                      url!,
+                      headers: headers,
+                      fit: BoxFit.cover,
+                      width: 64,
+                      height: 64,
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.insert_drive_file_outlined,
+                        size: 24,
+                        color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                      ),
+                    )
+              : Icon(
+                  showPdfIcon
+                      ? Icons.picture_as_pdf_outlined
+                      : Icons.insert_drive_file_outlined,
+                  size: 24,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.85),
+                ),
+        ),
+        const Gap(12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                ),
+              ),
+              if (badge != null && badge.isNotEmpty) ...[
+                const Gap(4),
+                Text(
+                  badge,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppTheme.accentRed,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ] else if (f.fileName != null &&
+                  !isTechnicalRequestFileName(f.fileName) &&
+                  f.fileName!.trim().isNotEmpty) ...[
+                const Gap(4),
+                Text(
+                  f.fileName!.trim(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (isSignedUpload) ...[
+          const Gap(8),
+          const Icon(
+            Icons.check_circle_rounded,
+            size: 24,
+            color: Color(0xFF2E7D32),
+          ),
+        ],
+      ],
+    );
+
+    if (embedded) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: tappable ? onTap : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+            child: row,
+          ),
+        ),
+      );
+    }
+
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(outerRadius),
@@ -205,94 +351,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             border: Border.all(color: borderColor),
           ),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: AppTheme.pageBackground,
-                  borderRadius: BorderRadius.circular(thumbRadius),
-                  border: Border.all(
-                    color: highlight
-                        ? AppTheme.requestCardBorder
-                        : borderColor,
-                  ),
-                ),
-                child: tappable
-                    ? localFile != null
-                        ? Image.file(
-                            localFile,
-                            fit: BoxFit.cover,
-                            width: 64,
-                            height: 64,
-                            errorBuilder: (_, _, _) => Icon(
-                              Icons.insert_drive_file_outlined,
-                              size: 24,
-                              color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                            ),
-                          )
-                        : Image.network(
-                            url!,
-                            headers: headers,
-                            fit: BoxFit.cover,
-                            width: 64,
-                            height: 64,
-                            errorBuilder: (_, _, _) => Icon(
-                              Icons.insert_drive_file_outlined,
-                              size: 24,
-                              color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                            ),
-                          )
-                    : Icon(
-                        Icons.insert_drive_file_outlined,
-                        size: 24,
-                        color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                      ),
-              ),
-              const Gap(12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        height: 1.25,
-                      ),
-                    ),
-                    if (badge != null && badge.isNotEmpty) ...[
-                      const Gap(4),
-                      Text(
-                        badge,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppTheme.accentRed,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ] else if (f.fileName != null && f.fileName!.trim().isNotEmpty) ...[
-                      const Gap(4),
-                      Text(
-                        f.fileName!.trim(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
+          child: row,
         ),
       ),
     );
@@ -455,16 +514,14 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
               downloadUrl: d.downloadUrl,
               onOpenFailed: () async => _onDocumentOpenFailed(),
             ),
-            buildFileRow: (f, {required highlight, badge}) {
-              final index = item.files.indexWhere(
-                (e) => e.docType == f.docType && e.fileUrl == f.fileUrl,
-              );
+            buildFileRow: (f, {required highlight, badge, embedded = false}) {
               return _buildServerFileRow(
                 theme: theme,
                 f: f,
                 highlight: highlight,
                 badge: badge,
-                onTap: index >= 0 ? () => _openFilesCarousel(item.files, index) : null,
+                embedded: embedded,
+                onTap: () => _openRequestFile(f),
               );
             },
           ),
@@ -502,10 +559,68 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     }
   }
 
-  void _openFilesCarousel(List<CustomsRequestFile> files, int selectedIndex) {
+  Future<void> _openRequestFile(CustomsRequestFile file) async {
+    final resolved = _resolveFileUrl(file.fileUrl);
+    if (resolved == null || resolved.isEmpty) {
+      _onDocumentOpenFailed();
+      return;
+    }
+    if (isRequestFileImage(file)) {
+      final item = _itemFromInventory(widget.requestId);
+      if (item == null) {
+        _onDocumentOpenFailed();
+        return;
+      }
+      final images = item.files.where(isRequestFileImage).toList();
+      final index = images.indexWhere(
+        (e) => e.docType == file.docType && e.fileUrl == file.fileUrl,
+      );
+      if (index < 0) {
+        _onDocumentOpenFailed();
+        return;
+      }
+      _openImageCarousel(images, index);
+      return;
+    }
+
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final localPath = await downloadAuthenticatedRequestFile(resolved, file);
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
+    if (!mounted) return;
+    if (localPath == null) {
+      _onDocumentOpenFailed();
+      return;
+    }
+
+    if (!mounted) return;
+    if (await shouldOpenAsInAppPdf(localPath, file)) {
+      if (!mounted) return;
+      final title = docTypeLabel(file, sl<JsonStringsService>());
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => RequestPdfViewerPage(
+            filePath: localPath,
+            title: title,
+          ),
+        ),
+      );
+      return;
+    }
+
+    _onDocumentOpenFailed();
+  }
+
+  void _openImageCarousel(List<CustomsRequestFile> images, int selectedIndex) {
     final prepared = <_CarouselPhotoItem>[];
-    for (var i = 0; i < files.length; i++) {
-      final f = files[i];
+    for (var i = 0; i < images.length; i++) {
+      final f = images[i];
       final url = _resolveFileUrl(f.fileUrl);
       if (url == null || url.isEmpty) continue;
       prepared.add(

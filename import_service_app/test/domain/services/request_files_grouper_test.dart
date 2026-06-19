@@ -24,10 +24,15 @@ void main() {
         dealType: 'bilateral',
       );
 
-      expect(grouped.signingPairs.length, 2);
+      expect(grouped.signingPairs.length, 4);
       expect(
         grouped.signingPairs.map((p) => p.baseDocType).toSet(),
-        {CustomsDocType.contract, CustomsDocType.kuts},
+        {
+          CustomsDocType.contract,
+          CustomsDocType.kuts,
+          CustomsDocType.fundsTransferApplication,
+          CustomsDocType.passportNotarizedCopy,
+        },
       );
       expect(
         grouped.creation.any((f) => f.docType == 'contract'),
@@ -65,7 +70,7 @@ void main() {
       expect(grouped.signingPairs, isEmpty);
     });
 
-    test('no empty slots for signing types without files at primary_documents_sent', () {
+    test('client-only slots at primary_documents_sent; other types only with file', () {
       final grouped = groupRequestFiles(
         files: [_file('contract'), _file('kuts')],
         statusSubType: 'primary_documents_sent',
@@ -74,8 +79,20 @@ void main() {
 
       final bases = grouped.signingPairs.map((p) => p.baseDocType).toSet();
       expect(bases.contains(CustomsDocType.recyclingFeeCalc), isFalse);
+      expect(bases.contains(CustomsDocType.fundsTransferApplication), isTrue);
+      expect(bases.contains(CustomsDocType.passportNotarizedCopy), isTrue);
+    });
+
+    test('cash dealType: no funds_transfer slot, passport_notarized_copy slot remains', () {
+      final grouped = groupRequestFiles(
+        files: [_file('contract'), _file('kuts')],
+        statusSubType: 'primary_documents_sent',
+        dealType: 'cash',
+      );
+
+      final bases = grouped.signingPairs.map((p) => p.baseDocType).toSet();
       expect(bases.contains(CustomsDocType.fundsTransferApplication), isFalse);
-      expect(bases.contains(CustomsDocType.passportNotarizedCopy), isFalse);
+      expect(bases.contains(CustomsDocType.passportNotarizedCopy), isTrue);
     });
   });
 }

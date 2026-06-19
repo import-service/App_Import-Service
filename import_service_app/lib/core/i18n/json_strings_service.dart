@@ -98,7 +98,13 @@ final class JsonStringsService {
   String get requestFileNeedsSignature => text('requestFileNeedsSignature');
   String get requestUploadSignedButton => text('requestUploadSignedButton');
   String get requestUploadSignedAgain => text('requestUploadSignedAgain');
+  String get requestUploadDocAgain => text('requestUploadDocAgain');
+  String requestUploadDocFile(String doc) =>
+      text('requestUploadDocFile').replaceAll('{doc}', doc);
   String get requestFileAttachSuccess => text('requestFileAttachSuccess');
+  String get requestFileAttachFailedGeneric => text('requestFileAttachFailedGeneric');
+  String requestFileAttachFailed(String docs) =>
+      text('requestFileAttachFailed').replaceAll('{docs}', docs);
   String get requestHintSignatureRevision => text('requestHintSignatureRevision');
   String get requestHintSignDocuments => text('requestHintSignDocuments');
   String get requestHintUploadReceipt => text('requestHintUploadReceipt');
@@ -108,6 +114,9 @@ final class JsonStringsService {
   String get requestHintIssuedToClient => text('requestHintIssuedToClient');
   String get requestHintRequestClosed => text('requestHintRequestClosed');
   String get requestDocumentOpenFailed => text('requestDocumentOpenFailed');
+  String get requestPdfShareButton => text('requestPdfShareButton');
+  String get requestPdfShareFailed => text('requestPdfShareFailed');
+  String get requestPdfShareHint => text('requestPdfShareHint');
   String get requestPickDocumentTitle => text('requestPickDocumentTitle');
   String get requestPickDocumentPhoto => text('requestPickDocumentPhoto');
   String get requestPickDocumentPdf => text('requestPickDocumentPdf');

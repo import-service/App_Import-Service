@@ -1,0 +1,54 @@
+---
+description: Сборка release APK для заказчика — версия, артеfact, push в git
+alwaysApply: false
+---
+
+# Release APK (import_service_app)
+
+Когда пользователь просит **APK / сборку для заказчика / выложить приложение** — выполняй **весь** флоу сам, не только `flutter build apk`.
+
+## Порядок (жёстко)
+
+1. **Поднять версию** в `import_service_app/pubspec.yaml`:
+   - Формат: `MAJOR.MINOR.PATCH+BUILD` (например `0.1.6+6` → `0.1.7+7`).
+   - **Patch** (+1) и **build number** после `+` (+1) — **оба** шага, если пользователь не указал иначе.
+   - Build number должен совпадать с числом в имени APK (см. ниже).
+
+2. **`flutter pub get`** (если менялся `pubspec.yaml`).
+
+3. **Сборка release APK** из `import_service_app/`:
+   ```powershell
+   cd D:\Projects\import_servis\import_service_app
+   flutter build apk --release
+   ```
+
+4. **Скопировать артеfact** в `D:\Temp\`:
+   - Имя: `import_service_app_1_{BUILD}.apk`, где `{BUILD}` — число после `+` в версии.
+   - Пример: версия `0.1.7+7` → `D:\Temp\import_service_app_1_7.apk`.
+   ```powershell
+   Copy-Item -Force build\app\outputs\flutter-apk\app-release.apk D:\Temp\import_service_app_1_7.apk
+   ```
+
+5. **Коммит и push** из **корня монорепо** `D:\Projects\import_servis` (не только подпапка):
+   ```powershell
+   cd D:\Projects\import_servis
+   .\scripts\push-monorepo.ps1 -Message "release: МП v0.1.7+7, APK для заказчика"
+   ```
+   Или вручную — см. `git-push-monorepo.mdc`. Сообщение коммита — **на русском**.
+
+6. **Сообщить пользователю**: путь к APK, новая версия, что push выполнен (или ошибка).
+
+## Не делать
+
+- **Не** собирать APK без bump версии, если пользователь явно просил «флоу с версией».
+- **Не** класть APK только в `build/` — дубликат в **`D:\Temp`** обязателен для передачи заказчику.
+- **Не** коммитить секреты (`.env`, keystore, `firebase-adminsdk-*.json` и т.п.).
+
+## Опционально перед сборкой
+
+- `flutter analyze` — по смыслу задачи; при срочной выдаче APK не блокирует, если нет ошибок компиляции.
+
+## Связанные правила
+
+- Push: `git-push-monorepo.mdc`
+- Терминал: `agent-workflow.mdc`

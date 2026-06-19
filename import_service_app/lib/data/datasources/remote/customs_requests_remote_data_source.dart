@@ -305,6 +305,38 @@ final class CustomsRequestsRemoteDataSource {
     }
   }
 
+  Future<CarListItem> _getRequestByIdWithRetry(
+    String id, {
+    int attempts = 3,
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      try {
+        return await getRequestById(id);
+      } catch (e, st) {
+        lastError = e;
+        AppLog.trace(
+          'detail refresh attempt ${attempt + 1}/$attempts failed',
+          tag: 'UploadV2',
+        );
+        if (attempt < attempts - 1) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 400 * (attempt + 1)),
+          );
+        } else {
+          AppLog.error(
+            'detail refresh failed after upload',
+            tag: 'UploadV2',
+            error: e,
+            stackTrace: st,
+          );
+        }
+      }
+    }
+    if (lastError is ServerException) throw lastError;
+    throw const UnknownServerException('Не удалось загрузить заявку');
+  }
+
   /// Батч upload: при ошибке одного файла — в [failedDocTypes], остальные продолжаем.
   Future<RequestFilesBatchUploadResult> uploadRequestFilesBatch({
     required String requestId,
@@ -335,10 +367,18 @@ final class CustomsRequestsRemoteDataSource {
           uploadTotal: total,
         );
         AppLog.trace(
-          'upload ok batchComplete=${upload.batchComplete}',
+          'upload ok=${upload.ok} batchComplete=${upload.batchComplete}',
           tag: 'UploadV2',
         );
-        latest = await getRequestById(requestId);
+        if (!upload.ok) {
+          failed.add(entry.docType);
+          continue;
+        }
+        try {
+          latest = await _getRequestByIdWithRetry(requestId);
+        } on ServerException {
+          // Upload принят сервером — не считаем ошибкой загрузки файла.
+        }
       } on ServerException catch (e) {
         AppLog.error(
           'upload skip docType=${entry.docType}: ${e.message}',
@@ -365,7 +405,7 @@ final class CustomsRequestsRemoteDataSource {
       onProgress?.call(done, total);
     }
 
-    latest ??= await getRequestById(requestId);
+    latest ??= await _getRequestByIdWithRetry(requestId);
     return RequestFilesBatchUploadResult(
       item: latest,
       failedDocTypes: failed,

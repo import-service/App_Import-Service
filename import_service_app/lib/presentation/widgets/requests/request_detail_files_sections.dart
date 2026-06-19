@@ -11,13 +11,16 @@ import 'package:import_service_app/domain/entities/delivered_vehicle_document.da
 import 'package:import_service_app/domain/services/request_files_grouper.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
+import 'package:import_service_app/presentation/helpers/signing_upload_action_label.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_collapsible_section.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_doc_upload_group.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_file_upload_chip.dart';
 
 typedef RequestFileRowBuilder = Widget Function(
   CustomsRequestFile file, {
   required bool highlight,
   String? badge,
+  bool embedded,
 });
 
 typedef RequestDeliverableRowBuilder = Widget Function(DeliveredVehicleDocument doc);
@@ -86,42 +89,158 @@ class RequestDetailFilesSections extends StatelessWidget {
       title: s.requestFilesSectionCreation,
       needsAction: false,
       rows: grouped.creation
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f)))
+          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
           .toList(),
     );
 
     final signingRows = <Widget>[];
     for (final pair in grouped.signingPairs) {
-      if (pair.original != null) {
+      final targetType = pair.baseDocType.signedApiCode;
+      final canUpload = pair.canUploadSigned && onUploadDocType != null;
+      final hasSigned = pair.signed != null;
+      final hasOriginal = pair.original != null;
+      final uploadLabel = signingUploadActionLabel(
+        baseDocType: pair.baseDocType,
+        strings: s,
+        hasSignedFile: hasSigned,
+      );
+      void onUpload() => onUploadDocType!(targetType);
+      final uploadBusy = uploadingDocType == targetType;
+
+      if (hasOriginal && hasSigned && canUpload) {
+        signingRows.add(
+          RequestDetailDocUploadGroup(
+            highlight: pair.highlightSignature ||
+                _isHighlighted(pair.original!) ||
+                _isHighlighted(pair.signed!),
+            uploadLabel: uploadLabel,
+            uploadBusy: uploadBusy,
+            onUpload: onUpload,
+            children: [
+              buildFileRow(
+                pair.original!,
+                highlight: false,
+                embedded: true,
+                badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
+              ),
+              buildFileRow(
+                pair.signed!,
+                highlight: false,
+                embedded: true,
+              ),
+            ],
+          ),
+        );
+        continue;
+      }
+
+      if (hasOriginal && hasSigned) {
+        signingRows.add(
+          RequestDetailDocUploadGroup(
+            highlight: pair.highlightSignature ||
+                _isHighlighted(pair.original!) ||
+                _isHighlighted(pair.signed!),
+            children: [
+              buildFileRow(
+                pair.original!,
+                highlight: false,
+                embedded: true,
+                badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
+              ),
+              buildFileRow(
+                pair.signed!,
+                highlight: false,
+                embedded: true,
+              ),
+            ],
+          ),
+        );
+        continue;
+      }
+
+      if (hasOriginal && !hasSigned && canUpload) {
+        signingRows.add(
+          RequestDetailDocUploadGroup(
+            highlight: pair.highlightSignature || _isHighlighted(pair.original!),
+            uploadLabel: uploadLabel,
+            uploadBusy: uploadBusy,
+            onUpload: onUpload,
+            children: [
+              buildFileRow(
+                pair.original!,
+                highlight: false,
+                embedded: true,
+                badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
+              ),
+            ],
+          ),
+        );
+        continue;
+      }
+
+      if (!hasOriginal && hasSigned && canUpload) {
+        signingRows.add(
+          RequestDetailDocUploadGroup(
+            highlight: pair.highlightSignature || _isHighlighted(pair.signed!),
+            uploadLabel: uploadLabel,
+            uploadBusy: uploadBusy,
+            onUpload: onUpload,
+            children: [
+              buildFileRow(
+                pair.signed!,
+                highlight: false,
+                embedded: true,
+              ),
+            ],
+          ),
+        );
+        continue;
+      }
+
+      if (!hasOriginal && !hasSigned && pair.needsSignature && canUpload) {
+        signingRows.add(
+          RequestDetailDocUploadGroup(
+            highlight: true,
+            uploadLabel: uploadLabel,
+            uploadBusy: uploadBusy,
+            onUpload: onUpload,
+            children: [
+              _missingSignPlaceholder(
+                theme: theme,
+                label: docTypeLabelForType(pair.baseDocType, s),
+                hint: s.requestFileNeedsSignature,
+                embedded: true,
+              ),
+            ],
+          ),
+        );
+        continue;
+      }
+
+      if (hasOriginal) {
         signingRows.add(
           buildFileRow(
             pair.original!,
             highlight: pair.highlightSignature || _isHighlighted(pair.original!),
+            embedded: false,
             badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
           ),
         );
       }
-      if (pair.signed != null) {
-        signingRows.add(buildFileRow(pair.signed!, highlight: _isHighlighted(pair.signed!)));
-      } else if (pair.needsSignature && pair.original == null) {
+      if (hasSigned) {
+        signingRows.add(
+          buildFileRow(
+            pair.signed!,
+            highlight: _isHighlighted(pair.signed!),
+            embedded: false,
+          ),
+        );
+      } else if (pair.needsSignature && !hasOriginal) {
         signingRows.add(
           _missingSignPlaceholder(
             theme: theme,
             label: docTypeLabelForType(pair.baseDocType, s),
             hint: s.requestFileNeedsSignature,
-          ),
-        );
-      }
-      if (pair.canUploadSigned && onUploadDocType != null) {
-        final targetType = pair.baseDocType.signedApiCode;
-        final label = pair.signed != null
-            ? (uploadSignedLabel ?? s.requestUploadSignedAgain)
-            : (uploadSignedLabel ?? s.requestUploadSignedButton);
-        signingRows.add(
-          RequestDetailFileUploadChip(
-            label: label,
-            busy: uploadingDocType == targetType,
-            onTap: () => onUploadDocType!(targetType),
           ),
         );
       }
@@ -142,6 +261,7 @@ class RequestDetailFilesSections extends StatelessWidget {
         buildFileRow(
           f,
           highlight: highlight,
+          embedded: false,
           badge: highlight ? s.requestHintUploadReceiptShort : null,
         ),
       );
@@ -178,7 +298,7 @@ class RequestDetailFilesSections extends StatelessWidget {
       title: s.requestFilesSectionTransitArchive,
       needsAction: false,
       rows: grouped.transitArchive
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f)))
+          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
           .toList(),
     );
 
@@ -187,7 +307,7 @@ class RequestDetailFilesSections extends StatelessWidget {
       title: s.requestFilesSectionFinal,
       needsAction: false,
       rows: grouped.finalDocs
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f)))
+          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
           .toList(),
     );
 
@@ -197,7 +317,7 @@ class RequestDetailFilesSections extends StatelessWidget {
         title: s.requestFilesSectionOther,
         needsAction: false,
         rows: grouped.other
-            .map((f) => buildFileRow(f, highlight: _isHighlighted(f)))
+            .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
             .toList(),
       );
     }
@@ -215,7 +335,42 @@ Widget _missingSignPlaceholder({
   required ThemeData theme,
   required String label,
   required String hint,
+  bool embedded = false,
 }) {
+  final inner = Row(
+    children: [
+      Icon(Icons.draw_outlined, color: AppTheme.accentRed, size: 22),
+      const Gap(10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              hint,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: AppTheme.accentRed,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  if (embedded) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: inner,
+    );
+  }
+
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
@@ -223,31 +378,6 @@ Widget _missingSignPlaceholder({
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: AppTheme.accentRed.withValues(alpha: 0.45)),
     ),
-    child: Row(
-      children: [
-        Icon(Icons.draw_outlined, color: AppTheme.accentRed, size: 22),
-        const Gap(10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                hint,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppTheme.accentRed,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
+    child: inner,
   );
 }
