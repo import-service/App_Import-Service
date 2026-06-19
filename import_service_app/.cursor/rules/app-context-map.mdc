@@ -78,6 +78,8 @@ alwaysApply: true
 | `presentation/widgets/requests/request_detail_file_upload_chip.dart` | Загрузка подписи/чека на деталке |
 | `presentation/widgets/requests/request_detail_doc_upload_group.dart` | Блок «документ + загрузить снова» в одной карточке |
 | `presentation/pages/request_pdf_viewer_page.dart` | Встроенный просмотр PDF заявки |
+| `presentation/widgets/requests/request_detail_payment_groups.dart` | Секция «Оплата»: пары квитанция+чек в одном блоке |
+| `presentation/helpers/request_file_uploaded_indicator.dart` | Галочка «загружено клиентом» (подпись, чек) |
 | `presentation/helpers/request_file_picker.dart` | Фото/PDF для загрузки на деталке |
 | `presentation/helpers/request_status_action_hint.dart` | Подсказки по statusSubType на деталке |
 | `presentation/helpers/deal_type_labels.dart` | Подпись вида сделки (`DealType`) |

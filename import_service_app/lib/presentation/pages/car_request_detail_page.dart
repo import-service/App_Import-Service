@@ -37,6 +37,7 @@ import 'package:import_service_app/presentation/helpers/request_status_action_hi
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/presentation/pages/request_pdf_viewer_page.dart';
 import 'package:import_service_app/presentation/helpers/request_file_preview_helper.dart';
+import 'package:import_service_app/presentation/helpers/request_file_uploaded_indicator.dart';
 import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/request_status_sub_type_labels.dart';
@@ -198,7 +199,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     bool embedded = false,
   }) {
     final title = docTypeLabel(f, sl<JsonStringsService>());
-    final (_, isSignedUpload) = CustomsDocType.parseWithSign(f.docType);
+    final showUploadedCheck = shouldShowUploadedCheck(f);
     final showImagePreview = isRequestFileImage(f);
     final showPdfIcon = isRequestFilePdf(f);
     final rawPath = f.fileUrl?.trim();
@@ -313,7 +314,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             ],
           ),
         ),
-        if (isSignedUpload) ...[
+        if (showUploadedCheck) ...[
           const Gap(8),
           const Icon(
             Icons.check_circle_rounded,

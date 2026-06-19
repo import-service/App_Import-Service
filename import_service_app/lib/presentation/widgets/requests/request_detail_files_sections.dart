@@ -8,13 +8,12 @@ import 'package:import_service_app/data/local/request_detail_section_prefs.dart'
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/delivered_vehicle_document.dart';
-import 'package:import_service_app/domain/services/request_files_grouper.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/signing_upload_action_label.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_collapsible_section.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_doc_upload_group.dart';
-import 'package:import_service_app/presentation/widgets/requests/request_detail_file_upload_chip.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_payment_groups.dart';
 
 typedef RequestFileRowBuilder = Widget Function(
   CustomsRequestFile file, {
@@ -254,37 +253,16 @@ class RequestDetailFilesSections extends StatelessWidget {
     );
 
     final paymentRows = <Widget>[];
-    for (final f in grouped.payment) {
-      final highlight =
-          paymentFileNeedsReceiptHighlight(f, item.files) || _isHighlighted(f);
-      paymentRows.add(
-        buildFileRow(
-          f,
-          highlight: highlight,
-          embedded: false,
-          badge: highlight ? s.requestHintUploadReceiptShort : null,
-        ),
-      );
-      final receiptType = receiptDocTypeForPaymentFee(f.docType);
-      if (receiptType == null || onUploadDocType == null) continue;
-      final feeType = CustomsDocType.tryParse(f.docType);
-      if (feeType != CustomsDocType.paymentRecyclingFee &&
-          feeType != CustomsDocType.paymentCustomsDuty) {
-        continue;
-      }
-      final receiptEnum = CustomsDocType.tryParse(receiptType);
-      final hasReceipt = receiptEnum != null &&
-          item.files.any((x) => CustomsDocType.tryParse(x.docType) == receiptEnum);
-      paymentRows.add(
-        RequestDetailFileUploadChip(
-          label: hasReceipt
-              ? s.requestDetailUploadReceiptAgain
-              : (uploadReceiptLabel ?? s.requestDetailUploadReceipt),
-          busy: uploadingDocType == receiptType,
-          onTap: () => onUploadDocType!(receiptType),
-        ),
-      );
-    }
+    addPaymentPairGroups(
+      out: paymentRows,
+      allFiles: item.files,
+      buildFileRow: buildFileRow,
+      strings: s,
+      isHighlighted: _isHighlighted,
+      onUploadDocType: onUploadDocType,
+      uploadingDocType: uploadingDocType,
+      uploadReceiptLabelOverride: uploadReceiptLabel,
+    );
 
     addSection(
       sectionKey: RequestDetailSectionKeys.filesPayment,

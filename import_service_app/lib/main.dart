@@ -88,23 +88,22 @@ class _MyAppState extends State<MyApp> {
     ) {
       unawaited(handleRequestRemoteUpdate(update));
     });
-    _pushForegroundSub = sl<PushNotificationsService>().foregroundTargetStream.listen((
-      target,
-    ) {
-      if (target.kind == PushOpenKind.requestChat) {
-        sl<RequestChatUnreadCubit>().markUnread(target.requestId);
-        sl<AppFeedbackService>().show(
-          sl<JsonStringsService>().pushToastNewMessage,
-          kind: AppFeedbackKind.success,
-        );
-      } else {
-        sl<RequestAttentionCubit>().markStatusUpdated(target.requestId);
-        sl<AppFeedbackService>().show(
-          sl<JsonStringsService>().pushToastRequestUpdated,
-          kind: AppFeedbackKind.warning,
-        );
-      }
-    });
+    _pushForegroundSub = sl<PushNotificationsService>().foregroundTargetStream
+        .listen((target) {
+          if (target.kind == PushOpenKind.requestChat) {
+            sl<RequestChatUnreadCubit>().markUnread(target.requestId);
+            sl<AppFeedbackService>().show(
+              sl<JsonStringsService>().pushToastNewMessage,
+              kind: AppFeedbackKind.success,
+            );
+          } else {
+            sl<RequestAttentionCubit>().markStatusUpdated(target.requestId);
+            sl<AppFeedbackService>().show(
+              sl<JsonStringsService>().pushToastRequestUpdated,
+              kind: AppFeedbackKind.warning,
+            );
+          }
+        });
   }
 
   @override
