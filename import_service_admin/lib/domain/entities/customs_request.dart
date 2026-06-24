@@ -35,6 +35,12 @@ class CustomsRequest extends Equatable {
     this.oneCUpdatePending = false,
     this.oneCUpdateLastAttemptAt,
     this.oneCUpdateLastError,
+    this.oneCUpdateHoursPending,
+    this.oneCCreatePending = false,
+    this.oneCCreateLastAttemptAt,
+    this.oneCCreateLastError,
+    this.oneCCreateHoursPending,
+    this.oneCOutboundStaleOver24h = false,
     this.createdAt,
     this.updatedAt,
     this.financeItems = const [],
@@ -73,6 +79,12 @@ class CustomsRequest extends Equatable {
   final bool oneCUpdatePending;
   final String? oneCUpdateLastAttemptAt;
   final Map<String, dynamic>? oneCUpdateLastError;
+  final int? oneCUpdateHoursPending;
+  final bool oneCCreatePending;
+  final String? oneCCreateLastAttemptAt;
+  final Map<String, dynamic>? oneCCreateLastError;
+  final int? oneCCreateHoursPending;
+  final bool oneCOutboundStaleOver24h;
   final String? createdAt;
   final String? updatedAt;
   final List<CustomsRequestFinanceItem> financeItems;
@@ -104,7 +116,7 @@ class CustomsRequest extends Equatable {
     for (final f in files) {
       final t = f.docType.trim();
       if (t == 'car_front_photo' || t == 'car_back_photo') {
-        return f.fileUrl;
+        return f.displayUrl;
       }
     }
     return null;
@@ -119,6 +131,18 @@ class CustomsRequest extends Equatable {
       external1cId != null &&
       external1cId!.trim().isNotEmpty;
 
+  bool get hasOutboundPending => oneCCreatePending || oneCUpdatePending;
+
+  int? get outboundHoursPending {
+    final c = oneCCreateHoursPending;
+    final u = oneCUpdateHoursPending;
+    if (c == null && u == null) return null;
+    if (c == null) return u;
+    if (u == null) return c;
+    return c > u ? c : u;
+  }
+
   @override
-  List<Object?> get props => [id, status, oneCUpdatePending, updatedAt];
+  List<Object?> get props =>
+      [id, status, oneCUpdatePending, oneCCreatePending, updatedAt];
 }

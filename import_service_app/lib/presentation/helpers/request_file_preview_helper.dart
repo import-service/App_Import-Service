@@ -8,7 +8,12 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// Превью в [Image.network] только для изображений; PDF — иконка + встроенный просмотр.
+/// URL для миниатюры (previewUrl или полный fileUrl).
+String? requestFileThumbnailUrl(CustomsRequestFile file) =>
+    file.displayImageUrl;
+
+/// URL для скачивания / полноразмерного просмотра.
+String? requestFileFullUrl(CustomsRequestFile file) => file.fileUrl?.trim();
 bool isRequestFileImage(CustomsRequestFile file) {
   final mime = file.mimeType?.trim().toLowerCase() ?? '';
   if (mime.startsWith('image/')) return true;

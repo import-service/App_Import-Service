@@ -1,3 +1,5 @@
+const { hoursSince } = require('./time');
+
 const CUSTOMS_REQUEST_SELECT = `
   id, external_1c_id, manager_external_1c_id, manager_full_name,
   legal_entity_name, legal_email, legal_phone, legal_inn,
@@ -9,6 +11,9 @@ const CUSTOMS_REQUEST_SELECT = `
   engine_spec, engine_volume, status_sub_type,
   status_sub_type_datetime, deal_type,
   one_c_update_pending, one_c_update_last_error_json, one_c_update_last_attempt_at,
+  one_c_update_first_failed_at,
+  one_c_create_pending, one_c_create_last_error_json, one_c_create_last_attempt_at,
+  one_c_create_first_failed_at,
   advance_payment_json, actual_payment_json,
   created_at, updated_at
 `.replace(/\s+/g, ' ');
@@ -170,6 +175,25 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
       row.one_c_update_last_attempt_at != null
         ? toIso(row.one_c_update_last_attempt_at)
         : null,
+    oneCUpdateFirstFailedAt:
+      row.one_c_update_first_failed_at != null
+        ? toIso(row.one_c_update_first_failed_at)
+        : null,
+    oneCUpdateHoursPending: Number(row.one_c_update_pending) === 1
+      ? hoursSince(row.one_c_update_first_failed_at || row.one_c_update_last_attempt_at)
+      : null,
+    oneCCreatePending: Number(row.one_c_create_pending) === 1,
+    oneCCreateLastAttemptAt:
+      row.one_c_create_last_attempt_at != null
+        ? toIso(row.one_c_create_last_attempt_at)
+        : null,
+    oneCCreateFirstFailedAt:
+      row.one_c_create_first_failed_at != null
+        ? toIso(row.one_c_create_first_failed_at)
+        : null,
+    oneCCreateHoursPending: Number(row.one_c_create_pending) === 1
+      ? hoursSince(row.one_c_create_first_failed_at || row.one_c_create_last_attempt_at)
+      : null,
     advancePayment,
     actualPayment,
     refundAmount,
@@ -209,6 +233,17 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
     dto.oneCUpdateLastError = lastErr;
   }
 
+  const createErr = parseJsonCol(row.one_c_create_last_error_json);
+  if (createErr && typeof createErr === 'object') {
+    dto.oneCCreateLastError = createErr;
+  }
+
+  const createH = dto.oneCCreateHoursPending;
+  const updateH = dto.oneCUpdateHoursPending;
+  dto.oneCOutboundStaleOver24h =
+    (dto.oneCCreatePending && createH != null && createH >= 24) ||
+    (dto.oneCUpdatePending && updateH != null && updateH >= 24);
+
   if (includeFiles) {
     dto.files = (fileRows || []).map((f) => ({
       id: String(f.id),
@@ -218,6 +253,7 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
       mimeType: f.mime_type,
       fileSizeBytes: Number(f.file_size_bytes),
       fileUrl: toAbsoluteUrl(f.file_url, base),
+      previewUrl: f.preview_url ? toAbsoluteUrl(f.preview_url, base) : null,
       createdAt: toIso(f.created_at),
       updatedAt: toIso(f.updated_at),
     }));

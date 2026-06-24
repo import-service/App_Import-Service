@@ -8,6 +8,7 @@ import 'package:import_service_admin/presentation/pages/organizations_page.dart'
 import 'package:import_service_admin/presentation/pages/request_detail_page.dart';
 import 'package:import_service_admin/presentation/pages/requests_page.dart';
 import 'package:import_service_admin/presentation/pages/settings_one_c_page.dart';
+import 'package:import_service_admin/presentation/pages/storage_page.dart';
 import 'package:import_service_admin/presentation/shell/admin_shell_page.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -69,6 +70,14 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/organizations',
               builder: (context, state) => const OrganizationsPage(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/storage',
+              builder: (context, state) => const StoragePage(),
             ),
           ],
         ),

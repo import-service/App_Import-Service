@@ -12,6 +12,7 @@ import 'package:import_service_admin/core/ui/server_error_ui.dart';
 import 'package:import_service_admin/core/util/file_url_resolver.dart';
 import 'package:import_service_admin/domain/entities/customs_request.dart';
 import 'package:import_service_admin/domain/entities/customs_request_file.dart';
+import 'package:import_service_admin/data/datasources/remote/storage_remote_data_source.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
 import 'package:import_service_admin/presentation/widgets/requests/request_detail_file_row.dart';
 import 'package:import_service_admin/presentation/widgets/requests/request_detail_files_sections.dart';
@@ -101,6 +102,39 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
     }
   }
 
+  Future<void> _deleteRequest(CustomsRequest item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить заявку?'),
+        content: Text(
+          'Заявка №${item.id} и все файлы будут удалены безвозвратно.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      await sl<StorageRemoteDataSource>().deleteRequest(item.id);
+      if (!mounted) return;
+      AppSnackBars.showSuccess('Заявка удалена', context: context);
+      context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError('$e', context: context);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -111,6 +145,19 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: [
+          FutureBuilder<CustomsRequest>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: 'Удалить заявку',
+                onPressed: _sending ? null : () => _deleteRequest(snapshot.data!),
+                icon: const Icon(Icons.delete_outline, color: AppTheme.accentRed),
+              );
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<CustomsRequest>(
         future: _future,
@@ -385,14 +432,48 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
               ],
               const Gap(14),
               RequestLabeledValue(
+                label: 'Create не отправлен',
+                value: item.oneCCreatePending ? 'Да' : 'Нет',
+              ),
+              if (item.oneCCreateHoursPending != null) ...[
+                const Gap(14),
+                RequestLabeledValue(
+                  label: 'Часов без create в 1С',
+                  value: '${item.oneCCreateHoursPending}',
+                ),
+              ],
+              const Gap(14),
+              RequestLabeledValue(
                 label: 'Update не доставлен',
                 value: item.oneCUpdatePending ? 'Да' : 'Нет',
               ),
+              if (item.oneCUpdateHoursPending != null) ...[
+                const Gap(14),
+                RequestLabeledValue(
+                  label: 'Часов без update в 1С',
+                  value: '${item.oneCUpdateHoursPending}',
+                ),
+              ],
               if (item.oneCUpdateLastAttemptAt != null) ...[
                 const Gap(14),
                 RequestLabeledValue(
                   label: 'Последняя попытка update',
                   value: formatDateTimeLabel(item.oneCUpdateLastAttemptAt),
+                ),
+              ],
+              if (item.oneCCreateLastError != null) ...[
+                const Gap(14),
+                Text(
+                  'Ошибка create',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppTheme.accentRed,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Gap(4),
+                SelectableText(
+                  _formatOneCError(item.oneCCreateLastError!),
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
               if (item.oneCUpdateLastError != null) ...[

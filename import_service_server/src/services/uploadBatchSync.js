@@ -1,6 +1,7 @@
 const { normalizeDocType, REQUIRED_DOCUMENT_TYPES_ON_CREATE } = require('../constants/customsCatalog');
 const { storageKeyForRequest, renameRequestFilesToExternal1cId } = require('../util/requestFileStorage');
 const { submitCustomsRequestTo1CFromDb } = require('./oneCRequestCreate');
+const { pushCustomsRequestCreateTo1C } = require('./oneCCreateSync');
 const { pushCustomsRequestUpdateTo1C } = require('./oneCUpdateSync');
 const { notifyFilesChangedFrom1C } = require('./pushNotifications');
 const { isDemoApplicantName, completeDemoCreateFromMpUpload, isDemoExternal1cId, tryAdvanceDemoFlow } = require('./demoFlow');
@@ -138,7 +139,7 @@ async function syncAfterBatchComplete(fastify, requestId, source, changedDocType
       return { ok: true, action: 'demo_create_linked', demoCreate };
     }
 
-    const createResult = await submitCustomsRequestTo1CFromDb(fastify, requestId);
+    const createResult = await pushCustomsRequestCreateTo1C(fastify, requestId);
     if (!createResult.ok) {
       return { ok: false, error: createResult.error || 'ONE_C_CREATE_FAILED', createResult };
     }

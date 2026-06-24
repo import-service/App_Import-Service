@@ -1,5 +1,6 @@
 const Fastify = require('fastify');
 const config = require('./config');
+const { HTTP_BODY_LIMIT_BYTES, MULTIPART_MAX_BYTES } = require('./constants/uploadLimits');
 const { pool } = require('./db');
 const { startChatWss } = require('./services/chatWss');
 const packageJson = require('../package.json');
@@ -9,6 +10,7 @@ async function buildApp() {
     logger: {
       level: process.env.LOG_LEVEL || 'info',
     },
+    bodyLimit: HTTP_BODY_LIMIT_BYTES,
   });
 
   const defaultJsonParser = fastify.getDefaultJsonParser('error', 'error');
@@ -63,7 +65,7 @@ async function buildApp() {
   });
   await fastify.register(require('@fastify/multipart'), {
     limits: {
-      fileSize: 25 * 1024 * 1024, // 25 MB на файл
+      fileSize: MULTIPART_MAX_BYTES,
       files: 1,
     },
   });
@@ -148,6 +150,8 @@ async function main() {
   const app = await buildApp();
   const chatWss = startChatWss(app);
   app.decorate('chatWss', chatWss);
+  const { startBackgroundJobs } = require('./services/backgroundJobs');
+  startBackgroundJobs(app);
   try {
     await app.listen({ port: config.port, host: '0.0.0.0' });
     app.log.info(`Слушаю порт ${config.port}`);

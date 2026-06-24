@@ -38,6 +38,18 @@ abstract final class CustomsRequestMapper {
       oneCUpdateLastError: json['oneCUpdateLastError'] is Map<String, dynamic>
           ? json['oneCUpdateLastError'] as Map<String, dynamic>
           : null,
+      oneCUpdateHoursPending: json['oneCUpdateHoursPending'] is int
+          ? json['oneCUpdateHoursPending'] as int
+          : int.tryParse('${json['oneCUpdateHoursPending']}'),
+      oneCCreatePending: json['oneCCreatePending'] == true,
+      oneCCreateLastAttemptAt: json['oneCCreateLastAttemptAt'] as String?,
+      oneCCreateLastError: json['oneCCreateLastError'] is Map<String, dynamic>
+          ? json['oneCCreateLastError'] as Map<String, dynamic>
+          : null,
+      oneCCreateHoursPending: json['oneCCreateHoursPending'] is int
+          ? json['oneCCreateHoursPending'] as int
+          : int.tryParse('${json['oneCCreateHoursPending']}'),
+      oneCOutboundStaleOver24h: json['oneCOutboundStaleOver24h'] == true,
       createdAt: json['createdAt'] as String?,
       updatedAt: json['updatedAt'] as String?,
       financeItems: _financeItems(json['financeItems']),
@@ -93,6 +105,7 @@ abstract final class CustomsRequestMapper {
             docType: e['docType'] as String? ?? '',
             fileName: e['fileName'] as String? ?? '',
             fileUrl: e['fileUrl'] as String? ?? '',
+            previewUrl: e['previewUrl'] as String?,
             mimeType: e['mimeType'] as String?,
             fileSizeBytes: e['fileSizeBytes'] is int
                 ? e['fileSizeBytes'] as int

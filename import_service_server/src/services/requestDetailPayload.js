@@ -1,5 +1,6 @@
 const { toCustomsRequestDto, toAbsoluteUrl } = require('../util/customsRequestDto');
 const { toIntegrationFileRef, isClientUploadedDocType } = require('../util/integrationFiles');
+const { CUSTOMS_REQUEST_FILE_SELECT } = require('../util/requestFileStorage');
 
 function apiBaseFromFastify(fastify, requestLike) {
   const proto = String(requestLike?.headers?.['x-forwarded-proto'] || '')
@@ -29,7 +30,7 @@ async function fetchRequestRowAndFiles(fastify, requestId) {
   );
   if (!rows.length) return null;
   const [fileRows] = await fastify.pool.query(
-    `SELECT id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url, created_at, updated_at
+    `SELECT ${CUSTOMS_REQUEST_FILE_SELECT}
      FROM customs_request_files
      WHERE request_id = ? AND deleted_at IS NULL
      ORDER BY id ASC`,

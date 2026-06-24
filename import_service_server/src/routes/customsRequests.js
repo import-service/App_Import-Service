@@ -22,9 +22,12 @@ const { notifyStateChangedFrom1C } = require('../services/pushNotifications');
 const {
   storageKeyForRequest,
   upsertRequestFile,
+  CUSTOMS_REQUEST_FILE_SELECT,
 } = require('../util/requestFileStorage');
+const { assertFileSizeAllowed } = require('../constants/uploadLimits');
 const { recordUploadAndMaybeSync } = require('../services/uploadBatchSync');
 const { parseOneCUploadJsonBody } = require('../util/uploadBase64');
+const { unlinkIfExists } = require('../util/imagePreview');
 
 const REQUEST_STATUSES = [
   'new',
@@ -180,7 +183,7 @@ async function fetchRequestById(pool, id) {
 
   const row = rows[0];
   const [fileRows] = await pool.query(
-    `SELECT id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url, created_at, updated_at
+    `SELECT ${CUSTOMS_REQUEST_FILE_SELECT}
      FROM customs_request_files
      WHERE request_id = ? AND deleted_at IS NULL
      ORDER BY id ASC`,
@@ -201,7 +204,7 @@ async function fetchRequestByExternal1cId(pool, external1cId) {
   if (!rows.length) return null;
   const row = rows[0];
   const [fileRows] = await pool.query(
-    `SELECT id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url, created_at, updated_at
+    `SELECT ${CUSTOMS_REQUEST_FILE_SELECT}
      FROM customs_request_files
      WHERE request_id = ? AND deleted_at IS NULL
      ORDER BY id ASC`,
@@ -224,6 +227,15 @@ async function finalizeCustomsUpload(fastify, request, reply, {
   }
   if (!buf || !buf.length) {
     return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Пустой файл' });
+  }
+
+  try {
+    assertFileSizeAllowed(buf.length, docType, mimeType);
+  } catch (e) {
+    return reply.code(400).send({
+      error: 'VALIDATION_ERROR',
+      message: e.message || 'Файл слишком большой',
+    });
   }
 
   const storageKey = storageKeyForRequest(row);
@@ -262,6 +274,7 @@ async function finalizeCustomsUpload(fastify, request, reply, {
       mimeType: saved.mimeType,
       fileSizeBytes: saved.fileSizeBytes,
       fileUrl: saved.fileUrl,
+      previewUrl: saved.previewUrl || null,
       replaced: saved.replaced,
     },
   });
@@ -828,23 +841,11 @@ module.exports = async function customsRequestsRoutes(fastify) {
   fastify.delete(
     '/customs-requests/:id',
     { onRequest: [fastify.authenticate] },
-    async (request, reply) => {
-      const id = Number(request.params.id);
-      if (!Number.isFinite(id) || id <= 0) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
-      }
-
-      const [result] = await fastify.pool.query(
-        `UPDATE customs_requests
-         SET deleted_at = CURRENT_TIMESTAMP(3)
-         WHERE id = ? AND deleted_at IS NULL`,
-        [id],
-      );
-      if (!result.affectedRows) {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
-      }
-      return reply.send({ ok: true });
-    },
+    async (_request, reply) =>
+      reply.code(403).send({
+        error: 'FORBIDDEN',
+        message: 'Удаление заявки доступно только в админ-панели',
+      }),
   );
 
   fastify.post('/customs-requests/:id/files', { onRequest: [fastify.authenticate] }, async (_request, reply) =>
@@ -865,6 +866,17 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
 
+      const [rows] = await fastify.pool.query(
+        `SELECT stored_name, preview_stored_name
+         FROM customs_request_files
+         WHERE id = ? AND request_id = ? AND deleted_at IS NULL
+         LIMIT 1`,
+        [fileId, id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
       const [result] = await fastify.pool.query(
         `UPDATE customs_request_files
          SET deleted_at = CURRENT_TIMESTAMP(3)
@@ -874,6 +886,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
       if (!result.affectedRows) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
+
+      await unlinkIfExists(UPLOAD_ROOT, rows[0].stored_name);
+      await unlinkIfExists(UPLOAD_ROOT, rows[0].preview_stored_name);
+
       return reply.send({ ok: true });
     },
   );

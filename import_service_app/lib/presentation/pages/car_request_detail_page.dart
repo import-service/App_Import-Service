@@ -209,7 +209,9 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             File(rawPath).existsSync()
         ? File(rawPath)
         : null;
-    final url = localFile == null ? _resolveFileUrl(f.fileUrl) : null;
+    final url = localFile == null
+        ? _resolveFileUrl(requestFileThumbnailUrl(f))
+        : null;
     final tappable = localFile != null || (url != null && url.isNotEmpty);
     final token = sl<AuthSessionController>().accessToken?.trim();
     final headers = (token != null && token.isNotEmpty)

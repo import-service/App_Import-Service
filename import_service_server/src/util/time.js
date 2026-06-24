@@ -22,4 +22,11 @@ function expiresInToMs(expiresIn) {
   return n * (mult[u] || 86400000);
 }
 
-module.exports = { expiresInToMs };
+function hoursSince(mysqlDate) {
+  if (!mysqlDate) return null;
+  const t = new Date(mysqlDate).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 3600000));
+}
+
+module.exports = { expiresInToMs, hoursSince };

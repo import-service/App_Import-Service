@@ -29,18 +29,20 @@ class RequestListCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isNew = item.status == 'new';
     final needsUpdate = item.oneCUpdatePending;
+    final needsCreate = item.oneCCreatePending;
+    final outboundPending = item.hasOutboundPending;
     final subLabel = statusSubTypeLabel(item.statusSubType);
     final hasSub =
         item.statusSubType != null && item.statusSubType!.trim().isNotEmpty;
 
     final borderColor = isNew
         ? AppTheme.requestCardNewBorder
-        : needsUpdate
+        : outboundPending
             ? AppTheme.requestCardPendingBorder
             : AppTheme.requestCardBorder;
     final bgColor = isNew
         ? AppTheme.requestCardNewBg
-        : needsUpdate
+        : outboundPending
             ? AppTheme.requestCardPendingBg
             : AppTheme.white;
 
@@ -137,13 +139,36 @@ class RequestListCard extends StatelessWidget {
                               ),
                             ),
                           ],
-                          if (needsUpdate) ...[
+                          if (needsCreate) ...[
                             const Gap(6),
                             Text(
-                              'Изменения не доставлены в 1С',
+                              item.oneCCreateHoursPending != null
+                                  ? 'Create в 1С не отправлен · ${item.oneCCreateHoursPending} ч'
+                                  : 'Create в 1С не отправлен',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: AppTheme.accentRed,
                                 fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                          if (needsUpdate) ...[
+                            const Gap(6),
+                            Text(
+                              item.oneCUpdateHoursPending != null
+                                  ? 'Update в 1С не доставлен · ${item.oneCUpdateHoursPending} ч'
+                                  : 'Изменения не доставлены в 1С',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppTheme.accentRed,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                          if (item.oneCOutboundStaleOver24h) ...[
+                            const Gap(4),
+                            Text(
+                              'Более суток не удаётся отправить в 1С',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: AppTheme.accentRed,
                               ),
                             ),
                           ],

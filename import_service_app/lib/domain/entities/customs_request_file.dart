@@ -9,6 +9,7 @@ final class CustomsRequestFile extends Equatable {
     this.mimeType,
     this.fileSizeBytes,
     this.fileUrl,
+    this.previewUrl,
     this.createdAt,
   });
 
@@ -18,6 +19,7 @@ final class CustomsRequestFile extends Equatable {
   final String? mimeType;
   final int? fileSizeBytes;
   final String? fileUrl;
+  final String? previewUrl;
   final String? createdAt;
 
   factory CustomsRequestFile.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ final class CustomsRequestFile extends Equatable {
       mimeType: json['mimeType'] as String? ?? json['mime_type'] as String?,
       fileSizeBytes: size is int ? size : (size is num) ? size.toInt() : null,
       fileUrl: json['fileUrl'] as String? ?? json['file_url'] as String?,
+      previewUrl: json['previewUrl'] as String? ?? json['preview_url'] as String?,
       createdAt: json['createdAt'] as String? ?? json['created_at'] as String?,
     );
   }
@@ -40,10 +43,18 @@ final class CustomsRequestFile extends Equatable {
         if (mimeType != null) 'mimeType': mimeType,
         if (fileSizeBytes != null) 'fileSizeBytes': fileSizeBytes,
         if (fileUrl != null) 'fileUrl': fileUrl,
+        if (previewUrl != null) 'previewUrl': previewUrl,
         if (createdAt != null) 'createdAt': createdAt,
       };
 
   @override
   List<Object?> get props =>
-      [id, docType, fileName, mimeType, fileSizeBytes, fileUrl, createdAt];
+      [id, docType, fileName, mimeType, fileSizeBytes, fileUrl, previewUrl, createdAt];
+
+  /// Превью для списков/миниатюр; скачивание — [fileUrl].
+  String? get displayImageUrl {
+    final p = previewUrl?.trim();
+    if (p != null && p.isNotEmpty) return p;
+    return fileUrl?.trim();
+  }
 }

@@ -16,7 +16,8 @@ async function markOneCUpdatePending(pool, requestId, result) {
     `UPDATE customs_requests
      SET one_c_update_pending = 1,
          one_c_update_last_error_json = ?,
-         one_c_update_last_attempt_at = CURRENT_TIMESTAMP(3)
+         one_c_update_last_attempt_at = CURRENT_TIMESTAMP(3),
+         one_c_update_first_failed_at = COALESCE(one_c_update_first_failed_at, CURRENT_TIMESTAMP(3))
      WHERE id = ? AND deleted_at IS NULL`,
     [buildOneCUpdateErrorJson(result), requestId],
   );
@@ -27,7 +28,8 @@ async function markOneCUpdateSynced(pool, requestId) {
     `UPDATE customs_requests
      SET one_c_update_pending = 0,
          one_c_update_last_error_json = NULL,
-         one_c_update_last_attempt_at = CURRENT_TIMESTAMP(3)
+         one_c_update_last_attempt_at = CURRENT_TIMESTAMP(3),
+         one_c_update_first_failed_at = NULL
      WHERE id = ? AND deleted_at IS NULL`,
     [requestId],
   );

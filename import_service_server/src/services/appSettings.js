@@ -1,7 +1,8 @@
 async function getAppSettings(pool) {
   const [rows] = await pool.query(
     `SELECT one_c_request_create_url, one_c_request_create_bearer_token,
-            one_c_request_update_url, one_c_request_update_bearer_token, updated_at
+            one_c_request_update_url, one_c_request_update_bearer_token,
+            retention_months, one_c_outbound_alert_last_at, updated_at
      FROM app_settings WHERE id = 1 LIMIT 1`,
   );
   const row = rows[0] || {};
@@ -10,8 +11,16 @@ async function getAppSettings(pool) {
     oneCRequestCreateBearerToken: String(row.one_c_request_create_bearer_token || '').trim(),
     oneCRequestUpdateUrl: String(row.one_c_request_update_url || '').trim(),
     oneCRequestUpdateBearerToken: String(row.one_c_request_update_bearer_token || '').trim(),
+    retentionMonths: Math.max(1, Math.min(120, Number(row.retention_months) || 6)),
+    oneCOutboundAlertLastAt: row.one_c_outbound_alert_last_at || null,
     updatedAt: row.updated_at || null,
   };
+}
+
+async function updateRetentionMonths(pool, retentionMonths) {
+  const months = Math.max(1, Math.min(120, Number(retentionMonths) || 6));
+  await pool.query(`UPDATE app_settings SET retention_months = ? WHERE id = 1`, [months]);
+  return getAppSettings(pool);
 }
 
 async function updateOneCRequestCreateSettings(pool, { url, updateUrl, bearerToken }) {
@@ -49,4 +58,5 @@ async function updateOneCRequestCreateSettings(pool, { url, updateUrl, bearerTok
 module.exports = {
   getAppSettings,
   updateOneCRequestCreateSettings,
+  updateRetentionMonths,
 };

@@ -1,11 +1,18 @@
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const { expiresInToMs } = require('../util/time');
-const { getAppSettings, updateOneCRequestCreateSettings } = require('../services/appSettings');
-const { submitCustomsRequestTo1CFromDb } = require('../services/oneCRequestCreate');
+const { getAppSettings, updateOneCRequestCreateSettings, updateRetentionMonths } = require('../services/appSettings');
+const { pushCustomsRequestCreateTo1C } = require('../services/oneCCreateSync');
 const { pushCustomsRequestUpdateTo1C } = require('../services/oneCUpdateSync');
 const { resolveOneCUpdateUrl } = require('../services/oneCRequestUpdate');
 const { CUSTOMS_REQUEST_SELECT, toCustomsRequestDto } = require('../util/customsRequestDto');
+const { CUSTOMS_REQUEST_FILE_SELECT } = require('../util/requestFileStorage');
+const { deleteCustomsRequestWithFiles } = require('../services/requestDeletion');
+const {
+  getStorageStats,
+  fetchStaleOutbound,
+  runDailyRetentionPurge,
+} = require('../services/backgroundJobs');
 const { toOrganizationDto } = require('../util/organizationDto');
 
 const ORGANIZATION_SELECT =
@@ -304,7 +311,7 @@ module.exports = async function adminRoutes(fastify) {
         `SELECT ${CUSTOMS_REQUEST_SELECT}
          FROM customs_requests
          WHERE ${whereSql}
-         ORDER BY (status = 'new') DESC, one_c_update_pending DESC, id DESC
+         ORDER BY (status = 'new') DESC, one_c_create_pending DESC, one_c_update_pending DESC, id DESC
          LIMIT ? OFFSET ?`,
         [...args, limit, offset],
       );
@@ -334,7 +341,7 @@ module.exports = async function adminRoutes(fastify) {
       }
 
       const [fileRows] = await fastify.pool.query(
-        `SELECT id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url, created_at, updated_at
+        `SELECT ${CUSTOMS_REQUEST_FILE_SELECT}
          FROM customs_request_files WHERE request_id = ? AND deleted_at IS NULL ORDER BY id ASC`,
         [id],
       );
@@ -375,7 +382,7 @@ module.exports = async function adminRoutes(fastify) {
         });
       }
 
-      const result = await submitCustomsRequestTo1CFromDb(fastify, id);
+      const result = await pushCustomsRequestCreateTo1C(fastify, id);
       if (result.skipped) {
         return reply.code(503).send({
           error: 'ONE_C_URL_NOT_CONFIGURED',
@@ -398,7 +405,7 @@ module.exports = async function adminRoutes(fastify) {
         [id],
       );
       const [fileRows] = await fastify.pool.query(
-        `SELECT id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url, created_at, updated_at
+        `SELECT ${CUSTOMS_REQUEST_FILE_SELECT}
          FROM customs_request_files WHERE request_id = ? AND deleted_at IS NULL ORDER BY id ASC`,
         [id],
       );
@@ -466,7 +473,7 @@ module.exports = async function adminRoutes(fastify) {
         [id],
       );
       const [fileRows] = await fastify.pool.query(
-        `SELECT id, doc_type, original_name, stored_name, mime_type, file_size_bytes, file_url, created_at, updated_at
+        `SELECT ${CUSTOMS_REQUEST_FILE_SELECT}
          FROM customs_request_files WHERE request_id = ? AND deleted_at IS NULL ORDER BY id ASC`,
         [id],
       );
@@ -478,6 +485,127 @@ module.exports = async function adminRoutes(fastify) {
         },
         item: toCustomsRequestDto(fastify, request, updatedRows[0], fileRows, detailDtoOptions),
       });
+    },
+  );
+
+  fastify.delete(
+    '/admin/customs-requests/:id',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+      const r = await deleteCustomsRequestWithFiles(fastify.pool, id);
+      if (r.error === 'NOT_FOUND') {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      if (!r.ok) {
+        return reply.code(500).send({ error: 'DELETE_FAILED' });
+      }
+      return reply.send({ ok: true, deletedFiles: r.deletedFiles || 0 });
+    },
+  );
+
+  fastify.get(
+    '/admin/storage/stats',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (_request, reply) => {
+      const settings = await getAppSettings(fastify.pool);
+      const stats = await getStorageStats();
+      const staleOutbound = await fetchStaleOutbound(fastify.pool);
+      const [topRows] = await fastify.pool.query(
+        `SELECT r.id, r.status, r.updated_at,
+                COALESCE(SUM(f.file_size_bytes), 0) AS bytes
+         FROM customs_requests r
+         LEFT JOIN customs_request_files f
+           ON f.request_id = r.id AND f.deleted_at IS NULL
+         WHERE r.deleted_at IS NULL
+         GROUP BY r.id
+         ORDER BY bytes DESC
+         LIMIT 15`,
+      );
+      return reply.send({
+        ...stats,
+        retentionMonths: settings.retentionMonths,
+        oneCOutboundAlertLastAt: settings.oneCOutboundAlertLastAt,
+        staleOutbound,
+        topRequestsByBytes: topRows.map((row) => ({
+          id: String(row.id),
+          status: row.status,
+          updatedAt: row.updated_at,
+          bytes: Number(row.bytes),
+        })),
+      });
+    },
+  );
+
+  fastify.get(
+    '/admin/storage/expired-closed',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const settings = await getAppSettings(fastify.pool);
+      const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
+      const months = settings.retentionMonths;
+      const [rows] = await fastify.pool.query(
+        `SELECT r.id, r.owner_full_name, r.vin, r.updated_at,
+                COALESCE(SUM(f.file_size_bytes), 0) AS bytes
+         FROM customs_requests r
+         LEFT JOIN customs_request_files f
+           ON f.request_id = r.id AND f.deleted_at IS NULL
+         WHERE r.deleted_at IS NULL
+           AND r.status = 'closed'
+           AND r.updated_at < DATE_SUB(NOW(3), INTERVAL ? MONTH)
+         GROUP BY r.id
+         ORDER BY r.updated_at ASC
+         LIMIT ?`,
+        [months, limit],
+      );
+      return reply.send({
+        retentionMonths: months,
+        items: rows.map((row) => ({
+          id: String(row.id),
+          ownerFullName: row.owner_full_name,
+          vin: row.vin,
+          updatedAt: row.updated_at,
+          bytes: Number(row.bytes),
+        })),
+      });
+    },
+  );
+
+  fastify.put(
+    '/admin/storage/retention',
+    {
+      onRequest: [fastify.authenticateAdmin],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['retentionMonths'],
+          properties: {
+            retentionMonths: { type: 'integer', minimum: 1, maximum: 120 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const updated = await updateRetentionMonths(
+        fastify.pool,
+        request.body.retentionMonths,
+      );
+      return reply.send({
+        ok: true,
+        retentionMonths: updated.retentionMonths,
+      });
+    },
+  );
+
+  fastify.post(
+    '/admin/storage/purge-expired',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (_request, reply) => {
+      const purge = await runDailyRetentionPurge(fastify);
+      return reply.send({ ok: true, ...purge });
     },
   );
 
@@ -516,12 +644,7 @@ module.exports = async function adminRoutes(fastify) {
         return reply.send({ ok: true, deleted: false, reason: 'NO_ACTIVE_DEMO_REQUEST' });
       }
       const id = Number(rows[0].id);
-      await fastify.pool.query(
-        `UPDATE customs_requests
-         SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
-         WHERE id = ? AND deleted_at IS NULL`,
-        [id],
-      );
+      await deleteCustomsRequestWithFiles(fastify.pool, id);
       return reply.send({ ok: true, deleted: true, requestId: id });
     },
   );

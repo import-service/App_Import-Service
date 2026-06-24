@@ -124,7 +124,7 @@
         <h2>Заявки на таможенное оформление</h2>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/upload</code><span class="desc">Загрузить файл в заявку (батч).</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b> multipart — <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code></p><p><b>Success:</b></p><pre>{
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Лимиты:</b> фото/PDF/документы — <b>25 МБ</b>; видео и аудио — <b>100 МБ</b> (по <code>docType</code> и mime).</p><p><b>Request:</b> multipart — <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code></p><p><b>Success:</b></p><pre>{
   "ok": true,
   "batchComplete": false,
   "file": {
@@ -132,9 +132,10 @@
     "mimeType": "image/jpeg",
     "fileSizeBytes": 12345,
     "fileUrl": "/api/customs-requests/files/r12__passport_front.jpg",
+    "previewUrl": "/api/customs-requests/files/r12__passport_front_preview.jpg",
     "replaced": false
   }
-}</pre><p>После последнего файла при создании заявки сервер отправит её в 1С.</p></div>
+}</pre><p><code>fileUrl</code> — полный файл; <code>previewUrl</code> — JPEG-превью для списков МП (только фото). После последнего файла при создании заявки сервер отправит её в 1С.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests</code><span class="desc">Создать заявку (без files в теле).</span></summary>
@@ -218,7 +219,8 @@
       "fileName": "passport-front.jpg",
       "mimeType": "image/jpeg",
       "fileSizeBytes": 12345,
-      "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+      "fileUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg",
+      "previewUrl": "/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7__passport_front_preview.jpg"
     }
   ]
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
@@ -242,8 +244,8 @@
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id</code><span class="desc">Мягко удалить заявку.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>{ "ok": true }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id</code><span class="desc">Удаление заявки из МП отключено.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Response:</b> <code>403 FORBIDDEN</code> — удаление только через админку.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id/files/:fileId</code><span class="desc">Мягко удалить файл заявки.</span></summary>
@@ -1078,6 +1080,23 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   }
 }</pre><p><b>Errors:</b></p><ul><li><code>404 NOT_FOUND</code></li><li><code>409 CONFLICT</code></li><li><code>502 ONE_C_CREATE_FAILED</code></li><li><code>503 ONE_C_URL_NOT_CONFIGURED</code></li></ul></div>
         </details>
+        <details class="card">
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/customs-requests/:id</code><span class="desc">Удалить заявку и файлы с диска.</span></summary>
+          <div class="body"><p><b>Success:</b></p><pre>{ "ok": true, "deletedFiles": 12 }</pre></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/storage/stats</code><span class="desc">Диск, uploads, retention, зависшие исходящие в 1С.</span></summary>
+          <div class="body"><p>Поля: <code>uploadsBytes</code>, <code>diskFreeBytes</code>, <code>diskTotalBytes</code>, <code>retentionMonths</code>, <code>staleOutbound[]</code>, <code>topRequestsByBytes[]</code>.</p><p>Автоудаление: только <code>status=closed</code> старше <code>retentionMonths</code> (по умолчанию 6).</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method put">PUT</span><code class="path">/api/admin/storage/retention</code><span class="desc">Срок хранения closed-заявок (месяцы).</span></summary>
+          <div class="body"><pre>{ "retentionMonths": 6 }</pre></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/storage/purge-expired</code><span class="desc">Удалить просроченные closed сейчас.</span></summary>
+          <div class="body"><p>Фоновый job тоже запускается раз в сутки.</p></div>
+        </details>
+        <div class="callout"><b>Исходящие в 1С:</b> автоповтор раз в час при <code>oneCCreatePending</code> / <code>oneCUpdatePending</code>. В DTO: <code>oneCCreateHoursPending</code>, <code>oneCUpdateHoursPending</code>, <code>oneCOutboundStaleOver24h</code>. Суточный алерт в лог и <code>one_c_outbound_daily_alerts</code>.</div>
       </section>
     </section>
     
