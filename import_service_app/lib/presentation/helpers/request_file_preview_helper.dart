@@ -64,7 +64,9 @@ bool isTechnicalRequestFileName(String? raw) {
   final value = raw?.trim() ?? '';
   if (value.isEmpty) return true;
   if (RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-').hasMatch(value)) return true;
-  if (value.contains('__') && value.length > 40) return true;
+  // Внутреннее имя на диске сервера: `{key}__{docType}.ext`
+  if (RegExp(r'^.+__[\w.-]+\.\w+$').hasMatch(value)) return true;
+  if (value.contains('__') && value.length > 24) return true;
   return false;
 }
 

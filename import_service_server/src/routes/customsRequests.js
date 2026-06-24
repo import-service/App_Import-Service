@@ -221,6 +221,7 @@ async function finalizeCustomsUpload(fastify, request, reply, {
   source,
   buf,
   mimeType,
+  clientFileName,
 }) {
   if (!docType) {
     return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'docType обязателен' });
@@ -247,6 +248,7 @@ async function finalizeCustomsUpload(fastify, request, reply, {
     docType,
     buf,
     normalize(mimeType) || 'application/octet-stream',
+    clientFileName,
   );
 
   let batchInfo = { batchComplete: false };
@@ -271,6 +273,7 @@ async function finalizeCustomsUpload(fastify, request, reply, {
     batchComplete: batchInfo.batchComplete,
     file: {
       docType: saved.docType,
+      fileName: saved.fileName,
       mimeType: saved.mimeType,
       fileSizeBytes: saved.fileSizeBytes,
       fileUrl: saved.fileUrl,
@@ -321,6 +324,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
           source: 'integration',
           buf: parsed.buffer,
           mimeType: parsed.mimeType,
+          clientFileName: parsed.fileName,
         });
       }
 
@@ -374,6 +378,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
         source,
         buf,
         mimeType: normalize(mp.mimetype) || 'application/octet-stream',
+        clientFileName: sanitizeFileName(mp.filename),
       });
     },
   );

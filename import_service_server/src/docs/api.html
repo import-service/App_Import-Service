@@ -129,6 +129,7 @@
   "batchComplete": false,
   "file": {
     "docType": "passport_front",
+    "fileName": "passport-front.jpg",
     "mimeType": "image/jpeg",
     "fileSizeBytes": 12345,
     "fileUrl": "/api/customs-requests/files/r12__passport_front.jpg",
@@ -556,7 +557,7 @@
               <tr><td><code>inn</code></td><td>Фото/скан ИНН</td><td>Да</td></tr>
               <tr><td><code>snils</code></td><td>Фото/скан СНИЛС</td><td>Да</td></tr>
               <tr><td><code>invoice</code></td><td>Инвойс на автомобиль</td><td>Да</td></tr>
-              <tr><td><code>contract</code></td><td>Контракт на покупку авто (стартовый)</td><td>Да</td></tr>
+              <tr><td><code>contract_original</code></td><td>Контракт экспортёра (оригинал при создании)</td><td>Да</td></tr>
               <tr><td><code>payment_check</code></td><td>Чек/подтверждение оплаты за авто</td><td>Да</td></tr>
               <tr><td><code>car_nameplate_photo</code></td><td>Фото шильдика/VIN-таблички</td><td>Да</td></tr>
               <tr><td><code>car_mileage_photo</code></td><td>Фото пробега (одометр)</td><td>Да</td></tr>
@@ -600,7 +601,7 @@
               <tr><td><code>epts</code></td><td>ЭПТС</td></tr>
               <tr><td><code>sbkts</code></td><td>СБКТС</td></tr>
             </table>
-            <p>Полная таблица с <code>dealType</code>: <code>docs/catalog-reference.md</code>.</p>
+            <p>На create обязателен <code>contract_original</code> (не путать с <code>contract</code> пакета на подпись). Старые заявки с <code>contract</code> при create принимаются сервером.</p>
           </div>
         </details>
         <details class="card">
@@ -763,7 +764,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
               <tr><td><code>uploadTotal</code></td><td>да</td><td>Сколько файлов в пачке (для одного файла: 1 и 1).</td></tr>
               <tr><td><code>fileBase64</code></td><td>да</td><td>Содержимое файла в base64. Альтернативные имена: <code>file</code>, <code>fileContent</code>, <code>base64</code>.</td></tr>
               <tr><td><code>mimeType</code></td><td>нет</td><td>Например <code>application/pdf</code>, <code>image/jpeg</code>.</td></tr>
-              <tr><td><code>fileName</code></td><td>нет</td><td>Имя для справки (на сервере имя строится из <code>docType</code>).</td></tr>
+              <tr><td><code>fileName</code></td><td>нет</td><td>Имя с расширением для API и 1С (<code>files[].fileName</code>, create/update). Если не передано — сервер подставит из <code>docType</code> и mime.</td></tr>
             </table>
 
             <p><b>Лимиты:</b> фото/PDF — <b>25 МБ</b>; видео/аудио — <b>100 МБ</b> (после декодирования base64).</p>
@@ -803,6 +804,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   "batchComplete": true,
   "file": {
     "docType": "contract",
+    "fileName": "contract.pdf",
     "mimeType": "application/pdf",
     "fileSizeBytes": 12345,
     "fileUrl": "/api/customs-requests/files/GUID__contract.pdf",
@@ -1189,7 +1191,7 @@ sequenceDiagram
               <li><code>inn</code></li>
               <li><code>snils</code></li>
               <li><code>invoice</code></li>
-              <li><code>contract</code></li>
+              <li><code>contract_original</code> — контракт экспортёра (оригинал при создании)</li>
               <li><code>payment_check</code> — чек оплаты за авто</li>
               <li><code>car_nameplate_photo</code> — фото VIN/таблички авто</li>
               <li><code>car_mileage_photo</code> — фото пробега авто</li>

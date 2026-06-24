@@ -5,7 +5,7 @@ const List<String> kRequestFileAttachmentI18nKeys = <String>[
   'reqInnFileLabel',
   'reqSnilsFileLabel',
   'reqInvoiceFileLabel',
-  'reqContractFileLabel',
+  'reqContractOriginalFileLabel',
   'reqPaymentReceiptFileLabel',
   'reqVinPlateFileLabel',
   'reqOdometerFileLabel',

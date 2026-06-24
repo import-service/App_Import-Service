@@ -1,4 +1,5 @@
 const { hoursSince } = require('./time');
+const { ensureDisplayFileName } = require('./displayFileName');
 
 const CUSTOMS_REQUEST_SELECT = `
   id, external_1c_id, manager_external_1c_id, manager_full_name,
@@ -248,7 +249,12 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
     dto.files = (fileRows || []).map((f) => ({
       id: String(f.id),
       docType: f.doc_type,
-      fileName: f.original_name,
+      fileName: ensureDisplayFileName({
+        docType: f.doc_type,
+        mimeType: f.mime_type,
+        storedName: f.stored_name,
+        clientFileName: f.original_name,
+      }),
       storedName: f.stored_name,
       mimeType: f.mime_type,
       fileSizeBytes: Number(f.file_size_bytes),

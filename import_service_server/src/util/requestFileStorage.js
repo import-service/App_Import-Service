@@ -1,6 +1,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { normalizeDocType } = require('../constants/customsCatalog');
+const { ensureDisplayFileName } = require('./displayFileName');
 const { generateImagePreviewBuffer, writePreviewFile, unlinkIfExists } = require('./imagePreview');
 
 function normalize(v) {
@@ -56,7 +57,16 @@ const CUSTOMS_REQUEST_FILE_SELECT = `
 /**
  * Сохранить/перезаписать файл заявки по docType.
  */
-async function upsertRequestFile(pool, uploadRoot, requestId, storageKey, docType, buffer, mimeType) {
+async function upsertRequestFile(
+  pool,
+  uploadRoot,
+  requestId,
+  storageKey,
+  docType,
+  buffer,
+  mimeType,
+  clientFileName,
+) {
   const dt = normalizeDocType(docType);
   if (!dt) {
     throw new Error('VALIDATION_ERROR: docType обязателен');
@@ -69,6 +79,12 @@ async function upsertRequestFile(pool, uploadRoot, requestId, storageKey, docTyp
 
   const fileUrl = buildFileUrl(storedName);
   const fileSizeBytes = buffer.length;
+  const displayFileName = ensureDisplayFileName({
+    docType: dt,
+    mimeType,
+    storedName,
+    clientFileName,
+  });
 
   let previewStoredName = null;
   let previewUrl = null;
@@ -105,7 +121,7 @@ async function upsertRequestFile(pool, uploadRoot, requestId, storageKey, docTyp
            updated_at = CURRENT_TIMESTAMP(3)
        WHERE id = ?`,
       [
-        storedName,
+        displayFileName,
         storedName,
         previewStoredName,
         mimeType,
@@ -124,7 +140,7 @@ async function upsertRequestFile(pool, uploadRoot, requestId, storageKey, docTyp
       [
         requestId,
         dt,
-        storedName,
+        displayFileName,
         storedName,
         previewStoredName,
         mimeType,
@@ -137,6 +153,7 @@ async function upsertRequestFile(pool, uploadRoot, requestId, storageKey, docTyp
 
   return {
     storedName,
+    fileName: displayFileName,
     fileUrl,
     previewStoredName,
     previewUrl,
@@ -152,7 +169,7 @@ async function renameRequestFilesToExternal1cId(pool, uploadRoot, requestId, ext
   const newKey = sanitizeStorageKey(external1cId);
 
   const [fileRows] = await pool.query(
-    `SELECT id, doc_type, stored_name, preview_stored_name, mime_type
+    `SELECT id, doc_type, stored_name, preview_stored_name, mime_type, original_name
      FROM customs_request_files
      WHERE request_id = ? AND deleted_at IS NULL`,
     [requestId],
@@ -193,13 +210,19 @@ async function renameRequestFilesToExternal1cId(pool, uploadRoot, requestId, ext
     }
 
     const fileUrl = buildFileUrl(newStored);
+    const displayFileName = ensureDisplayFileName({
+      docType: dt,
+      mimeType: row.mime_type,
+      storedName: newStored,
+      clientFileName: row.original_name,
+    });
     await pool.query(
       `UPDATE customs_request_files
        SET stored_name = ?, original_name = ?, file_url = ?,
            preview_stored_name = ?, preview_url = ?,
            updated_at = CURRENT_TIMESTAMP(3)
        WHERE id = ?`,
-      [newStored, newStored, fileUrl, newPreviewStored, newPreviewUrl, row.id],
+      [newStored, displayFileName, fileUrl, newPreviewStored, newPreviewUrl, row.id],
     );
   }
 

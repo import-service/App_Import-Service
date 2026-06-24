@@ -11,6 +11,29 @@ CustomsRequestFile _file(String docType) => CustomsRequestFile(
 
 void main() {
   group('groupRequestFiles signing section', () {
+    test('contract_original always in creation; legacy contract when package not started', () {
+      final groupedNew = groupRequestFiles(
+        files: [_file('contract_original'), _file('passport_front')],
+        statusSubType: 'manager_execution',
+        dealType: 'bilateral',
+      );
+      expect(
+        groupedNew.creation.any((f) => f.docType == 'contract_original'),
+        isTrue,
+      );
+      expect(groupedNew.creation.any((f) => f.docType == 'contract'), isFalse);
+
+      final groupedLegacy = groupRequestFiles(
+        files: [_file('contract'), _file('passport_front')],
+        statusSubType: 'manager_execution',
+        dealType: 'bilateral',
+      );
+      expect(
+        groupedLegacy.creation.any((f) => f.docType == 'contract'),
+        isTrue,
+      );
+    });
+
     test('TC1 bilateral + only contract/kuts → 2 signing rows, no creation contract', () {
       final files = [
         _file('passport_front'),

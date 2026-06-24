@@ -32,8 +32,8 @@ final class DefaultCarsSeed {
           fileUrl: '$_demoFileBase/invoice.pdf',
         ),
         CustomsRequestFile(
-          docType: 'contract',
-          fileName: 'contract.pdf',
+          docType: 'contract_original',
+          fileName: 'contract-original.pdf',
           fileUrl: '$_demoFileBase/contract-create.pdf',
         ),
       ],

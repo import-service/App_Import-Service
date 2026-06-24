@@ -158,7 +158,7 @@ const Set<RequestStatusSubType> kSigningPackageStartedSubTypes = {
 };
 
 
-/// Пакет на подпись выдан: `primary_documents_sent+` или есть оригинал из 1С (не creation `contract`).
+/// Пакет на подпись выдан: `primary_documents_sent+` или есть оригинал из 1С (не creation `contract_original`).
 bool isSigningPackageStarted({
   required String? statusSubType,
   required Iterable<String> fileDocTypes,

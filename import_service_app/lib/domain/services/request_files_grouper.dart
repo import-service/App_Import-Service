@@ -77,11 +77,22 @@ RequestFilesGrouped groupRequestFiles({
   for (final type in CustomsDocType.creationTypes) {
     final list = byCode[type.apiCode];
     if (list == null) continue;
-    for (final f in list) {
-      if (type == CustomsDocType.contract && signingContractActive) {
-        continue;
+    creation.addAll(list);
+  }
+  // Старые заявки: `contract` в первичной пачке до пакета на подпись.
+  if (!signingContractActive) {
+    final legacyContracts = byCode[CustomsDocType.contract.apiCode];
+    if (legacyContracts != null) {
+      for (final f in legacyContracts) {
+        if (!creation.any(
+          (e) =>
+              CustomsDocType.normalizeCode(e.docType) ==
+                  CustomsDocType.contract.apiCode &&
+              e.fileUrl == f.fileUrl,
+        )) {
+          creation.add(f);
+        }
       }
-      creation.add(f);
     }
   }
 

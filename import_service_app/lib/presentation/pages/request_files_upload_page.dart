@@ -210,7 +210,7 @@ class _RequestFilesUploadPageState extends State<RequestFilesUploadPage> {
                 _row(s.text('reqInnFileLabel'), _innPaths, markRequired: true),
                 _row(s.text('reqSnilsFileLabel'), _snilsPaths, markRequired: true),
                 _row(s.text('reqInvoiceFileLabel'), _invoicePaths, markRequired: true),
-                _row(s.text('reqContractFileLabel'), _contractPaths, markRequired: true),
+                _row(s.text('reqContractOriginalFileLabel'), _contractPaths, markRequired: true),
                 _row(s.text('reqPaymentReceiptFileLabel'), _paymentReceiptPaths, markRequired: true),
                 _row(s.text('reqVinPlateFileLabel'), _vinPlatePhotoPaths, markRequired: true),
                 _row(s.text('reqOdometerFileLabel'), _odometerPhotoPaths, markRequired: true),

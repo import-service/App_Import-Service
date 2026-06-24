@@ -38,8 +38,10 @@ String docTypeLabelForType(CustomsDocType type, JsonStringsService s, {String? f
       return s.text('reqSnilsFileLabel');
     case CustomsDocType.invoice:
       return s.text('reqInvoiceFileLabel');
+    case CustomsDocType.contractOriginal:
+      return s.text('reqContractOriginalFileLabel');
     case CustomsDocType.contract:
-      return s.text('reqContractFileLabel');
+      return s.text('docContractSigning');
     case CustomsDocType.paymentCheck:
       return s.text('reqPaymentReceiptFileLabel');
     case CustomsDocType.carNameplatePhoto:

@@ -1,4 +1,5 @@
 const { getAppSettings } = require('./appSettings');
+const { ensureDisplayFileName } = require('../util/displayFileName');
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_ONE_C_BODY_CHARS = 4000;
@@ -70,7 +71,12 @@ function buildCreatePayloadFromRow(requestId, row, fileRows) {
     isTest: Boolean(row.is_test),
     files: fileRows.map((f) => ({
       docType: normalize(f.doc_type),
-      fileName: normalize(f.original_name),
+      fileName: ensureDisplayFileName({
+        docType: f.doc_type,
+        mimeType: f.mime_type,
+        storedName: f.stored_name,
+        clientFileName: f.original_name,
+      }),
       mimeType: normalize(f.mime_type) || 'application/octet-stream',
       fileUrl: normalize(f.file_url),
     })),
@@ -243,7 +249,7 @@ async function submitCustomsRequestTo1CFromDb(fastify, requestId) {
     return { ok: false, error: 'NOT_FOUND' };
   }
   const [fileRows] = await fastify.pool.query(
-    `SELECT doc_type, original_name, mime_type, file_url
+    `SELECT doc_type, original_name, stored_name, mime_type, file_url
      FROM customs_request_files WHERE request_id = ? AND deleted_at IS NULL ORDER BY id ASC`,
     [requestId],
   );

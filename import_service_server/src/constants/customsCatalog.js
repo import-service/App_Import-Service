@@ -151,7 +151,12 @@ const DOCUMENT_TYPES = [
   { code: 'inn', label: 'ИНН', category: 'creation', requiredOnCreate: true },
   { code: 'snils', label: 'СНИЛС', category: 'creation', requiredOnCreate: true },
   { code: 'invoice', label: 'Инвойс', category: 'creation', requiredOnCreate: true },
-  { code: 'contract', label: 'Контракт (при создании)', category: 'creation', requiredOnCreate: true },
+  {
+    code: 'contract_original',
+    label: 'Контракт экспортёра (оригинал)',
+    category: 'creation',
+    requiredOnCreate: true,
+  },
   { code: 'payment_check', label: 'Чек оплаты за авто', category: 'creation', requiredOnCreate: true },
   { code: 'car_nameplate_photo', label: 'Фото шильдика (VIN)', category: 'creation', requiredOnCreate: true },
   { code: 'car_mileage_photo', label: 'Фото пробега', category: 'creation', requiredOnCreate: true },
@@ -164,6 +169,7 @@ const DOCUMENT_TYPES = [
   { code: 'kuts', label: 'КУТС', category: 'signing' },
   { code: 'explanatory_note', label: 'Пояснение', category: 'signing' },
   { code: 'customs_rep_agreement', label: 'Договор таможенного представителя', category: 'signing' },
+  { code: 'contract', label: 'Контракт (пакет на подпись, от менеджера)', category: 'signing' },
   {
     code: 'funds_transfer_application',
     label: 'Заявление на перевод остатков средств (после растаможивания)',
@@ -209,6 +215,13 @@ const DOCUMENT_TYPE_CODES = DOCUMENT_TYPES.map((d) => d.code);
 const LEGACY_STATUS_SUB_TYPE_ALIASES = {
   manager_assigned: 'manager_execution',
 };
+
+/** При create: старые заявки могли грузить `contract` вместо `contract_original`. */
+function satisfiesRequiredOnCreate(haveSet, requiredCode) {
+  if (haveSet.has(requiredCode)) return true;
+  if (requiredCode === 'contract_original' && haveSet.has('contract')) return true;
+  return false;
+}
 
 function normalizeDocType(docType) {
   return String(docType ?? '').trim();
@@ -302,4 +315,5 @@ module.exports = {
   docTypeLabel,
   docTypeCategory,
   signedDocType,
+  satisfiesRequiredOnCreate,
 };

@@ -1,4 +1,5 @@
 const { normalizeDocType } = require('../constants/customsCatalog');
+const { ensureDisplayFileName } = require('./displayFileName');
 
 function isSignedDocType(docType) {
   return String(docType || '').trim().endsWith('_sign');
@@ -19,9 +20,17 @@ function isClientUploadedDocType(docType) {
 function toIntegrationFileRef(file) {
   if (!file) return null;
   const docType = file.docType ?? file.doc_type;
+  const dt = normalizeDocType(docType);
+  const storedName = file.storedName ?? file.stored_name ?? '';
+  const clientName = file.fileName ?? file.original_name ?? file.originalName ?? '';
   return {
-    docType: normalizeDocType(docType),
-    fileName: file.fileName ?? file.original_name ?? file.originalName ?? '',
+    docType: dt,
+    fileName: ensureDisplayFileName({
+      docType: dt,
+      mimeType: file.mimeType ?? file.mime_type ?? null,
+      storedName: storedName || clientName,
+      clientFileName: clientName,
+    }),
     mimeType: file.mimeType ?? file.mime_type ?? null,
     fileUrl: file.fileUrl ?? file.file_url ?? '',
   };

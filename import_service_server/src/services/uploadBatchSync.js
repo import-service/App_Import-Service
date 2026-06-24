@@ -1,4 +1,5 @@
-const { normalizeDocType, REQUIRED_DOCUMENT_TYPES_ON_CREATE } = require('../constants/customsCatalog');
+const { normalizeDocType, REQUIRED_DOCUMENT_TYPES_ON_CREATE, satisfiesRequiredOnCreate } = require('../constants/customsCatalog');
+const { ensureDisplayFileName } = require('../util/displayFileName');
 const { storageKeyForRequest, renameRequestFilesToExternal1cId } = require('../util/requestFileStorage');
 const { submitCustomsRequestTo1CFromDb } = require('./oneCRequestCreate');
 const { pushCustomsRequestCreateTo1C } = require('./oneCCreateSync');
@@ -102,7 +103,9 @@ function validateCreateDocuments(pool, requestId) {
     )
     .then(([rows]) => {
       const have = new Set(rows.map((r) => normalizeDocType(r.doc_type)));
-      const missing = REQUIRED_DOCUMENT_TYPES_ON_CREATE.filter((t) => !have.has(t));
+      const missing = REQUIRED_DOCUMENT_TYPES_ON_CREATE.filter(
+        (t) => !satisfiesRequiredOnCreate(have, t),
+      );
       if (missing.length) {
         throw new Error(
           `VALIDATION_ERROR: не загружены обязательные документы: ${missing.join(', ')}`,
@@ -183,14 +186,19 @@ async function syncAfterBatchComplete(fastify, requestId, source, changedDocType
 
 async function fetchAllFilesForOneC(pool, requestId) {
   const [rows] = await pool.query(
-    `SELECT doc_type, original_name, mime_type, file_url
+    `SELECT doc_type, original_name, stored_name, mime_type, file_url
      FROM customs_request_files
      WHERE request_id = ? AND deleted_at IS NULL`,
     [requestId],
   );
   return rows.map((r) => ({
     docType: normalizeDocType(r.doc_type),
-    fileName: r.original_name,
+    fileName: ensureDisplayFileName({
+      docType: r.doc_type,
+      mimeType: r.mime_type,
+      storedName: r.stored_name,
+      clientFileName: r.original_name,
+    }),
     mimeType: r.mime_type,
     fileUrl: r.file_url,
   }));

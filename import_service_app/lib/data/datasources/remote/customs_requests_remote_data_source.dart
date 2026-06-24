@@ -71,7 +71,7 @@ final class CustomsRequestsRemoteDataSource {
       (docType: 'inn', paths: form.innPaths),
       (docType: 'snils', paths: form.snilsPaths),
       (docType: 'invoice', paths: form.invoicePaths),
-      (docType: 'contract', paths: form.contractPaths),
+      (docType: 'contract_original', paths: form.contractPaths),
       (docType: 'payment_check', paths: form.paymentReceiptPaths),
       (docType: 'car_nameplate_photo', paths: form.vinPlatePhotoPaths),
       (docType: 'car_mileage_photo', paths: form.odometerPhotoPaths),
@@ -447,6 +447,7 @@ final class CustomsRequestsRemoteDataSource {
         fileUrl: nested['fileUrl'] as String? ?? nested['file_url'] as String?,
         previewUrl:
             nested['previewUrl'] as String? ?? nested['preview_url'] as String?,
+        fileName: nested['fileName'] as String? ?? nested['file_name'] as String?,
         mimeType: nested['mimeType'] as String?,
         fileSizeBytes: nested['fileSizeBytes'] is int
             ? nested['fileSizeBytes'] as int
@@ -459,6 +460,7 @@ final class CustomsRequestsRemoteDataSource {
       batchComplete: batchComplete,
       fileUrl: _extractUploadedFileUrl(data),
       previewUrl: _extractUploadedPreviewUrl(data),
+      fileName: _extractUploadedFileName(data),
     );
   }
 
@@ -482,6 +484,19 @@ final class CustomsRequestsRemoteDataSource {
       final nested = data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
       if (nested is Map<String, dynamic>) {
         final v = nested['previewUrl'] ?? nested['preview_url'];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+    }
+    return null;
+  }
+
+  static String? _extractUploadedFileName(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final direct = data['fileName'] ?? data['file_name'];
+      if (direct is String && direct.trim().isNotEmpty) return direct.trim();
+      final nested = data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
+      if (nested is Map<String, dynamic>) {
+        final v = nested['fileName'] ?? nested['file_name'];
         if (v is String && v.trim().isNotEmpty) return v.trim();
       }
     }
