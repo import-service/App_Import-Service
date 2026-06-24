@@ -766,7 +766,18 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
               <tr><td><code>fileName</code></td><td>нет</td><td>Имя для справки (на сервере имя строится из <code>docType</code>).</td></tr>
             </table>
 
+            <p><b>Лимиты:</b> фото/PDF — <b>25 МБ</b>; видео/аудио — <b>100 МБ</b> (после декодирования base64).</p>
+
             <p><b>1С:</b> в <code>HTTPЗапрос</code> задайте <code>Content-Type: application/json</code> и тело — сериализованная структура (файл предварительно в base64). Не отправляйте бинарник как multipart.</p>
+
+            <p><b>Success (фрагмент):</b></p>
+            <pre>{
+  "ok": true,
+  "file": {
+    "fileUrl": "/api/customs-requests/files/GUID__passport_front.jpg",
+    "previewUrl": "/api/customs-requests/files/GUID__passport_front_preview.jpg"
+  }
+}</pre>
 
             <p><b>Ошибки:</b></p>
             <ul>
