@@ -130,6 +130,8 @@
   "requestFileAttachSuccess": "Файл загружен",
   "requestFileAttachFailedGeneric": "Не удалось загрузить файл",
   "requestFileAttachFailed": "Не удалось загрузить: {docs}",
+  "requestFileTooLargePhoto": "Файл слишком большой (максимум 25 МБ)",
+  "requestFileTooLargeVideo": "Файл слишком большой (максимум 100 МБ)",
   "requestDocSignedSuffix": "подписанный",
   "requestFileGeneric": "Файл",
   "docRecyclingFeeCalc": "Расчёт утилизационного сбора",

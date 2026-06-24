@@ -444,7 +444,9 @@ final class CustomsRequestsRemoteDataSource {
         ok: ok,
         batchComplete: batchComplete,
         docType: nested['docType'] as String?,
-        fileUrl: nested['fileUrl'] as String?,
+        fileUrl: nested['fileUrl'] as String? ?? nested['file_url'] as String?,
+        previewUrl:
+            nested['previewUrl'] as String? ?? nested['preview_url'] as String?,
         mimeType: nested['mimeType'] as String?,
         fileSizeBytes: nested['fileSizeBytes'] is int
             ? nested['fileSizeBytes'] as int
@@ -456,6 +458,7 @@ final class CustomsRequestsRemoteDataSource {
       ok: ok,
       batchComplete: batchComplete,
       fileUrl: _extractUploadedFileUrl(data),
+      previewUrl: _extractUploadedPreviewUrl(data),
     );
   }
 
@@ -466,6 +469,19 @@ final class CustomsRequestsRemoteDataSource {
       final nested = data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
       if (nested is Map<String, dynamic>) {
         final v = nested['fileUrl'] ?? nested['url'];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+    }
+    return null;
+  }
+
+  static String? _extractUploadedPreviewUrl(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final direct = data['previewUrl'] ?? data['preview_url'];
+      if (direct is String && direct.trim().isNotEmpty) return direct.trim();
+      final nested = data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
+      if (nested is Map<String, dynamic>) {
+        final v = nested['previewUrl'] ?? nested['preview_url'];
         if (v is String && v.trim().isNotEmpty) return v.trim();
       }
     }

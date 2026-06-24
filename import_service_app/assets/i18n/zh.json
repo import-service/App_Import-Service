@@ -130,6 +130,8 @@
   "requestFileAttachSuccess": "文件已上传",
   "requestFileAttachFailedGeneric": "无法上传文件",
   "requestFileAttachFailed": "无法上传：{docs}",
+  "requestFileTooLargePhoto": "文件过大（最大 25 MB）",
+  "requestFileTooLargeVideo": "文件过大（最大 100 MB）",
   "requestDocSignedSuffix": "已签署",
   "requestFileGeneric": "文件",
   "docRecyclingFeeCalc": "报废回收费计算",

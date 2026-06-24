@@ -3,17 +3,39 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
+import 'package:import_service_app/domain/entities/customs_doc_type.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// URL для миниатюры (previewUrl или полный fileUrl).
-String? requestFileThumbnailUrl(CustomsRequestFile file) =>
-    file.displayImageUrl;
+bool isRequestFileVideo(CustomsRequestFile file) {
+  final mime = file.mimeType?.trim().toLowerCase() ?? '';
+  if (mime.startsWith('video/')) return true;
+  final code = CustomsDocType.normalizeCode(file.docType ?? '');
+  if (code == CustomsDocType.transitArchiveVideo.apiCode) return true;
+  if (code.endsWith('_video')) return true;
+  final probe = '${file.fileName ?? ''} ${file.fileUrl ?? ''}'.toLowerCase();
+  return RegExp(r'\.(mp4|mov|webm|mkv|avi|m4v)$').hasMatch(probe);
+}
 
-/// URL для скачивания / полноразмерного просмотра.
+/// URL для миниатюры: фото — previewUrl ?? fileUrl; видео — только previewUrl.
+String? requestFileThumbnailUrl(CustomsRequestFile file) {
+  if (isRequestFileVideo(file)) {
+    final preview = file.previewUrl?.trim();
+    return (preview != null && preview.isNotEmpty) ? preview : null;
+  }
+  if (isRequestFileImage(file)) {
+    final preview = file.previewUrl?.trim();
+    if (preview != null && preview.isNotEmpty) return preview;
+    return file.fileUrl?.trim();
+  }
+  return null;
+}
+
+/// URL для скачивания / полноразмерного просмотра / плеера.
 String? requestFileFullUrl(CustomsRequestFile file) => file.fileUrl?.trim();
+
 bool isRequestFileImage(CustomsRequestFile file) {
   final mime = file.mimeType?.trim().toLowerCase() ?? '';
   if (mime.startsWith('image/')) return true;

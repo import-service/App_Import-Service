@@ -18,6 +18,7 @@ import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/domain/entities/create_vehicle_result.dart';
 import 'package:import_service_app/domain/entities/request_files_batch_upload_result.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
+import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
 import 'package:import_service_app/presentation/pages/request_files_upload_page.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_logout_outlined_wide_button.dart';
@@ -419,10 +420,15 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     await result.fold<Future<void>>(
       (Failure f) async {
         final msg = _userFriendlySubmitError(f, strings);
+        final isSizeLimit =
+            resolveRequestFileSizeLimitMessage(f.message.trim(), strings) != null;
         if (mounted) {
           setState(() => _submitRuntimeError = msg);
         }
-        sl<AppFeedbackService>().show(msg, kind: AppFeedbackKind.error);
+        sl<AppFeedbackService>().show(
+          msg,
+          kind: isSizeLimit ? AppFeedbackKind.warning : AppFeedbackKind.error,
+        );
       },
       (RequestFilesBatchUploadResult batch) async {
         if (!batch.allSucceeded) {
@@ -506,6 +512,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
 
   String _userFriendlySubmitError(Failure f, JsonStringsService s) {
     final raw = f.message.trim();
+    final sizeMsg = resolveRequestFileSizeLimitMessage(raw, s);
+    if (sizeMsg != null) return sizeMsg;
     final low = raw.toLowerCase();
     if (low.contains('payload too large') ||
         low.contains('body too large') ||

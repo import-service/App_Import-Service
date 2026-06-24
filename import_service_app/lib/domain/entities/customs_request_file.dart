@@ -51,10 +51,12 @@ final class CustomsRequestFile extends Equatable {
   List<Object?> get props =>
       [id, docType, fileName, mimeType, fileSizeBytes, fileUrl, previewUrl, createdAt];
 
-  /// Превью для списков/миниатюр; скачивание — [fileUrl].
+  /// Превью для списков/миниатюр; для видео без poster — null. Скачивание — [fileUrl].
   String? get displayImageUrl {
-    final p = previewUrl?.trim();
-    if (p != null && p.isNotEmpty) return p;
+    final preview = previewUrl?.trim();
+    if (preview != null && preview.isNotEmpty) return preview;
+    final mime = mimeType?.trim().toLowerCase() ?? '';
+    if (mime.startsWith('video/')) return null;
     return fileUrl?.trim();
   }
 }

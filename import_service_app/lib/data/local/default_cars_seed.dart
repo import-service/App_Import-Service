@@ -24,6 +24,7 @@ final class DefaultCarsSeed {
           docType: 'passport_front',
           fileName: 'passport-front.jpg',
           fileUrl: '$_demoFileBase/passport-front.jpg',
+          previewUrl: '$_demoFileBase/passport-front.jpg',
         ),
         CustomsRequestFile(
           docType: 'invoice',
@@ -88,11 +89,13 @@ final class DefaultCarsSeed {
           docType: 'transit_archive_photo_1',
           fileName: 'transit-1.jpg',
           fileUrl: '$_demoFileBase/transit-photo-1.jpg',
+          previewUrl: '$_demoFileBase/transit-photo-1.jpg',
         ),
         CustomsRequestFile(
           docType: 'transit_archive_photo_2',
           fileName: 'transit-2.jpg',
           fileUrl: '$_demoFileBase/transit-photo-2.jpg',
+          previewUrl: '$_demoFileBase/transit-photo-2.jpg',
         ),
         CustomsRequestFile(
           docType: 'transit_archive_video',

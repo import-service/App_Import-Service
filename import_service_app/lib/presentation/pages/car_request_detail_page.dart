@@ -19,10 +19,8 @@ import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/themes/request_status_list_style.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
-import 'package:import_service_app/domain/entities/customs_doc_type.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
-import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_state.dart';
@@ -38,10 +36,10 @@ import 'package:import_service_app/presentation/helpers/request_status_labels.da
 import 'package:import_service_app/presentation/pages/request_pdf_viewer_page.dart';
 import 'package:import_service_app/presentation/helpers/request_file_preview_helper.dart';
 import 'package:import_service_app/presentation/helpers/request_file_uploaded_indicator.dart';
+import 'package:import_service_app/core/utils/request_file_upload_validation.dart';
 import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/request_status_sub_type_labels.dart';
-import 'package:import_service_app/presentation/pages/request_create_page.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_action_hint_banner.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_files_sections.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_deliverable_doc_row.dart';
@@ -122,6 +120,15 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     if (_uploadingDocType != null) return;
     final path = await pickRequestDocumentPath(context);
     if (!mounted || path == null || path.isEmpty) return;
+    final s = sl<JsonStringsService>();
+    final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
+    if (sizeKey != null) {
+      sl<AppFeedbackService>().show(
+        s.text(sizeKey),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
     setState(() => _uploadingDocType = docType);
     final result = await sl<CarsRepository>().attachRequestFile(
       requestId: item.id,
@@ -131,7 +138,6 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     if (!mounted) return;
     setState(() => _uploadingDocType = null);
     final feedback = sl<AppFeedbackService>();
-    final s = sl<JsonStringsService>();
     await result.fold(
       (failure) async {
         await sl<CarsRepository>().getVehicle(item.id);
@@ -144,9 +150,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         if (uploadedDespiteError) {
           await _onAttachSucceeded(docType: docType, itemId: item.id);
         } else {
+          final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
           feedback.show(
-            requestAttachFailureMessage(failure.message, s),
-            kind: AppFeedbackKind.error,
+            sizeMsg ?? requestAttachFailureMessage(failure.message, s),
+            kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
           );
         }
       },
@@ -200,19 +207,24 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   }) {
     final title = docTypeLabel(f, sl<JsonStringsService>());
     final showUploadedCheck = shouldShowUploadedCheck(f);
-    final showImagePreview = isRequestFileImage(f);
+    final isVideo = isRequestFileVideo(f);
     final showPdfIcon = isRequestFilePdf(f);
-    final rawPath = f.fileUrl?.trim();
+    final rawPath = requestFileFullUrl(f);
     final localFile = rawPath != null &&
             rawPath.isNotEmpty &&
             !rawPath.startsWith('http') &&
             File(rawPath).existsSync()
         ? File(rawPath)
         : null;
-    final url = localFile == null
+    final thumbUrl = localFile == null
         ? _resolveFileUrl(requestFileThumbnailUrl(f))
         : null;
-    final tappable = localFile != null || (url != null && url.isNotEmpty);
+    final hasOpenTarget = localFile != null ||
+        (rawPath != null && rawPath.isNotEmpty);
+    final showThumbImage =
+        localFile != null || (thumbUrl != null && thumbUrl.isNotEmpty);
+    final showVideoIcon = isVideo && !showThumbImage;
+    final tappable = onTap != null && hasOpenTarget;
     final token = sl<AuthSessionController>().accessToken?.trim();
     final headers = (token != null && token.isNotEmpty)
         ? <String, String>{'Authorization': 'Bearer $token'}
@@ -242,7 +254,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                   : borderColor,
             ),
           ),
-          child: tappable && showImagePreview
+          child: showThumbImage
               ? localFile != null
                   ? Image.file(
                       localFile,
@@ -256,22 +268,26 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                       ),
                     )
                   : Image.network(
-                      url!,
+                      thumbUrl!,
                       headers: headers,
                       fit: BoxFit.cover,
                       width: 64,
                       height: 64,
                       errorBuilder: (_, _, _) => Icon(
-                        Icons.insert_drive_file_outlined,
+                        isVideo
+                            ? Icons.videocam_outlined
+                            : Icons.insert_drive_file_outlined,
                         size: 24,
                         color: AppTheme.textSecondary.withValues(alpha: 0.85),
                       ),
                     )
               : Icon(
-                  showPdfIcon
-                      ? Icons.picture_as_pdf_outlined
-                      : Icons.insert_drive_file_outlined,
-                  size: 24,
+                  showVideoIcon
+                      ? Icons.play_circle_outline
+                      : showPdfIcon
+                          ? Icons.picture_as_pdf_outlined
+                          : Icons.insert_drive_file_outlined,
+                  size: showVideoIcon ? 32 : 24,
                   color: AppTheme.textSecondary.withValues(alpha: 0.85),
                 ),
         ),
@@ -563,9 +579,13 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   }
 
   Future<void> _openRequestFile(CustomsRequestFile file) async {
-    final resolved = _resolveFileUrl(file.fileUrl);
+    final resolved = _resolveFileUrl(requestFileFullUrl(file));
     if (resolved == null || resolved.isEmpty) {
       _onDocumentOpenFailed();
+      return;
+    }
+    if (isRequestFileVideo(file)) {
+      await _openExternalUrl(resolved);
       return;
     }
     if (isRequestFileImage(file)) {
@@ -624,11 +644,14 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final prepared = <_CarouselPhotoItem>[];
     for (var i = 0; i < images.length; i++) {
       final f = images[i];
-      final url = _resolveFileUrl(f.fileUrl);
-      if (url == null || url.isEmpty) continue;
+      final fullUrl = _resolveFileUrl(requestFileFullUrl(f));
+      if (fullUrl == null || fullUrl.isEmpty) continue;
+      final thumbUrl =
+          _resolveFileUrl(requestFileThumbnailUrl(f)) ?? fullUrl;
       prepared.add(
         _CarouselPhotoItem(
-          url: url,
+          fullUrl: fullUrl,
+          thumbUrl: thumbUrl,
           title: docTypeLabel(f, sl<JsonStringsService>()),
           sourceIndex: i,
         ),
@@ -780,12 +803,14 @@ String? _statusDateText(CarListItem item) {
 
 final class _CarouselPhotoItem {
   const _CarouselPhotoItem({
-    required this.url,
+    required this.fullUrl,
+    required this.thumbUrl,
     required this.title,
     required this.sourceIndex,
   });
 
-  final String url;
+  final String fullUrl;
+  final String thumbUrl;
   final String title;
   final int sourceIndex;
 }
@@ -859,7 +884,7 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                     minScale: 1,
                     maxScale: 4,
                     child: Image.network(
-                      item.url,
+                      item.fullUrl,
                       headers: headers,
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const Icon(
@@ -905,7 +930,7 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(7),
                       child: Image.network(
-                        item.url,
+                        item.thumbUrl,
                         headers: headers,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => const ColoredBox(

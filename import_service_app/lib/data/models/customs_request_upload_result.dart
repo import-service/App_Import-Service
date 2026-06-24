@@ -7,6 +7,7 @@ final class CustomsRequestUploadResponse {
     required this.batchComplete,
     this.docType,
     this.fileUrl,
+    this.previewUrl,
     this.mimeType,
     this.fileSizeBytes,
     this.replaced = false,
@@ -16,6 +17,7 @@ final class CustomsRequestUploadResponse {
   final bool batchComplete;
   final String? docType;
   final String? fileUrl;
+  final String? previewUrl;
   final String? mimeType;
   final int? fileSizeBytes;
   final bool replaced;

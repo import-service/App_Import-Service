@@ -6,6 +6,7 @@ import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/error/failures.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
+import 'package:import_service_app/core/utils/request_file_upload_validation.dart';
 import 'package:import_service_app/data/datasources/remote/customs_requests_remote_data_source.dart';
 import 'package:import_service_app/data/local/car_inventory_state_holder.dart';
 import 'package:import_service_app/data/local/default_cars_seed.dart';
@@ -95,6 +96,16 @@ final class CarsRepositoryImpl implements CarsRepository {
   }) async {
     try {
       if (!_session.isDemo) {
+        final entries = CustomsRequestsRemoteDataSource.fileEntriesFromForm(form);
+        for (final entry in entries) {
+          final sizeKey = requestFileSizeLimitMessageKey(
+            entry.localPath,
+            docType: entry.docType,
+          );
+          if (sizeKey != null) {
+            return Left(CacheFailure(sizeKey));
+          }
+        }
         final created = await _remoteDataSource.createRequestWithFiles(
           form,
           onUploadProgress: onUploadProgress,
@@ -149,6 +160,15 @@ final class CarsRepositoryImpl implements CarsRepository {
     if (items.isEmpty) {
       return const Left(CacheFailure('Нет файлов для загрузки'));
     }
+    for (final entry in items) {
+      final sizeKey = requestFileSizeLimitMessageKey(
+        entry.localPath,
+        docType: entry.docType,
+      );
+      if (sizeKey != null) {
+        return Left(CacheFailure(sizeKey));
+      }
+    }
     try {
       if (_session.isDemo) {
         await Future<void>.delayed(_networkLatency);
@@ -167,6 +187,14 @@ final class CarsRepositoryImpl implements CarsRepository {
         for (final entry in items) {
           final file = File(entry.localPath);
           if (!await file.exists()) {
+            failed.add(entry.docType);
+            continue;
+          }
+          final sizeKey = requestFileSizeLimitMessageKey(
+            entry.localPath,
+            docType: entry.docType,
+          );
+          if (sizeKey != null) {
             failed.add(entry.docType);
             continue;
           }
@@ -232,12 +260,20 @@ final class CarsRepositoryImpl implements CarsRepository {
       if (!await file.exists()) {
         failed.add(entry.docType);
       } else {
-        item = _demoAttachFile(
-          item: item,
+        final sizeKey = requestFileSizeLimitMessageKey(
+          entry.localPath,
           docType: entry.docType,
-          localPath: entry.localPath,
-          fileName: p.basename(entry.localPath),
         );
+        if (sizeKey != null) {
+          failed.add(entry.docType);
+        } else {
+          item = _demoAttachFile(
+            item: item,
+            docType: entry.docType,
+            localPath: entry.localPath,
+            fileName: p.basename(entry.localPath),
+          );
+        }
       }
       done += 1;
       onUploadProgress?.call(done, total);
@@ -296,6 +332,13 @@ final class CarsRepositoryImpl implements CarsRepository {
         if (!await file.exists()) {
           return const Left(CacheFailure('Файл не найден'));
         }
+        final sizeKey = requestFileSizeLimitMessageKey(
+          localFilePath,
+          docType: normalized,
+        );
+        if (sizeKey != null) {
+          return Left(CacheFailure(sizeKey));
+        }
         final updated = _demoAttachFile(
           item: current,
           docType: normalized,
@@ -304,6 +347,13 @@ final class CarsRepositoryImpl implements CarsRepository {
         );
         await _carInventory.upsertItem(updated);
         return Right(updated);
+      }
+      final sizeKey = requestFileSizeLimitMessageKey(
+        localFilePath,
+        docType: normalized,
+      );
+      if (sizeKey != null) {
+        return Left(CacheFailure(sizeKey));
       }
       final updated = await _remoteDataSource.attachRequestFiles(
         requestId: requestId,
@@ -347,11 +397,13 @@ final class CarsRepositoryImpl implements CarsRepository {
     required String fileName,
   }) {
     final normalized = normalizeDocType(docType);
+    final mime = _mimeFromFileName(fileName);
     final newFile = CustomsRequestFile(
       docType: normalized,
       fileName: fileName,
-      mimeType: _mimeFromFileName(fileName),
+      mimeType: mime,
       fileUrl: localPath,
+      previewUrl: mime.startsWith('image/') ? localPath : null,
       createdAt: DateTime.now().toUtc().toIso8601String(),
     );
     final nextFiles = <CustomsRequestFile>[

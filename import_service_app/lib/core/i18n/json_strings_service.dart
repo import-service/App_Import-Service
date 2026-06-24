@@ -103,6 +103,8 @@ final class JsonStringsService {
       text('requestUploadDocFile').replaceAll('{doc}', doc);
   String get requestFileAttachSuccess => text('requestFileAttachSuccess');
   String get requestFileAttachFailedGeneric => text('requestFileAttachFailedGeneric');
+  String get requestFileTooLargePhoto => text('requestFileTooLargePhoto');
+  String get requestFileTooLargeVideo => text('requestFileTooLargeVideo');
   String requestFileAttachFailed(String docs) =>
       text('requestFileAttachFailed').replaceAll('{docs}', docs);
   String get requestHintSignatureRevision => text('requestHintSignatureRevision');
