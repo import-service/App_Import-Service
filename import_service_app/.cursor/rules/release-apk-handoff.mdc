@@ -5,9 +5,10 @@ alwaysApply: false
 
 # Release APK (import_service_app)
 
-Когда пользователь просит **APK / сборку для заказчика / выложить приложение** — выполняй **весь** флоу сам, не только `flutter build apk`.
+Когда пользователь просит **APK / AAB / сборку для заказчика / iOS / выложить приложение** — выполняй **весь** флоу сам.
 
-## Порядок (жёстко)
+## Android: APK
+
 
 1. **Поднять версию** в `import_service_app/pubspec.yaml`:
    - Формат: `MAJOR.MINOR.PATCH+BUILD` (например `0.1.6+6` → `0.1.7+7`).
@@ -38,7 +39,28 @@ alwaysApply: false
 
 6. **Сообщить пользователю**: путь к APK, новая версия, что push выполнен (или ошибка).
 
-## Не делать
+## Android: AAB (Google Play / RuStore)
+
+После APK или вместо него:
+
+```powershell
+cd D:\Projects\import_servis\import_service_app
+flutter build appbundle --release
+Copy-Item -Force build\app\outputs\bundle\release\app-release.aab D:\Temp\import_service_app_1_{BUILD}.aab
+```
+
+Имя: `import_service_app_1_{BUILD}.aab`, `{BUILD}` — число после `+` в `pubspec.yaml`.
+
+## iOS (только macOS)
+
+Проект уже на **FlutterImplicitEngineDelegate + SceneDelegate** (Swift). Перед первой сборкой на Mac:
+
+- `ITSAppUsesNonExemptEncryption = false` в `ios/Runner/Info.plist` — **не спрашивает** export compliance в App Store Connect (только HTTPS).
+- Скрипт: `import_service_app/scripts/build-ios-release.sh`
+- Или: `flutter build ipa --release --export-options-plist=ios/ExportOptions.plist`
+- Подпись: Team + provisioning в Xcode (`Runner` → Signing).
+
+## Порядок версии (жёстко)
 
 - **Не** собирать APK без bump версии, если пользователь явно просил «флоу с версией».
 - **Не** класть APK только в `build/` — дубликат в **`D:\Temp`** обязателен для передачи заказчику.
