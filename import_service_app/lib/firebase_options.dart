@@ -29,10 +29,10 @@ class DefaultFirebaseOptions {
     storageBucket: 'import-service-f736b.firebasestorage.app',
   );
 
-  /// TODO: добавить iOS-приложение в Firebase и заменить значения.
+  /// iOS app import-service-f736b (GoogleService-Info.plist).
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyD8IHK34e44iRTGUj2f4DsFpaU3_Kyc7pw',
-    appId: '1:709308120184:android:499437c6795989b10a418d',
+    apiKey: 'AIzaSyCa_jjflaDsD7kkBC14ZO9_Yw7vfRg-uGk',
+    appId: '1:709308120184:ios:a6a2527990ee4b170a418d',
     messagingSenderId: '709308120184',
     projectId: 'import-service-f736b',
     storageBucket: 'import-service-f736b.firebasestorage.app',
