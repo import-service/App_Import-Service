@@ -12,6 +12,18 @@
 /*.pdf
 /*.indd
 /*.txt
+/*.docx
+/*.doc
+/*.p8
+
+# Локальные каталоги в корне (не часть монорепо)
+/images/
+/flutter_unified_image_picker/
+/ios/
+
+# Секреты и артефакты деплоя сервера
+import_service_server/*-firebase-adminsdk-*.json
+import_service_server/import-service-update.tgz
 
 # Локальные заметки / черновики в корне
 SCRATCH.md
