@@ -2,7 +2,7 @@ name: import_service_app
 description: "A new Flutter project."
 publish_to: 'none'
 # com.importservice.app
-version: 0.1.10+10
+version: 0.1.11+11
 
 environment:
   sdk: ^3.11.1
@@ -28,7 +28,7 @@ dependencies:
   flutter_unified_image_picker:
     git:
       url: https://github.com/Nykolayr/flutter_unified_image_picker.git
-      ref: main
+      ref: play-photo-picker
   flutter_localizations:
     sdk: flutter
   intl: ^0.20.2

@@ -146,7 +146,10 @@ class _RequestFilesUploadPageState extends State<RequestFilesUploadPage> {
               ),
             ),
           ),
-          child: const CameraView(hideGalleryInSheet: false),
+          child: const CameraView(
+            hideGalleryInSheet: false,
+            galleryMultiPick: false,
+          ),
         ),
       ),
     );
