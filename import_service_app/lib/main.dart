@@ -15,6 +15,7 @@ import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
+import 'package:import_service_app/core/ui/app_phone_width_scope.dart';
 import 'package:import_service_app/core/ui/app_scaffold_messenger_key.dart';
 import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
@@ -121,6 +122,9 @@ class _MyAppState extends State<MyApp> {
       builder: (context, locale, _) {
         return MaterialApp.router(
           scaffoldMessengerKey: appScaffoldMessengerKey,
+          builder: (context, child) => AppPhoneWidthScope(
+            child: child ?? const SizedBox.shrink(),
+          ),
           onGenerateTitle: (_) => sl<JsonStringsService>().appTitle,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
