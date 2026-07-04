@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// На широком экране (iPad / landscape) — колонка как на iPhone, по центру.
-/// На телефоне (≤ [wideBreakpoint]) — без изменений.
+/// На широком окне (iPad compat / resize) — колонка шириной iPhone, по центру.
+/// На телефоне в портрете (≤ [wideBreakpoint]) — без изменений.
 class AppPhoneWidthScope extends StatelessWidget {
   const AppPhoneWidthScope({required this.child, super.key});
 
-  static const double maxContentWidth = 520;
+  /// Ширина колонки ≈ iPhone Pro Max (430 pt).
+  static const double maxContentWidth = 430;
   static const double wideBreakpoint = 600;
 
   final Widget child;
