@@ -1,0 +1,37 @@
+{
+  "folders": [
+    {
+      "name": "platform",
+      "path": "."
+    },
+    {
+      "name": "server",
+      "path": "import_service_server"
+    },
+    {
+      "name": "app",
+      "path": "import_service_app"
+    },
+    {
+      "name": "admin",
+      "path": "import_service_admin"
+    },
+    {
+      "name": "docs",
+      "path": "docs"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.dart_tool": true,
+      "**/build": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/uploads": true
+    }
+  }
+}

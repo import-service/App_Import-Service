@@ -1,0 +1,45 @@
+---
+description: Обязательная проверка после правок кода — analyze/load-check до «готово»
+alwaysApply: true
+---
+
+# Проверка перед «готово»
+
+После **любых** правок кода — **до** сообщения «готово» / «можно тестировать»:
+
+## App (`import_service_app/`)
+
+```powershell
+cd import_service_app
+flutter analyze
+```
+
+- **0 errors** — обязательно.
+- При смене публичного API — grep call sites и поправить.
+
+## Admin (`import_service_admin/`)
+
+```powershell
+cd import_service_admin
+flutter analyze
+```
+
+## Server (`import_service_server/`)
+
+```powershell
+cd import_service_server
+node -e "require('./src/routes/customsRequests'); console.log('ok')"
+```
+
+- Подставить изменённые модули в `require`.
+- После правок API — обновить `docs/api-app.md` / `src/docs/api.html` при необходимости.
+- После правок server на проде — `scripts/deploy-server-vps.ps1` (см. `server-deploy-vps.mdc`).
+
+## Запрещено
+
+- Писать «готово» без analyze (Flutter) или load-check (server).
+- Менять контракт API без синхронизации `docs/`.
+
+## Если analyze не запускался
+
+Честно написать — **только** если среда реально недоступна.

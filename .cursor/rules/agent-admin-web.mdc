@@ -1,34 +1,34 @@
 ---
-description: Агент веб-админки — зона import_service_admin
+description: Фокус админки — import_service_admin (в рамках одного агента монорепо)
 globs: import_service_admin/**
 alwaysApply: false
 ---
 
-# Агент: `import_service_admin`
+# Пакет: `import_service_admin`
 
-**Сначала сверься с общей концепцией:** `.cursor/rules/project-concept.mdc`.
+**Сначала:** `.cursor/rules/project-concept.mdc`, `docs/api-app.md` (раздел админки).
 
-## Зона
+## Зона ответственности
 
-- Правки **только** в `import_service_admin/`.
-- **Не трогать** сервер и МП без явной просьбы.
+- `import_service_admin/` — Flutter web, настройки 1С, resend заявок.
+- End-to-end задачи: правки admin **вместе** с server по утверждённому плану.
 
 ## Спеки
 
-- `docs/api-app.md` (раздел админки)  
-- `docs/TZ-zayavka-mp-server-1c.md`  
-- `docs/catalog-reference.md`  
-- https://157-22-173-7.sslip.io/docs → **API админки**, **ТЗ**
+- `docs/api-app.md` — admin API
+- `docs/TZ-zayavka-mp-server-1c.md`
+- https://157-22-173-7.sslip.io/docs
 
 ## Фокус админки
 
-- URL/Bearer исходящих вызовов в 1С: **создание** (`oneCRequestCreateUrl`) и **обновление файлов** (`oneCRequestUpdateUrl`, fallback create + `/files`)
-- Повторная отправка при статусе **`new`** — `POST …/resend-to-1c`
-- Повтор **update** при **`oneCUpdatePending: true`** — `POST …/resend-update-to-1c` (красная карточка + кнопка «Повторить update в 1С»)
-- Список: сначала `new`, затем `oneCUpdatePending`, поле в DTO — `oneCUpdatePending`
-- Просмотр организаций из 1С  
-- Показ `external1cId`, ошибки 1С, статусов `new` / `on_review` / `in_progress`
+- URL/Bearer исходящих вызовов в 1С: create + update files
+- Resend-to-1c при сбое интеграции
+- Организации / пользователи
 
-## Деплой
+## Пакетные rules
 
-`scripts/deploy-admin-web.ps1` → затем `scripts/deploy-server-vps.ps1`
+`import_service_admin/.cursor/rules/` — deploy, api-docs, git-push.
+
+## Проверки
+
+`flutter analyze`. Commit/push — только по просьбе пользователя.

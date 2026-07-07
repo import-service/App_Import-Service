@@ -1,27 +1,39 @@
 ---
-description: Монорепо Import Service — где лежит концепция и границы каталогов
+description: Монорепо Import Service — один агент, общая концепция, границы по задаче
 alwaysApply: true
 ---
 
 # Монорепо `import_servis`
 
-## Общая концепция (обязательно для всех агентов)
+## Один агент
 
-**`.cursor/rules/project-concept.mdc`** — единый эталон: архитектура, статусы, документы, этапы, 1С.
+Пользователь работает с **одним агентом** на весь монорепо (app + server + admin + docs).
 
-Открывайте workspace **корнем** `D:\Projects\import_servis`, иначе Cursor не подхватит `.cursor/rules/` из корня (при открытии только `import_service_server` видны только правила сервера).
+Открывать **`import_servis.code-workspace`** или корень `D:\Projects\import_servis` — иначе корневые `.cursor/rules/` не подхватятся.
 
-См. также `AGENTS.md` в корне.
+См. **`import-platform-workspace.mdc`**, **`feature-delivery-workflow.mdc`**.
+
+## Общая концепция (обязательно)
+
+**`.cursor/rules/project-concept.mdc`** — архитектура, статусы, документы, 1С.  
+**`docs/request-lifecycle.md`** — жизненный цикл заявки.
 
 ## Каталоги
 
-| Путь | Агент |
-|------|--------|
-| `import_service_server/` | Сервер |
-| `import_service_app/` | МП |
-| `import_service_admin/` | Админка |
-| `docs/` | Общие Markdown-спеки |
+| Путь | Назначение |
+|------|------------|
+| `import_service_server/` | Node API, деплой |
+| `import_service_app/` | Flutter МП |
+| `import_service_admin/` | Flutter web админка |
+| `docs/` | Markdown-спеки |
 
-## Запрет
+## Границы
 
-Агент **не выходит** за свой каталог без явной просьбы пользователя.
+- Не менять файлы **вне scope задачи**.
+- End-to-end фича (API + МП + админка) — **одна сессия, один агент**, порядок в `feature-delivery-workflow.mdc`.
+- Фокус пакета: `agent-server.mdc`, `agent-mobile-app.mdc`, `agent-admin-web.mdc` (по globs).
+
+## Запрещено
+
+- Открывать только подпапку и ожидать, что видны все правила монорепо.
+- Дублировать канон API в коде без синхронизации с `docs/`.

@@ -1,33 +1,35 @@
 ---
-description: Агент мобильного приложения — зона import_service_app
+description: Фокус МП — import_service_app (в рамках одного агента монорепо)
 globs: import_service_app/**
 alwaysApply: false
 ---
 
-# Агент: `import_service_app`
+# Пакет: `import_service_app`
 
-**Сначала сверься с общей концепцией:** `.cursor/rules/project-concept.mdc` (статусы, docType, этапы, запреты).
+**Сначала:** `.cursor/rules/project-concept.mdc`, `docs/request-lifecycle.md`, `import_service_app/.cursor/rules/app-runtime-architecture.mdc`.
 
-## Зона
+## Зона ответственности
 
-- Правки **только** в `import_service_app/`.
-- **Не трогать** `import_service_server/`, `import_service_admin/`.
+- `import_service_app/` — UI, Cubit, роутер, push, файлы заявки.
+- End-to-end задачи: правки app **вместе** с server/docs по утверждённому плану.
 
 ## Спеки
 
-- `docs/api-app.md` — API приложения  
-- `docs/TZ-zayavka-mp-server-1c.md` — детали ТЗ  
-- `docs/catalog-reference.md` — коды/подписи `statusSubType`, полный `docType`
-- `/docs` на проде → вкладка **ТЗ**
+- `docs/api-app.md` — API приложения
+- `docs/catalog-reference.md` — docType, statusSubType, dealType
+- https://157-22-173-7.sslip.io/docs → вкладка **ТЗ**
 
 ## Фокус МП (кратко)
 
-- Создание заявки: поля и **11 обязательных** `docType` + опционально `add_doc1`/`add_doc2` — см. **project-concept.mdc §7**.  
-- Статусы в UI: `new`, `on_review`, `in_progress`, `in_transit`, `delivered`, `closed`.  
-- Подстатусы → подсказки и подсветка неподписанных документов, не отдельный верхний статус. Использовать коды из `catalog-reference.md` (`draft`, `manager_execution`, `primary_documents_sent`, `svh_*`, `ptd_*` и т.д.).  
-- Подпись, чеки, скачивание архива/итогов — по концепции §8–9.
+- Create: `POST /customs-requests` без files → N×upload
+- 11 обязательных docType при создании — project-concept §7
+- Demo только по кнопке на логине
+- SnackBar: `AppFeedbackService`; i18n: `assets/i18n/*.json`
+
+## Пакетные rules
+
+`import_service_app/.cursor/rules/` — architecture, bloc, pitfalls, app-context-map, release-apk и др.
 
 ## Проверки
 
-- `flutter analyze` по задаче  
-- Коммит только по просьбе пользователя
+`flutter analyze` по задаче. Commit/push — только по просьбе пользователя.

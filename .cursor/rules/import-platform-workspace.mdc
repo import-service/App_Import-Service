@@ -1,0 +1,60 @@
+---
+description: Import Service монорепо — один git, один агент, app/server/admin/docs
+alwaysApply: true
+---
+
+# Import Service platform (монорепо)
+
+Один git в корне. Workspace: **`import_servis.code-workspace`** (открывать корнем, не только `import_service_app`).
+
+## Папки
+
+| Имя в workspace | Путь | Стек |
+|-----------------|------|------|
+| `platform` | `.` | workspace, `.cursor/rules`, `scripts/` |
+| `server` | `import_service_server/` | Node API, деплой VPS |
+| `app` | `import_service_app/` | Flutter МП |
+| `admin` | `import_service_admin/` | Flutter web админка |
+| `docs` | `docs/` | Markdown-спеки (канон API, ТЗ, каталоги) |
+
+Не менять файлы **вне scope задачи**. End-to-end фича — правки в нескольких пакетах **разрешены** в одной сессии.
+
+## Git
+
+- **Один** `git push` из корня `import_servis`
+- Remote: `https://github.com/import-service/App_Import-Service`
+
+## Порядок end-to-end фичи
+
+См. **`feature-delivery-workflow.mdc`**: план → вопросы → **утверждение пользователем** → код → verify → следующий подэтап.
+
+1. `docs/` + `server/` — контракт API (`docs/api-app.md`, `api-1c.md`)
+2. `app/` / `admin/` — UI
+3. Пользователь общается с **одним агентом**; subagent/Task — на усмотрение исполнителя
+
+## Документация для агента
+
+### Канон продукта и API
+
+| Документ | Назначение |
+|----------|------------|
+| `.cursor/rules/project-concept.mdc` | МП ↔ сервер ↔ 1С, статусы, docType |
+| `docs/request-lifecycle.md` | Жизненный цикл заявки |
+| `docs/api-app.md`, `docs/api-1c.md` | HTTP-контракты |
+| `docs/catalog-reference.md` | Коды docType, statusSubType, dealType |
+| https://157-22-173-7.sslip.io/docs | HTML на проде |
+
+### Пакетные rules
+
+| Пакет | Каталог |
+|-------|---------|
+| МП | `import_service_app/.cursor/rules/` |
+| Сервер | `import_service_server/.cursor/rules/` |
+| Админка | `import_service_admin/.cursor/rules/` |
+
+Фокус пакета: `agent-mobile-app.mdc`, `agent-server.mdc`, `agent-admin-web.mdc` (globs по папке).
+
+## Прод
+
+- API: `https://157-22-173-7.sslip.io/api`
+- Деплой сервера: `scripts/deploy-server-vps.ps1` — см. `import_service_server/.cursor/rules/server-deploy-vps.mdc`
