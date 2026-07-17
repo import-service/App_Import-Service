@@ -3,6 +3,7 @@ const { verifyIntegrationBearer } = require('../util/integrationAuth');
 const { sendUserMessageTo1C } = require('../services/oneCChatOut');
 const { notifyMessageFrom1C } = require('../services/pushNotifications');
 const { handleDemoUserChatMessage, isDemoExternal1cId } = require('../services/demoFlow');
+const { mpOrganizationId, denyUnlessOwnsRequest } = require('../util/requestOrganizationAccess');
 
 const MAX_TEXT = 2000;
 
@@ -39,15 +40,18 @@ function parseRowAttachments(value) {
   return value;
 }
 
-async function assertRequestChatAvailable(pool, requestId) {
+async function assertRequestChatAvailable(pool, requestId, orgId = null) {
   const [rows] = await pool.query(
-    `SELECT id, external_1c_id, deleted_at
+    `SELECT id, external_1c_id, deleted_at, organization_id
      FROM customs_requests
      WHERE id = ?
      LIMIT 1`,
     [requestId],
   );
   if (!rows.length || rows[0].deleted_at) {
+    return { ok: false, error: 'NOT_FOUND' };
+  }
+  if (orgId != null && Number(rows[0].organization_id) !== orgId) {
     return { ok: false, error: 'NOT_FOUND' };
   }
   if (!rows[0].external_1c_id) {
@@ -66,7 +70,8 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
 
-      const ar = await assertRequestChatAvailable(fastify.pool, id);
+      const orgId = mpOrganizationId(request);
+      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId);
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
           return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });
@@ -141,7 +146,8 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
 
-      const ar = await assertRequestChatAvailable(fastify.pool, id);
+      const orgId = mpOrganizationId(request);
+      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId);
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
           return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });
@@ -313,7 +319,8 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
 
-      const ar = await assertRequestChatAvailable(fastify.pool, id);
+      const orgId = mpOrganizationId(request);
+      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId);
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
           return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });

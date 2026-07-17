@@ -59,6 +59,13 @@ final class RequestDraftCubit extends Cubit<RequestDraftState> {
     await _persist();
   }
 
+  /// Полная очистка (смена пользователя, вход в демо, выход).
+  Future<void> clearAll() async {
+    await RequestDraftAttachmentsSpace.deleteAll();
+    emit(const RequestDraftState(drafts: []));
+    await _prefs.remove(_prefsKey);
+  }
+
   Future<void> _persist() async {
     final encoded =
         jsonEncode(state.drafts.map((e) => e.toJson()).toList(growable: false));

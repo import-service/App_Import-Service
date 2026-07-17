@@ -86,7 +86,7 @@ class _HomePageState extends State<HomePage> {
         session.clear();
       }
       await _clearPrefsKeepLanguage();
-      sl<RequestDraftCubit>().reloadFromDisk();
+      await sl<RequestDraftCubit>().clearAll();
       await sl<CarInventoryCubit>().reloadFromDisk();
       if (!context.mounted) return;
       context.go('/login');

@@ -3,77 +3,49 @@ import 'package:flutter/services.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_field_clear_button.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_field_decoration.dart';
 
-/// Подпись + поле ввода: единый стиль по всему приложению (обводка 1 px + фокус).
-///
-/// Используется на экране входа, в заявке и др. формах. Для пароля —
-/// [isPassword] и переключатель видимости.
-class AppLabeledTextField extends StatefulWidget {
-  const AppLabeledTextField({
+/// Плотность подписи: компактная (шторки) или крупная (форма заявки).
+enum AppLabeledFieldDensity { compact, request }
+
+/// Подпись + поле ввода с крестиком очистки — база для маскированных полей.
+class AppClearableLabeledField extends StatefulWidget {
+  const AppClearableLabeledField({
     super.key,
     required this.label,
     required this.controller,
+    this.hintText,
     this.validator,
     this.keyboardType,
     this.textInputAction,
     this.inputFormatters,
-    this.isPassword = false,
-    this.markRequired = true,
     this.textCapitalization = TextCapitalization.none,
+    this.markRequired = true,
+    this.density = AppLabeledFieldDensity.request,
     this.errorMaxLines = 3,
+    this.minLines,
+    this.maxLines,
   });
 
   final String label;
+  final String? hintText;
   final TextEditingController controller;
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
-  final bool isPassword;
-  /// Звёздочка «обязательное поле» в подписи (цвет [ColorScheme.error]).
-  final bool markRequired;
-  /// Поведение клавиатуры (заглавные): для названий — [TextCapitalization.sentences].
   final TextCapitalization textCapitalization;
-  /// Строк текста ошибки под полем (длинные сообщения i18n).
+  final bool markRequired;
+  final AppLabeledFieldDensity density;
   final int errorMaxLines;
+  final int? minLines;
+  final int? maxLines;
 
   @override
-  State<AppLabeledTextField> createState() => _AppLabeledTextFieldState();
+  State<AppClearableLabeledField> createState() =>
+      _AppClearableLabeledFieldState();
 }
 
-class _AppLabeledTextFieldState extends State<AppLabeledTextField> {
-  bool _obscurePassword = true;
-
+class _AppClearableLabeledFieldState extends State<AppClearableLabeledField> {
   Widget? _suffixIcon(BuildContext context) {
-    const compactIconButton = BoxConstraints(minWidth: 40, minHeight: 36);
-
-    if (widget.isPassword) {
-      final actions = <Widget>[];
-      if (widget.controller.text.isNotEmpty) {
-        actions.add(
-          buildAppFieldClearButton(
-            context,
-            onPressed: widget.controller.clear,
-          ),
-        );
-      }
-      actions.add(
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          constraints: compactIconButton,
-          padding: EdgeInsets.zero,
-          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-          icon: Icon(
-            _obscurePassword
-                ? Icons.visibility_off_outlined
-                : Icons.visibility_outlined,
-            size: 22,
-          ),
-        ),
-      );
-      if (actions.length == 1) return actions.first;
-      return Row(mainAxisSize: MainAxisSize.min, children: actions);
-    }
-
     if (widget.controller.text.isEmpty) return null;
 
     return buildAppFieldClearButton(
@@ -82,18 +54,27 @@ class _AppLabeledTextFieldState extends State<AppLabeledTextField> {
     );
   }
 
+  TextStyle? _labelStyle(BuildContext context) {
+    if (widget.density == AppLabeledFieldDensity.request) {
+      return Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: const Color(0xFF7C7C7C),
+            fontWeight: FontWeight.w500,
+          );
+    }
+    final hintColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Theme.of(context).textTheme.bodySmall?.copyWith(color: hintColor);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hintColor = Theme.of(context).colorScheme.onSurfaceVariant;
-    final labelStyle =
-        Theme.of(context).textTheme.bodySmall?.copyWith(color: hintColor);
+    final labelGap = widget.density == AppLabeledFieldDensity.request ? 8.0 : 6.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text.rich(
           TextSpan(
-            style: labelStyle,
+            style: _labelStyle(context),
             children: [
               TextSpan(text: widget.label),
               if (widget.markRequired)
@@ -107,24 +88,28 @@ class _AppLabeledTextFieldState extends State<AppLabeledTextField> {
             ],
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: labelGap),
         ListenableBuilder(
           listenable: widget.controller,
           builder: (context, _) {
             return TextFormField(
               controller: widget.controller,
               validator: widget.validator,
-              obscureText: widget.isPassword && _obscurePassword,
               keyboardType: widget.keyboardType,
               textInputAction: widget.textInputAction,
               textCapitalization: widget.textCapitalization,
               inputFormatters: widget.inputFormatters,
+              minLines: widget.minLines,
+              maxLines: widget.maxLines,
               decoration: buildAppOutlineInputDecoration(
                 context,
+                hintText: widget.hintText,
                 suffixIcon: _suffixIcon(context),
                 errorMaxLines: widget.errorMaxLines,
               ),
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: widget.density == AppLabeledFieldDensity.compact
+                  ? Theme.of(context).textTheme.bodyLarge
+                  : null,
             );
           },
         ),

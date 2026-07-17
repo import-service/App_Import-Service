@@ -258,7 +258,6 @@ final class CustomsRequestsRemoteDataSource {
       'importedLast12Months': form.wasInRussiaLast12Months,
       'ownsOtherCars': form.hasOtherCars,
       'commentText': form.comment.trim(),
-      'isTest': form.isTest,
     };
   }
 

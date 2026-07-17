@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:import_service_admin/core/auth/auth_session_controller.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/navigation/router_keys.dart';
+import 'package:import_service_admin/presentation/pages/admins_page.dart';
 import 'package:import_service_admin/presentation/pages/dashboard_page.dart';
 import 'package:import_service_admin/presentation/pages/login_page.dart';
 import 'package:import_service_admin/presentation/pages/organizations_page.dart';
@@ -70,6 +71,14 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/organizations',
               builder: (context, state) => const OrganizationsPage(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/admins',
+              builder: (context, state) => const AdminsPage(),
             ),
           ],
         ),

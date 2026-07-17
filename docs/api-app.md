@@ -101,7 +101,6 @@
 - `status`, `statusSubType`, `statusSubTypeDateTime`
 - `engineSpec`, `engineVolume`
 - `advancePayment`, `actualPayment`, `refundAmount` — **строки** (рубли); `refundAmount` считает сервер
-- `isTest` (boolean)
 - `external1cId`, `managerExternal1cId`, `managerFullName`
 - `files[]` — **все** документы (квитанции, фото, ЭПТС — только здесь)
   - элемент: `docType`, **`fileName`** (с расширением, для отображения и 1С), `mimeType`, `fileSizeBytes`, **`fileUrl`** (полный файл), **`previewUrl`** (JPEG-превью для фото в списках МП; `null` для PDF/видео без poster)
@@ -123,8 +122,7 @@
   "individualSnils": "123-456-789 00",
   "carMake": "Toyota",
   "carModel": "Crown",
-  "vin": "VIN12345678901234",
-  "isTest": false
+  "vin": "VIN12345678901234"
 }
 ```
 
@@ -147,13 +145,12 @@
 
 ### GET /api/customs-requests
 
-Список заявок.
+Список заявок **только своей организации** (JWT `sub` = `organizations.id`).
 
 Query:
 
 - `limit`, `offset`
 - `status`
-- `isTest=true|false|1|0`
 
 ### GET /api/customs-requests/:id
 
@@ -325,6 +322,28 @@ Query:
 
 Профиль администратора: `id`, `login`, `createdAt`.
 
+### GET /api/admin/users
+
+Список учётных записей админ-панели (без паролей). Требуется admin JWT.
+
+Query: `limit` (1–200, по умолчанию 50), `offset`.
+
+Успех: `{ "items": [{ "id", "login", "createdAt" }], "total", "limit", "offset" }`.
+
+### POST /api/admin/users
+
+Создать администратора. Требуется admin JWT.
+
+Тело: `{ "login": "manager", "password": "******" }` (пароль ≥ 6 символов).
+
+Успех: `201`, `{ "item": { "id", "login", "createdAt" } }`.
+
+Ошибки: `409 LOGIN_ALREADY_EXISTS`, `400 VALIDATION_ERROR`.
+
+### DELETE /api/admin/users/:id
+
+Удалить администратора. Нельзя удалить себя или последнего администратора.
+
 ### GET /api/admin/organizations
 
 Список организаций, зарегистрированных из 1С (`POST /api/integration/organizations`). **Только просмотр**, пароли не отдаются.
@@ -417,7 +436,7 @@ Query:
 
 В каждом элементе: **`oneCUpdatePending`** (boolean) — последний исходящий update в 1С не доставлен (нужна кнопка повтора).
 
-Query: `limit` (1–200, по умолчанию 50), `offset`, `status`, `isTest`.
+Query: `limit` (1–200, по умолчанию 50), `offset`, `status`.
 
 Успех: `{ "items": [...], "total", "limit", "offset" }` — элементы в том же camelCase-контракте, что и `GET /api/customs-requests`.
 

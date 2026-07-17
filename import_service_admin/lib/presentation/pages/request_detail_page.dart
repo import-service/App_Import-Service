@@ -521,11 +521,6 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
               RequestLabeledValue(label: '№ заявки', value: item.id),
               const Gap(14),
               RequestLabeledValue(
-                label: 'Тестовая',
-                value: item.isTest ? 'Да' : 'Нет',
-              ),
-              const Gap(14),
-              RequestLabeledValue(
                 label: 'Создана',
                 value: formatDateTimeLabel(item.createdAt),
               ),

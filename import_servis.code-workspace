@@ -33,5 +33,41 @@
       "**/build": true,
       "**/uploads": true
     }
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Import Service (debug)",
+        "request": "launch",
+        "type": "dart",
+        "program": "lib/main.dart",
+        "cwd": "${workspaceFolder:app}"
+      },
+      {
+        "name": "Import Service (run)",
+        "request": "launch",
+        "type": "dart",
+        "program": "lib/main.dart",
+        "cwd": "${workspaceFolder:app}",
+        "noDebug": true
+      },
+      {
+        "name": "Import Service (profile)",
+        "request": "launch",
+        "type": "dart",
+        "flutterMode": "profile",
+        "program": "lib/main.dart",
+        "cwd": "${workspaceFolder:app}"
+      },
+      {
+        "name": "Import Service (release)",
+        "request": "launch",
+        "type": "dart",
+        "flutterMode": "release",
+        "program": "lib/main.dart",
+        "cwd": "${workspaceFolder:app}"
+      }
+    ]
   }
 }

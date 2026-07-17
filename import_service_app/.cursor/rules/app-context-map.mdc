@@ -95,6 +95,11 @@ alwaysApply: true
 | `presentation/widgets/filters/filter_status_checkbox_tile.dart` | Чек строки фильтра |
 | `presentation/widgets/forms/app_field_decoration.dart` | Обводка полей |
 | `presentation/widgets/forms/app_labeled_text_field.dart` | Подпись + поле (в т.ч. пароль) |
+| `presentation/widgets/forms/fields/app_clearable_labeled_field.dart` | База полей с крестиком очистки |
+| `presentation/widgets/forms/fields/app_inn_field.dart` | ИНН: маска, валидация |
+| `presentation/widgets/forms/fields/app_phone_ru_field.dart` | Телефон РФ: маска, валидация |
+| `presentation/widgets/forms/fields/app_snils_field.dart` | СНИЛС: маска, валидация |
+| `presentation/helpers/masked_field_validation.dart` | Общая валидация ИНН/телефон/СНИЛС |
 | `presentation/widgets/forms/app_search_bar_field.dart` | Поиск |
 | `presentation/widgets/forms/request_*.dart` | Форма заявки (базовые поля и фото-ряды) |
 | `presentation/widgets/forms/input_formatters/*` | Маски (ИНН, телефон, VIN) |

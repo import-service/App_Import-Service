@@ -2,7 +2,7 @@ const { hoursSince } = require('./time');
 const { ensureDisplayFileName } = require('./displayFileName');
 
 const CUSTOMS_REQUEST_SELECT = `
-  id, external_1c_id, manager_external_1c_id, manager_full_name,
+  id, organization_id, external_1c_id, manager_external_1c_id, manager_full_name,
   legal_entity_name, legal_email, legal_phone, legal_inn,
   individual_full_name, individual_phone, individual_snils,
   owner_full_name,

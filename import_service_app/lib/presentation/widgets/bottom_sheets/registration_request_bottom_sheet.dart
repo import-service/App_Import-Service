@@ -9,12 +9,15 @@ import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/ui/app_form_behavior.dart';
 import 'package:import_service_app/data/datasources/remote/registration_request_remote_data_source.dart';
 import 'package:import_service_app/data/models/registration_request_model.dart';
+import 'package:import_service_app/presentation/helpers/masked_field_validation.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/app_modal_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/sheet_header.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_filled_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_labeled_text_field.dart';
+import 'package:import_service_app/presentation/widgets/forms/fields/app_clearable_labeled_field.dart';
+import 'package:import_service_app/presentation/widgets/forms/fields/app_inn_field.dart';
+import 'package:import_service_app/presentation/widgets/forms/fields/app_phone_ru_field.dart';
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/inn_input_formatter.dart';
-import 'package:import_service_app/presentation/widgets/forms/input_formatters/phone_ru_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/selection/organization_type_selector.dart';
 
 class RegistrationRequestBottomSheet extends StatefulWidget {
@@ -40,19 +43,20 @@ class _RegistrationRequestBottomSheetState
   final _innController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
-  final _innFormatter = InnInputFormatter();
-  final _phoneFormatter = PhoneRuInputFormatter();
 
   OrganizationType _organizationType = OrganizationType.ooo;
   bool _submitting = false;
+
+  void _clampInnToOrgType() =>
+      clampInnController(_innController, _organizationType);
 
   void _onFieldChanged() => setState(() {});
 
   /// См. [AppFormBehavior] — «ввод начат» = не пустая форма (телефон: больше чем `+7`).
   bool get _userStartedInput {
     if (_nameController.text.trim().isNotEmpty) return true;
-    if (_normalizeInn(_innController.text).isNotEmpty) return true;
-    final phoneDigits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    if (innDigitsOnly(_innController.text).isNotEmpty) return true;
+    final phoneDigits = ruPhoneDigitsOnly(_phoneController.text);
     if (phoneDigits.length > 1) return true;
     if (_emailController.text.trim().isNotEmpty) return true;
     return false;
@@ -60,17 +64,14 @@ class _RegistrationRequestBottomSheetState
 
   /// Совпадает с validator-ами полей — без дублирования правил не включать кнопку.
   bool get _canSubmit {
+    final strings = sl<JsonStringsService>();
     final name = _nameController.text.trim();
     if (name.isEmpty) return false;
 
-    final inn = _normalizeInn(_innController.text);
-    if (inn.isEmpty) return false;
-    if (!RegExp(r'^\d{10}(\d{2})?$').hasMatch(inn)) return false;
+    final inn = innDigitsOnly(_innController.text);
+    if (validateInnValue(inn, _organizationType, strings) != null) return false;
 
-    final phoneRaw = _phoneController.text.trim();
-    if (phoneRaw.isEmpty) return false;
-    final phoneNorm = _normalizePhone(phoneRaw);
-    if (!RegExp(r'^\+7\d{10}$').hasMatch(phoneNorm)) return false;
+    if (validateRuPhoneValue(_phoneController.text, strings) != null) return false;
 
     final email = _emailController.text.trim();
     if (email.isEmpty) return false;
@@ -109,8 +110,8 @@ class _RegistrationRequestBottomSheetState
     setState(() => _submitting = true);
     final strings = sl<JsonStringsService>();
 
-    final normalizedPhone = _normalizePhone(_phoneController.text);
-    final normalizedInn = _normalizeInn(_innController.text);
+    final normalizedPhone = normalizeRuPhoneForApi(_phoneController.text);
+    final normalizedInn = innDigitsOnly(_innController.text);
     final request = RegistrationRequestModel(
       organizationType: _organizationType,
       companyOrFullName: _nameController.text.trim(),
@@ -147,8 +148,6 @@ class _RegistrationRequestBottomSheetState
   Widget build(BuildContext context) {
     final strings = sl<JsonStringsService>();
 
-    // Прокрутка и лимит по высоте — в [AppModalBottomSheet.show], без вложенного
-    // [SingleChildScrollView] (клавиатура + двойной scroll ломали вёрстку).
     return Form(
       key: _formKey,
       autovalidateMode:
@@ -167,7 +166,10 @@ class _RegistrationRequestBottomSheetState
           const Gap(12),
           OrganizationTypeSelector(
             selected: _organizationType,
-            onChanged: (value) => setState(() => _organizationType = value),
+            onChanged: (value) => setState(() {
+              _organizationType = value;
+              _clampInnToOrgType();
+            }),
             oooLabel: strings.orgTypeOoo,
             ipLabel: strings.orgTypeIp,
           ),
@@ -187,37 +189,19 @@ class _RegistrationRequestBottomSheetState
             textInputAction: TextInputAction.next,
           ),
           const Gap(12),
-          AppLabeledTextField(
+          AppInnField(
             label: strings.innLabel,
             controller: _innController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [_innFormatter],
-            validator: (value) {
-              final inn = _normalizeInn(value ?? '');
-              if (inn.isEmpty) return strings.fieldRequiredError;
-              final digitsOnly = RegExp(r'^\d{10}(\d{2})?$');
-              if (!digitsOnly.hasMatch(inn)) {
-                return strings.innFormatError;
-              }
-              return null;
-            },
+            organizationType: _organizationType,
             textInputAction: TextInputAction.next,
+            density: AppLabeledFieldDensity.compact,
           ),
           const Gap(12),
-          AppLabeledTextField(
+          AppPhoneRuField(
             label: strings.phoneLabel,
             controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            inputFormatters: [_phoneFormatter],
-            validator: (value) {
-              final phone = value?.trim() ?? '';
-              if (phone.isEmpty) return strings.fieldRequiredError;
-              final ok =
-                  RegExp(r'^\+7\d{10}$').hasMatch(_normalizePhone(phone));
-              if (!ok) return strings.phoneFormatError;
-              return null;
-            },
             textInputAction: TextInputAction.next,
+            density: AppLabeledFieldDensity.compact,
           ),
           const Gap(12),
           AppLabeledTextField(
@@ -257,25 +241,5 @@ class _RegistrationRequestBottomSheetState
     final localOk = RegExp(r'^[a-zA-Z0-9._%+\-]+$').hasMatch(local);
     final domainOk = RegExp(r'^[a-zA-Z0-9.\-]+$').hasMatch(domain);
     return localOk && domainOk;
-  }
-
-  String _normalizePhone(String raw) {
-    var digits = raw.replaceAll(RegExp(r'\D'), '');
-    if (digits.startsWith('8')) {
-      digits = '7${digits.substring(1)}';
-    }
-    if (!digits.startsWith('7')) {
-      digits = '7$digits';
-    }
-    if (digits.length > 11) {
-      digits = digits.substring(0, 11);
-    }
-    return '+$digits';
-  }
-
-  String _normalizeInn(String raw) {
-    final digits = raw.replaceAll(RegExp(r'\D'), '');
-    if (digits.length > 12) return digits.substring(0, 12);
-    return digits;
   }
 }

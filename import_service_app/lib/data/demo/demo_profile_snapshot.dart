@@ -4,6 +4,7 @@ abstract final class DemoProfileSnapshot {
   static const String inn = '7701234567';
   static const String fullName = 'Иванов Иван Иванович';
   static const String managerDisplayName = 'Демо-менеджер';
-  static const String phoneDisplay = '+7 924 623 41 58';
+  static const String personSnils = '11223344595';
+  static const String phoneDisplay = '+7 (924) 623-41-58';
   static const String email = 'nakhodka@media.primorsky.demo';
 }

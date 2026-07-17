@@ -1,5 +1,10 @@
 enum OrganizationType { ooo, ip }
 
+extension OrganizationTypeInn on OrganizationType {
+  /// ООО — 10 цифр, ИП — 12 цифр.
+  int get innMaxDigits => this == OrganizationType.ip ? 12 : 10;
+}
+
 class RegistrationRequestModel {
   RegistrationRequestModel({
     required this.organizationType,

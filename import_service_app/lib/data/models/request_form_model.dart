@@ -2,7 +2,7 @@ import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/core/util/single_file_path_list.dart';
 
 final class RequestFormModel {
-  static const int trackedFieldCount = 25;
+  static const int trackedFieldCount = 24;
 
   const RequestFormModel({
     this.organizationType = OrganizationType.ooo,
@@ -34,7 +34,6 @@ final class RequestFormModel {
     this.carRearPhotoPaths = const [],
     this.additionalFile1Paths = const [],
     this.additionalFile2Paths = const [],
-    this.isTest = true,
   });
 
   final OrganizationType organizationType;
@@ -67,8 +66,6 @@ final class RequestFormModel {
   final List<String> carRearPhotoPaths;
   final List<String> additionalFile1Paths;
   final List<String> additionalFile2Paths;
-  /// [api-app.md]: тестовая заявка (`POST /api/customs-requests` → `isTest`).
-  final bool isTest;
 
   static int countFilledFields(RequestFormModel m) {
     var n = 0;
@@ -135,7 +132,6 @@ final class RequestFormModel {
       carRearPhotoPaths: readList('carRearPhotoPaths'),
       additionalFile1Paths: readList('additionalFile1Paths'),
       additionalFile2Paths: readList('additionalFile2Paths'),
-      isTest: (json['isTest'] as bool?) ?? true,
     );
   }
 
@@ -170,7 +166,6 @@ final class RequestFormModel {
         'carRearPhotoPaths': carRearPhotoPaths,
         'additionalFile1Paths': additionalFile1Paths,
         'additionalFile2Paths': additionalFile2Paths,
-        'isTest': isTest,
       };
 
   static String _readCompanyInn(Map<String, dynamic> json) {

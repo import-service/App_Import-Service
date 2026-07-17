@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+const { sendPlainEmail, notifyClientRegistrationAccepted } = require('../services/emailNotification');
 
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -9,16 +9,6 @@ function normalize(v) {
 
 module.exports = async function registrationRoutes(fastify) {
   const requestBuckets = new Map();
-
-  const transporter = nodemailer.createTransport({
-    host: fastify.config.smtp.host,
-    port: fastify.config.smtp.port,
-    secure: fastify.config.smtp.secure,
-    auth: {
-      user: fastify.config.smtp.user,
-      pass: fastify.config.smtp.pass,
-    },
-  });
 
   fastify.post(
     '/registration-request',
@@ -117,24 +107,39 @@ module.exports = async function registrationRoutes(fastify) {
         <p><b>Дата:</b> ${new Date().toISOString()}</p>
       `;
 
-      try {
-        await transporter.sendMail({
-          from: fastify.config.smtp.from,
+      const result = await sendPlainEmail(
+        fastify.config.smtp,
+        {
           to: fastify.config.smtp.to,
           subject,
           text,
           html,
           replyTo: email,
-        });
+        },
+        fastify.log,
+      );
 
-        return reply.send({ ok: true, message: 'Заявка отправлена' });
-      } catch (err) {
-        fastify.log.error(err);
+      if (!result.success) {
+        fastify.log.error(
+          { code: result.code, smtpUser: fastify.config.smtp.user },
+          'registration email failed',
+        );
         return reply.code(500).send({
           error: 'EMAIL_SEND_FAILED',
           message: 'Не удалось отправить заявку, попробуйте позже',
         });
       }
+
+      const displayName = orgType === 'OOO' ? companyName : fullName;
+      notifyClientRegistrationAccepted(
+        fastify.config.smtp,
+        { email, displayName },
+        fastify.log,
+      ).catch((err) => {
+        fastify.log.error({ err, email }, 'registration client confirmation email failed');
+      });
+
+      return reply.send({ ok: true, message: 'Заявка отправлена' });
     },
   );
 };

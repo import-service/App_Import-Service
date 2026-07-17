@@ -22,6 +22,7 @@ import 'package:import_service_app/presentation/widgets/buttons/app_primary_fill
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_outlined_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_labeled_text_field.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
+import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
@@ -97,6 +98,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loggingIn = true);
     try {
       await sl<AuthService>().login(login: login, password: password);
+      await sl<RequestDraftCubit>().clearAll();
       await sl<CarInventoryCubit>().replaceAll(const <CarListItem>[]);
       await sl<CarsRepository>().listVehicles();
       final prefs = sl<SharedPreferences>();
@@ -167,6 +169,7 @@ class _LoginPageState extends State<LoginPage> {
                     label: strings.demoLoginButton,
                     onPressed: () async {
                       AppLog.trace('demo: enableDemo + bootstrap', tag: 'Auth');
+                      await sl<RequestDraftCubit>().clearAll();
                       sl<AuthSessionController>().enableDemo();
                       final boot = await sl<CarsRepository>().bootstrapDemoRequests();
                       if (!context.mounted) return;

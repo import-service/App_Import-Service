@@ -2,12 +2,24 @@ import 'package:flutter/services.dart';
 
 /// Формат: +7 (999) 000-00-00.
 class PhoneRuInputFormatter extends TextInputFormatter {
+  static String digitsOnly(String? raw) =>
+      (raw ?? '').replaceAll(RegExp(r'\D'), '');
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final oldDigits = digitsOnly(oldValue.text);
+    var digits = digitsOnly(newValue.text);
+
+    // Backspace по «)», пробелу или «-» не убирает цифру — снимаем последнюю цифру сами.
+    final isDeletion = newValue.text.length < oldValue.text.length;
+    if (isDeletion && digits.length >= oldDigits.length && oldDigits.isNotEmpty) {
+      digits = oldDigits.length > 1
+          ? oldDigits.substring(0, oldDigits.length - 1)
+          : '7';
+    }
 
     var normalized = digits;
     if (normalized.startsWith('8')) {
@@ -24,14 +36,32 @@ class PhoneRuInputFormatter extends TextInputFormatter {
       normalized = '7';
     }
 
-    final result = _applyMask(normalized);
+    final result = applyMask(normalized);
     return TextEditingValue(
       text: result,
       selection: TextSelection.collapsed(offset: result.length),
     );
   }
 
-  String _applyMask(String digits) {
+  /// Отображение из сырой строки/API: `+7 (999) 000-00-00`.
+  static String formatDisplay(String? raw) {
+    var digits = digitsOnly(raw);
+    if (digits.startsWith('8')) {
+      digits = '7${digits.substring(1)}';
+    }
+    if (!digits.startsWith('7')) {
+      digits = '7$digits';
+    }
+    if (digits.length > 11) {
+      digits = digits.substring(0, 11);
+    }
+    if (digits.isEmpty) {
+      digits = '7';
+    }
+    return applyMask(digits);
+  }
+
+  static String applyMask(String digits) {
     final b = StringBuffer('+7');
     final rest = digits.length > 1 ? digits.substring(1) : '';
     if (rest.isEmpty) return b.toString();

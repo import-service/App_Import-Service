@@ -29,7 +29,6 @@ abstract final class CustomsRequestMapper {
       importedLast12Months: json['importedLast12Months'] == true,
       ownsOtherCars: json['ownsOtherCars'] == true,
       commentText: json['commentText'] as String?,
-      isTest: json['isTest'] == true,
       managerFullName: json['managerFullName'] as String?,
       managerExternal1cId: json['managerExternal1cId'] as String?,
       external1cId: json['external1cId'] as String?,

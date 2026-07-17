@@ -150,8 +150,7 @@
   "individualSnils": "123-456-789 00",
   "carMake": "Toyota",
   "carModel": "Crown",
-  "vin": "VIN12345678901234",
-  "isTest": false
+  "vin": "VIN12345678901234"
 }</pre><p><code>legalInn</code> / <code>inn</code> — ИНН в анкете (10/12 цифр). <code>docType: inn</code> — отдельный файл при upload.</p><p><b>Дальше (МП):</b> N× <code>POST /api/customs-requests/upload</code> с <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code>. На последнем файле сервер создаёт заявку в 1С.</p><p><b>Success:</b></p><pre>{
   "id": "1",
   "status": "new",
@@ -173,8 +172,7 @@
   "query": {
     "limit": 20,
     "offset": 0,
-    "status": "new",
-    "isTest": "false"
+    "status": "new"
   }
 }</pre><p><b>Success:</b></p><pre>{
   "items": [
@@ -185,7 +183,6 @@
       "carModel": "Crown",
       "vin": "VIN12345678901234",
       "status": "new",
-      "isTest": false,
       "external1cId": null,
       "managerExternal1cId": null,
       "managerFullName": null
@@ -366,7 +363,6 @@
               <tr><td><code>requestId</code></td><td>да</td><td>Id заявки на сервере после <code>POST /api/customs-requests</code>.</td></tr>
               <tr><td><code>legalEntityName</code>, контакты, ФЛ, авто, <code>vin</code></td><td>да*</td><td>Данные заявки из МП (*как в API приложения).</td></tr>
               <tr><td><code>files[]</code></td><td>да</td><td>Документы при создании: паспорт, ИНН, инвойс, фото авто и т.д. (<code>docType</code> без <code>_sign</code>).</td></tr>
-              <tr><td><code>isTest</code></td><td>нет</td><td>Тестовая заявка.</td></tr>
             </table>
             <p><b>Ответ 1С:</b> <code>requestId</code>, <code>external1cId</code> (GUID заявки в 1С).</p>
             <p><b>Request (пример):</b></p><pre>{
@@ -387,7 +383,6 @@
   "importedLast12Months": false,
   "ownsOtherCars": false,
   "commentText": null,
-  "isTest": false,
   "files": [
     {
       "docType": "passport_front",

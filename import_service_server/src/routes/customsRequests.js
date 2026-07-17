@@ -28,6 +28,12 @@ const { assertFileSizeAllowed } = require('../constants/uploadLimits');
 const { recordUploadAndMaybeSync } = require('../services/uploadBatchSync');
 const { parseOneCUploadJsonBody } = require('../util/uploadBase64');
 const { unlinkIfExists } = require('../util/imagePreview');
+const { notifyNewCustomsRequest, notifyClientCustomsRequestAccepted } = require('../services/emailNotification');
+const {
+  mpOrganizationId,
+  isMpJwtRequest,
+  denyUnlessOwnsRequest,
+} = require('../util/requestOrganizationAccess');
 
 const REQUEST_STATUSES = [
   'new',
@@ -367,6 +373,9 @@ module.exports = async function customsRequestsRoutes(fastify) {
         if (!data) {
           return reply.code(404).send({ error: 'NOT_FOUND' });
         }
+        if (isMpJwtRequest(request) && !denyUnlessOwnsRequest(request, reply, data.row)) {
+          return;
+        }
         row = data.row;
       }
 
@@ -418,7 +427,6 @@ module.exports = async function customsRequestsRoutes(fastify) {
             importedLast12Months: { type: 'boolean' },
             ownsOtherCars: { type: 'boolean' },
             commentText: { type: 'string', maxLength: 5000 },
-            isTest: { type: 'boolean' },
           },
         },
       },
@@ -431,6 +439,13 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const legalInn = resolveLegalInnFromBody(request.body, { required: true });
+      const orgId = mpOrganizationId(request);
+      if (!orgId) {
+        return reply.code(401).send({ error: 'UNAUTHORIZED' });
+      }
+      const isTestRequest =
+        fastify.config.demoFlow?.enabled &&
+        isDemoApplicantName(request.body.individualFullName);
 
       const conn = await fastify.pool.getConnection();
       try {
@@ -438,11 +453,12 @@ module.exports = async function customsRequestsRoutes(fastify) {
 
         const [insertResult] = await conn.query(
           `INSERT INTO customs_requests
-             (external_1c_id, manager_external_1c_id, legal_entity_name, legal_email, legal_phone, legal_inn,
+             (organization_id, external_1c_id, manager_external_1c_id, legal_entity_name, legal_email, legal_phone, legal_inn,
               individual_full_name, individual_phone, individual_snils, car_make, car_model, vin,
               has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars, comment_text, is_test, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
+            orgId,
             null,
             null,
             normalize(request.body.legalEntityName),
@@ -460,11 +476,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
             toFlag(request.body.importedLast12Months),
             toFlag(request.body.ownsOtherCars),
             normalize(request.body.commentText) || null,
-            toFlag(request.body.isTest) ||
-              (fastify.config.demoFlow?.enabled &&
-              isDemoApplicantName(request.body.individualFullName)
-                ? 1
-                : 0),
+            isTestRequest ? 1 : 0,
             'new',
           ],
         );
@@ -472,6 +484,28 @@ module.exports = async function customsRequestsRoutes(fastify) {
         const requestId = insertResult.insertId;
 
         await conn.commit();
+
+        if (!isTestRequest) {
+          notifyNewCustomsRequest(
+            fastify.config.smtp,
+            { requestId, body: request.body, legalInn },
+            fastify.log,
+          ).catch((err) => {
+            fastify.log.error({ err, requestId }, 'customs request notify email failed');
+          });
+
+          notifyClientCustomsRequestAccepted(
+            fastify.config.smtp,
+            {
+              requestId,
+              legalEmail: request.body.legalEmail,
+              legalEntityName: request.body.legalEntityName,
+            },
+            fastify.log,
+          ).catch((err) => {
+            fastify.log.error({ err, requestId }, 'customs client confirmation email failed');
+          });
+        }
 
         const created = await fetchRequestById(fastify.pool, requestId);
         return reply
@@ -493,20 +527,18 @@ module.exports = async function customsRequestsRoutes(fastify) {
     '/customs-requests',
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
+      const orgId = mpOrganizationId(request);
+      if (!orgId) {
+        return reply.code(401).send({ error: 'UNAUTHORIZED' });
+      }
       const limit = Math.min(Math.max(Number(request.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(request.query.offset) || 0, 0);
       const status = normalize(request.query.status);
-      const isTestQ = normalize(request.query.isTest).toLowerCase();
-      const where = ['deleted_at IS NULL'];
-      const args = [];
+      const where = ['deleted_at IS NULL', 'organization_id = ?'];
+      const args = [orgId];
       if (status) {
         where.push('status = ?');
         args.push(status);
-      }
-      if (isTestQ === 'true' || isTestQ === '1') {
-        where.push('is_test = 1');
-      } else if (isTestQ === 'false' || isTestQ === '0') {
-        where.push('is_test = 0');
       }
       args.push(limit, offset);
 
@@ -536,8 +568,11 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const data = await fetchRequestById(fastify.pool, id);
-      if (!data) {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
+      if (!data || !denyUnlessOwnsRequest(request, reply, data.row)) {
+        if (!data) {
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
+        return;
       }
 
       return reply.send(
@@ -579,6 +614,19 @@ module.exports = async function customsRequestsRoutes(fastify) {
       const id = Number(request.params.id);
       if (!Number.isFinite(id) || id <= 0) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      const orgId = mpOrganizationId(request);
+      if (!orgId) {
+        return reply.code(401).send({ error: 'UNAUTHORIZED' });
+      }
+
+      const existing = await fetchRequestById(fastify.pool, id);
+      if (!existing || !denyUnlessOwnsRequest(request, reply, existing.row)) {
+        if (!existing) {
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
+        return;
       }
 
       let legalInnPatch;
@@ -637,11 +685,11 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нет полей для обновления' });
       }
 
-      values.push(id);
+      values.push(id, orgId);
       const [result] = await fastify.pool.query(
         `UPDATE customs_requests
          SET ${fields.join(', ')}
-         WHERE id = ? AND deleted_at IS NULL`,
+         WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`,
         values,
       );
 
@@ -871,6 +919,14 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
 
+      const parent = await fetchRequestById(fastify.pool, id);
+      if (!parent || !denyUnlessOwnsRequest(request, reply, parent.row)) {
+        if (!parent) {
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
+        return;
+      }
+
       const [rows] = await fastify.pool.query(
         `SELECT stored_name, preview_stored_name
          FROM customs_request_files
@@ -908,9 +964,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
 
       try {
         const [rows] = await fastify.pool.query(
-          `SELECT mime_type
-           FROM customs_request_files
-           WHERE stored_name = ? AND deleted_at IS NULL
+          `SELECT f.mime_type, r.organization_id
+           FROM customs_request_files f
+           INNER JOIN customs_requests r ON r.id = f.request_id AND r.deleted_at IS NULL
+           WHERE f.stored_name = ? AND f.deleted_at IS NULL
            LIMIT 1`,
           [storedName],
         );
@@ -918,12 +975,20 @@ module.exports = async function customsRequestsRoutes(fastify) {
           return reply.code(404).send({ error: 'NOT_FOUND' });
         }
 
+        if (isMpJwtRequest(request)) {
+          const orgId = mpOrganizationId(request);
+          if (!orgId || Number(rows[0].organization_id) !== orgId) {
+            return reply.code(404).send({ error: 'NOT_FOUND' });
+          }
+        }
+
+        const mimeType = rows[0].mime_type || 'application/octet-stream';
+
         const stat = await fs.stat(filePath);
         if (!stat.isFile()) {
           return reply.code(404).send({ error: 'NOT_FOUND' });
         }
 
-        const mimeType = rows[0].mime_type || 'application/octet-stream';
         return reply.type(mimeType).send(await fs.readFile(filePath));
       } catch (e) {
         if (e.code === 'ENOENT') {

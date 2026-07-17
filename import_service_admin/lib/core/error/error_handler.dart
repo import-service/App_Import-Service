@@ -25,6 +25,8 @@ class ErrorHandler {
           );
         }
         return UnauthorizedException(message, code);
+      case 403:
+        return UnknownServerException(message);
       case 404:
         return NotFoundException(message);
       case 409:

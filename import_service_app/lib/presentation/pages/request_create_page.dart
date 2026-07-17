@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:dartz/dartz.dart' show Either;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/error/failures.dart';
@@ -18,15 +17,19 @@ import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/domain/entities/create_vehicle_result.dart';
 import 'package:import_service_app/domain/entities/request_files_batch_upload_result.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
+import 'package:import_service_app/presentation/helpers/masked_field_validation.dart';
 import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
 import 'package:import_service_app/presentation/pages/request_files_upload_page.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_logout_outlined_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_filled_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_outlined_wide_button.dart';
-import 'package:import_service_app/presentation/widgets/forms/app_field_decoration.dart';
+import 'package:import_service_app/presentation/widgets/forms/fields/app_inn_field.dart';
+import 'package:import_service_app/presentation/widgets/forms/fields/app_phone_ru_field.dart';
+import 'package:import_service_app/presentation/widgets/forms/fields/app_snils_field.dart';
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/inn_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/phone_ru_input_formatter.dart';
+import 'package:import_service_app/presentation/widgets/forms/input_formatters/snils_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/vin_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/request_labeled_input_field.dart';
 import 'package:import_service_app/presentation/widgets/selection/organization_type_selector.dart';
@@ -124,7 +127,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         carRearPhotoPaths: List<String>.from(_files.carRearPhotoPaths),
         additionalFile1Paths: List<String>.from(_files.additionalFile1Paths),
         additionalFile2Paths: List<String>.from(_files.additionalFile2Paths),
-        isTest: true,
       );
 
   bool _shouldAutoPersist() => RequestFormModel.countFilledFields(_buildForm()) > 0;
@@ -159,18 +161,22 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       return false;
     }
     if (!_isValidInn(innDigits, _organizationType)) {
-      sl<AppFeedbackService>().show(s.innFormatError, kind: AppFeedbackKind.error);
+      sl<AppFeedbackService>().show(
+        s.innFormatErrorFor(_organizationType),
+        kind: AppFeedbackKind.error,
+      );
       return false;
     }
-    if (!_isValidRuPhone(companyPhoneDigits) || !_isValidRuPhone(personPhoneDigits)) {
+    if (!isValidRuPhoneDigits(companyPhoneDigits) ||
+        !isValidRuPhoneDigits(personPhoneDigits)) {
       sl<AppFeedbackService>().show(s.phoneFormatError, kind: AppFeedbackKind.error);
       return false;
     }
-    if (snilsRaw.length != 11) {
+    if (snilsRaw.length != snilsDigitCount) {
       sl<AppFeedbackService>().show(s.text('snilsLengthError'), kind: AppFeedbackKind.error);
       return false;
     }
-    if (!_isValidSnils(snilsRaw)) {
+    if (!isValidSnilsDigits(snilsRaw)) {
       sl<AppFeedbackService>().show(s.text('snilsChecksumError'), kind: AppFeedbackKind.error);
       return false;
     }
@@ -211,9 +217,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (!hasRequiredText) return false;
     final formatsOk = _isValidEmail(email) &&
         _isValidInn(innDigits, _organizationType) &&
-        _isValidRuPhone(companyPhoneDigits) &&
-        _isValidRuPhone(personPhoneDigits) &&
-        _isValidSnils(snilsRaw) &&
+        isValidRuPhoneDigits(companyPhoneDigits) &&
+        isValidRuPhoneDigits(personPhoneDigits) &&
+        isValidSnilsDigits(snilsRaw) &&
         _isValidVin(vin);
     return formatsOk && _files.allRequiredReady && !_submitting;
   }
@@ -253,39 +259,24 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (vin.isEmpty) return missing(s.text('requestVinLabel'));
 
     if (!_isValidEmail(companyEmail)) return s.emailFormatError;
-    if (!_isValidInn(companyInn, _organizationType)) return s.innFormatError;
-    if (!_isValidRuPhone(companyPhone) || !_isValidRuPhone(personPhone)) {
+    if (!_isValidInn(companyInn, _organizationType)) {
+      return s.innFormatErrorFor(_organizationType);
+    }
+    if (!isValidRuPhoneDigits(companyPhone) || !isValidRuPhoneDigits(personPhone)) {
       return s.phoneFormatError;
     }
-    if (personSnils.length != 11) return s.text('snilsLengthError');
-    if (!_isValidSnils(personSnils)) return s.text('snilsChecksumError');
+    if (personSnils.length != snilsDigitCount) return s.text('snilsLengthError');
+    if (!isValidSnilsDigits(personSnils)) return s.text('snilsChecksumError');
     if (!_isValidVin(vin)) return s.text('vinFormatError');
     if (!_files.allRequiredReady) return s.text('requestFilesRequiredError');
     return null;
   }
 
-  String _snilsDigits(String value) => value.replaceAll(RegExp(r'\D'), '');
+  String _snilsDigits(String value) => snilsDigitsOnly(value);
   String _innDigits(String value) => innDigitsOnly(value);
+  String _phoneDigits(String value) => ruPhoneDigitsOnly(value);
 
-  String _phoneDigits(String value) {
-    var digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.startsWith('8')) {
-      digits = '7${digits.substring(1)}';
-    } else if (digits.length == 10) {
-      digits = '7$digits';
-    }
-    return digits;
-  }
-
-  String _normalizePhoneForApi(String value) {
-    final digits = _phoneDigits(value);
-    if (_isValidRuPhone(digits)) {
-      return '+$digits';
-    }
-    return value.trim();
-  }
-
-  bool _isValidRuPhone(String digits) => digits.length == 11 && digits.startsWith('7');
+  String _normalizePhoneForApi(String value) => normalizeRuPhoneForApi(value);
 
   bool _isValidEmail(String email) {
     if (email.contains('..')) {
@@ -296,49 +287,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }
 
   bool _isValidVin(String vin) => RegExp(r'^[A-HJ-NPR-Z0-9]{17}$').hasMatch(vin);
-  bool _isValidInn(String digits, OrganizationType orgType) {
-    if (orgType == OrganizationType.ip) {
-      return digits.length == 12;
-    }
-    return digits.length == 10;
-  }
-
-  bool _isValidSnils(String digits) {
-    if (digits.length != 11) {
-      return false;
-    }
-    if (RegExp(r'^(\d)\1{10}$').hasMatch(digits)) {
-      return false;
-    }
-    final body = digits.substring(0, 9);
-    final control = int.tryParse(digits.substring(9));
-    if (control == null) {
-      return false;
-    }
-    final bodyInt = int.tryParse(body);
-    if (bodyInt == null) {
-      return false;
-    }
-    if (bodyInt <= 1001998) {
-      return control == 0;
-    }
-    var sum = 0;
-    for (var i = 0; i < 9; i++) {
-      sum += int.parse(body[i]) * (9 - i);
-    }
-    var expected = 0;
-    if (sum < 100) {
-      expected = sum;
-    } else if (sum == 100 || sum == 101) {
-      expected = 0;
-    } else {
-      expected = sum % 101;
-      if (expected == 100) {
-        expected = 0;
-      }
-    }
-    return expected == control;
-  }
+  bool _isValidInn(String digits, OrganizationType orgType) =>
+      isValidInnDigits(digits, orgType);
 
   void _scheduleSave() {
     _debounce?.cancel();
@@ -539,15 +489,21 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     );
   }
 
+  void _clampInnToOrgType() =>
+      clampInnController(_companyInnController, _organizationType);
+
   void _applyDraft(RequestFormModel f) {
     _organizationType = f.organizationType;
     _companyNameController.text = f.companyName;
-    _companyInnController.text = InnInputFormatter.formatDigits(f.companyInn);
+    _companyInnController.text = InnInputFormatter.formatDigits(
+      f.companyInn,
+      maxDigits: f.organizationType.innMaxDigits,
+    );
     _companyEmailController.text = f.companyEmail;
-    _companyPhoneController.text = f.companyPhone;
+    _companyPhoneController.text = PhoneRuInputFormatter.formatDisplay(f.companyPhone);
     _personNameController.text = f.personFullName;
-    _personPhoneController.text = f.personPhone;
-    _personSnilsController.text = f.personSnils;
+    _personPhoneController.text = PhoneRuInputFormatter.formatDisplay(f.personPhone);
+    _personSnilsController.text = SnilsInputFormatter.formatDigits(f.personSnils);
     _brandController.text = f.carBrand;
     _modelController.text = f.carModel;
     _vinController.text = f.vin;
@@ -591,19 +547,26 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       _companyNameController.text = companyName.trim();
     }
     if (_companyInnController.text.trim().isEmpty && inn.trim().isNotEmpty) {
-      _companyInnController.text = InnInputFormatter.formatDigits(inn);
+      _companyInnController.text = InnInputFormatter.formatDigits(
+        inn,
+        maxDigits: _organizationType.innMaxDigits,
+      );
     }
     if (_companyEmailController.text.trim().isEmpty && email.trim().isNotEmpty) {
       _companyEmailController.text = email.trim();
     }
     if (_companyPhoneController.text.trim().isEmpty && phone.trim().isNotEmpty) {
-      _companyPhoneController.text = phone.trim();
+      _companyPhoneController.text = PhoneRuInputFormatter.formatDisplay(phone);
     }
     if (_personNameController.text.trim().isEmpty && fullName.trim().isNotEmpty) {
       _personNameController.text = fullName.trim();
     }
     if (_personPhoneController.text.trim().isEmpty && phone.trim().isNotEmpty) {
-      _personPhoneController.text = phone.trim();
+      _personPhoneController.text = PhoneRuInputFormatter.formatDisplay(phone);
+    }
+    if (isDemo && _personSnilsController.text.trim().isEmpty) {
+      _personSnilsController.text =
+          SnilsInputFormatter.formatDigits(DemoProfileSnapshot.personSnils);
     }
   }
 
@@ -684,7 +647,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
               OrganizationTypeSelector(
                 selected: _organizationType,
                 onChanged: (value) {
-                  setState(() => _organizationType = value);
+                  setState(() {
+                    _organizationType = value;
+                    _clampInnToOrgType();
+                  });
                   _scheduleSave();
                 },
                 oooLabel: s.orgTypeOoo,
@@ -702,15 +668,11 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 14),
-              RequestLabeledInputField(
+              AppInnField(
                 label: s.innLabel,
-                hintText: s.innLabel,
                 controller: _companyInnController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  InnInputFormatter(),
-                  LengthLimitingTextInputFormatter(14),
-                ],
+                organizationType: _organizationType,
+                validate: false,
               ),
               const SizedBox(height: 14),
               RequestLabeledInputField(
@@ -720,12 +682,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 14),
-              RequestLabeledInputField(
+              AppPhoneRuField(
                 label: s.text('requestCompanyPhoneLabel'),
-                hintText: '+7 (999) 000-00-00',
                 controller: _companyPhoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [PhoneRuInputFormatter()],
+                validate: false,
               ),
               const SizedBox(height: 14),
               if (_organizationType == OrganizationType.ooo) ...[
@@ -737,23 +697,16 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 ),
                 const SizedBox(height: 14),
               ],
-              RequestLabeledInputField(
+              AppPhoneRuField(
                 label: s.text('requestPersonPhoneLabel'),
-                hintText: '+7 (999) 000-00-00',
                 controller: _personPhoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [PhoneRuInputFormatter()],
+                validate: false,
               ),
               const SizedBox(height: 14),
-              RequestLabeledInputField(
+              AppSnilsField(
                 label: s.text('requestSnilsLabel'),
-                hintText: '00000000000',
                 controller: _personSnilsController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(11),
-                ],
+                validate: false,
               ),
               const SizedBox(height: 14),
               RequestLabeledInputField(
@@ -817,22 +770,13 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 },
               ),
               const SizedBox(height: 14),
-              Text(
-                s.text('requestCommentLabel'),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: const Color(0xFF7C7C7C),
-                      fontWeight: FontWeight.w500,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
+              RequestLabeledInputField(
+                label: s.text('requestCommentLabel'),
+                hintText: s.text('requestCommentHint'),
                 controller: _commentController,
+                markRequired: false,
                 minLines: 3,
                 maxLines: 5,
-                decoration: buildAppOutlineInputDecoration(
-                  context,
-                  hintText: s.text('requestCommentHint'),
-                ),
               ),
               const SizedBox(height: 18),
               if (!isWide) ..._buildFilesAndActions(s) else _buildWideFilesPanel(s),
@@ -854,27 +798,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         label: Text(s.text('requestFilesOpenButton')),
       ),
       const SizedBox(height: 6),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Checkbox(
-            value: true,
-            onChanged: null,
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text(
-                s.requestTestModeLabel,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: const Color(0xFF1A1A1A),
-                    ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 10),
       AppPrimaryFilledWideButton(
         label: _failedUploadDocTypes.isNotEmpty
             ? s.text('requestCreateRetryUpload')

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:import_service_app/presentation/widgets/forms/app_field_decoration.dart';
+import 'package:import_service_app/presentation/widgets/forms/fields/app_clearable_labeled_field.dart';
 
+/// Подпись + поле ввода формы заявки (с крестиком очистки).
 class RequestLabeledInputField extends StatelessWidget {
   const RequestLabeledInputField({
     super.key,
@@ -13,6 +14,8 @@ class RequestLabeledInputField extends StatelessWidget {
     this.inputFormatters,
     this.textCapitalization = TextCapitalization.none,
     this.markRequired = true,
+    this.minLines,
+    this.maxLines,
   });
 
   final String label;
@@ -23,42 +26,23 @@ class RequestLabeledInputField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization textCapitalization;
   final bool markRequired;
+  final int? minLines;
+  final int? maxLines;
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: const Color(0xFF7C7C7C),
-          fontWeight: FontWeight.w500,
-        );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text.rich(
-          TextSpan(
-            style: labelStyle,
-            children: [
-              TextSpan(text: label),
-              if (markRequired)
-                TextSpan(
-                  text: ' *',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          textInputAction: textInputAction,
-          textCapitalization: textCapitalization,
-          inputFormatters: inputFormatters,
-          decoration: buildAppOutlineInputDecoration(context, hintText: hintText),
-        ),
-      ],
+    return AppClearableLabeledField(
+      label: label,
+      hintText: hintText,
+      controller: controller,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      inputFormatters: inputFormatters,
+      textCapitalization: textCapitalization,
+      markRequired: markRequired,
+      minLines: minLines,
+      maxLines: maxLines,
+      density: AppLabeledFieldDensity.request,
     );
   }
 }

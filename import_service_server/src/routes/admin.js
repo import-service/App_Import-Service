@@ -116,6 +116,114 @@ module.exports = async function adminRoutes(fastify) {
     });
   });
 
+  function toAdminUserDto(row) {
+    return {
+      id: row.id,
+      login: row.login,
+      createdAt: row.created_at,
+    };
+  }
+
+  fastify.get(
+    '/admin/users',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
+      const offset = Math.max(Number(request.query.offset) || 0, 0);
+
+      const [countRows] = await fastify.pool.query('SELECT COUNT(*) AS total FROM admin_users');
+      const total = Number(countRows[0]?.total || 0);
+
+      const [rows] = await fastify.pool.query(
+        `SELECT id, login, created_at
+         FROM admin_users
+         ORDER BY id ASC
+         LIMIT ? OFFSET ?`,
+        [limit, offset],
+      );
+
+      return reply.send({
+        items: rows.map(toAdminUserDto),
+        total,
+        limit,
+        offset,
+      });
+    },
+  );
+
+  fastify.post(
+    '/admin/users',
+    {
+      onRequest: [fastify.authenticateAdmin],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['login', 'password'],
+          properties: {
+            login: { type: 'string', minLength: 1, maxLength: 255 },
+            password: { type: 'string', minLength: 6, maxLength: 128 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const login = String(request.body.login || '').trim();
+      const password = String(request.body.password || '');
+
+      if (!login) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Логин обязателен' });
+      }
+
+      const [existing] = await fastify.pool.query(
+        'SELECT id FROM admin_users WHERE login = ? LIMIT 1',
+        [login],
+      );
+      if (existing.length) {
+        return reply.code(409).send({ error: 'LOGIN_ALREADY_EXISTS', message: 'Такой логин уже занят' });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const [result] = await fastify.pool.query(
+        'INSERT INTO admin_users (login, password_hash) VALUES (?, ?)',
+        [login, passwordHash],
+      );
+
+      const [rows] = await fastify.pool.query(
+        'SELECT id, login, created_at FROM admin_users WHERE id = ? LIMIT 1',
+        [result.insertId],
+      );
+
+      return reply.code(201).send({ item: toAdminUserDto(rows[0]) });
+    },
+  );
+
+  fastify.delete(
+    '/admin/users/:id',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      const selfId = Number(request.user.sub);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+      if (id === selfId) {
+        return reply.code(403).send({ error: 'FORBIDDEN', message: 'Нельзя удалить свою учётную запись' });
+      }
+
+      const [countRows] = await fastify.pool.query('SELECT COUNT(*) AS n FROM admin_users');
+      if (Number(countRows[0]?.n || 0) <= 1) {
+        return reply.code(403).send({ error: 'FORBIDDEN', message: 'Нельзя удалить последнего администратора' });
+      }
+
+      const [result] = await fastify.pool.query('DELETE FROM admin_users WHERE id = ?', [id]);
+      if (!result.affectedRows) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      return reply.send({ ok: true });
+    },
+  );
+
   fastify.get(
     '/admin/organizations',
     { onRequest: [fastify.authenticateAdmin] },
@@ -285,18 +393,12 @@ module.exports = async function adminRoutes(fastify) {
       const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
       const offset = Math.max(Number(request.query.offset) || 0, 0);
       const status = String(request.query.status || '').trim();
-      const isTestQ = String(request.query.isTest || '').trim().toLowerCase();
 
       const where = ['deleted_at IS NULL'];
       const args = [];
       if (status) {
         where.push('status = ?');
         args.push(status);
-      }
-      if (isTestQ === 'true' || isTestQ === '1') {
-        where.push('is_test = 1');
-      } else if (isTestQ === 'false' || isTestQ === '0') {
-        where.push('is_test = 0');
       }
 
       const whereSql = where.join(' AND ');

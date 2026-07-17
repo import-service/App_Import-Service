@@ -56,6 +56,24 @@ final class RequestDraftAttachmentsSpace {
     }
   }
 
+  /// Удаляет все вложения черновиков (при смене профиля / входе в демо).
+  static Future<void> deleteAll() async {
+    try {
+      final base = await getApplicationSupportDirectory();
+      final dir = Directory(p.join(base.path, _attachmentsDirName));
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    } catch (e, st) {
+      AppLog.error(
+        'Не удалось удалить все вложения черновиков заявки',
+        tag: 'RequestDraftAttachmentsSpace',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
   static Future<String> ingestPickedFile({
     required String draftId,
     required String sourcePath,

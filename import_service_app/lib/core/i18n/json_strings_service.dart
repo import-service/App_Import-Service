@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/services.dart';
+import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/domain/entities/deal_type.dart';
 import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 
@@ -55,6 +56,18 @@ final class JsonStringsService {
 
   String get fieldRequiredError => text('fieldRequiredError');
   String get innFormatError => text('innFormatError');
+  String get innFormatErrorOoo => text('innFormatErrorOoo');
+  String get innFormatErrorIp => text('innFormatErrorIp');
+  String get innHintOoo => text('innHintOoo');
+  String get innHintIp => text('innHintIp');
+
+  String innFormatErrorFor(OrganizationType type) =>
+      type == OrganizationType.ip ? innFormatErrorIp : innFormatErrorOoo;
+
+  String innHintFor(OrganizationType type) =>
+      type == OrganizationType.ip ? innHintIp : innHintOoo;
+
+  String get snilsHint => text('snilsHint');
   String get phoneFormatError => text('phoneFormatError');
   String get emailFormatError => text('emailFormatError');
   String get requestUnknownError => text('requestUnknownError');
@@ -140,7 +153,6 @@ final class JsonStringsService {
   String get requestDocumentPack => text('requestDocumentPack');
   String get requestDocumentPackInfo => text('requestDocumentPackInfo');
   String get requestDocumentUpload => text('requestDocumentUpload');
-  String get requestTestModeLabel => text('requestTestModeLabel');
   String get requestDetailDealType => text('requestDetailDealType');
   String get requestDetailOwner => text('requestDetailOwner');
   String get requestDetailAboutSection => text('requestDetailAboutSection');

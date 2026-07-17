@@ -129,16 +129,6 @@ class RequestListCard extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          if (item.isTest) ...[
-                            const Gap(6),
-                            Text(
-                              'Тестовая',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: AppTheme.accentRed,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
                           if (needsCreate) ...[
                             const Gap(6),
                             Text(

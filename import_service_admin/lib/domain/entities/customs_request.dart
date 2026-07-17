@@ -21,7 +21,6 @@ class CustomsRequest extends Equatable {
     required this.hasAllWheelDrive,
     required this.importedLast12Months,
     required this.ownsOtherCars,
-    required this.isTest,
     this.statusSinceDateLabel,
     this.statusSubType,
     this.statusSubTypeDateTime,
@@ -72,7 +71,6 @@ class CustomsRequest extends Equatable {
   final bool importedLast12Months;
   final bool ownsOtherCars;
   final String? commentText;
-  final bool isTest;
   final String? managerFullName;
   final String? managerExternal1cId;
   final String? external1cId;

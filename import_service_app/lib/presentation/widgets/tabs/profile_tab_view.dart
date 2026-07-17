@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:import_service_app/data/demo/demo_profile_snapshot.dart';
 import 'package:import_service_app/presentation/widgets/auth/login_brand_logo.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_logout_outlined_wide_button.dart';
+import 'package:import_service_app/presentation/widgets/forms/input_formatters/inn_input_formatter.dart';
+import 'package:import_service_app/presentation/widgets/forms/input_formatters/phone_ru_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/profile/profile_meta_row.dart';
 import 'package:import_service_app/presentation/widgets/profile/profile_placeholder_avatar.dart';
 
@@ -72,7 +74,10 @@ class ProfileTabView extends StatelessWidget {
                         ),
                         ProfileMetaRow(
                           label: innLabel,
-                          value: DemoProfileSnapshot.inn,
+                          value: InnInputFormatter.formatDigits(
+                            DemoProfileSnapshot.inn,
+                            maxDigits: 10,
+                          ),
                         ),
                         ProfileMetaRow(
                           label: managerLabel,
@@ -99,7 +104,10 @@ class ProfileTabView extends StatelessWidget {
                         if ((inn ?? '').trim().isNotEmpty)
                           ProfileMetaRow(
                             label: innLabel,
-                            value: inn!.trim(),
+                            value: InnInputFormatter.formatDigits(
+                              inn!.trim(),
+                              maxDigits: inn!.trim().length == 12 ? 12 : 10,
+                            ),
                           ),
                         if ((managerName ?? '').trim().isNotEmpty)
                           ProfileMetaRow(
@@ -109,7 +117,7 @@ class ProfileTabView extends StatelessWidget {
                         if ((phone ?? '').trim().isNotEmpty)
                           ProfileMetaRow(
                             label: phoneLabel,
-                            value: phone!.trim(),
+                            value: PhoneRuInputFormatter.formatDisplay(phone),
                           ),
                         if ((email ?? '').trim().isNotEmpty)
                           ProfileMetaRow(
