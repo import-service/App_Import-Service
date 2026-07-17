@@ -1,0 +1,13 @@
+---
+description: SSL Let’s Encrypt на VPS — ссылка на канон + параметры Import Service
+alwaysApply: false
+globs: import_service_server/**
+---
+
+# SSL на прод (Import Service)
+
+Полный канон для **новых** VPS:  
+`F:\_ARC\Projects\_my_template\fastify-api\.cursor\rules\ssl-letsencrypt-vps.mdc`  
+Скрипт: `scripts/setup-ssl-autorenew.sh` (корень монорепо).
+
+Параметры **этого** сервера и команда renew — в `server-deploy-vps.mdc` (§ SSL Let’s Encrypt).

@@ -53,3 +53,23 @@ cd D:\Projects\import_servis
 - Писать «сделайте на VPS» без попытки `deploy-server-vps.ps1`.
 - Считать, что push в GitHub обновил прод.
 - Использовать `ssh-prod` для этого проекта.
+
+## SSL Let’s Encrypt (прод)
+
+| | |
+|---|---|
+| Домен | `157-22-173-7.sslip.io` (+ `www.`) |
+| Cert files | `/var/www/httpd-cert/www-root/157-22-173-7.sslip.io_le1.crt` |
+| Cert ID | `1` (ISPmanager LE) |
+| Safety renew | `/usr/local/sbin/renew-sslip-le.sh` (cron пн 04:15) |
+| Шаблон/канон | `F:\_ARC\Projects\_my_template\fastify-api\.cursor\rules\ssl-letsencrypt-vps.mdc` |
+| Скрипт | `scripts/setup-ssl-autorenew.sh` (из корня монорепо) |
+
+LE максимум ~90 дней. При «сертификат истёк» / HSTS: проверить ACME `/.well-known/acme-challenge/` (HTTP **200**, не 404 Node), затем:
+
+```bash
+ssh root@157.22.173.7 '/usr/local/mgr5/sbin/letsencrypt --cert-id 1 && nginx -t && nginx -s reload'
+```
+
+Или заново прогнать `setup-ssl-autorenew.sh` с `DOMAIN=157-22-173-7.sslip.io CERT_ID=1 LISTEN_IP=157.22.173.7`.
+Не проксировать ACME в Node; на HTTP не ставить server-level `return 301` на весь server.

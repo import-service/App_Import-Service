@@ -47,6 +47,7 @@ Subagent/Task — на усмотрение исполнителя.
 ## Деплой
 
 - Сервер: `scripts/deploy-server-vps.ps1` — агент сам после правок API
+- SSL/LE на VPS: `import_service_server/.cursor/rules/server-deploy-vps.mdc` (§ SSL) + `scripts/setup-ssl-autorenew.sh`; канон для новых VPS — шаблон `fastify-api` (`ssl-letsencrypt-vps.mdc`)
 - APK/IPA: только по явной просьбе — `import_service_app/.cursor/rules/release-apk-handoff.mdc`
 
 ## Git
