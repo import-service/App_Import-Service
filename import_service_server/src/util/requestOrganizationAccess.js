@@ -9,7 +9,14 @@ function mpOrganizationId(request) {
 }
 
 function isMpJwtRequest(request) {
-  return !isIntegrationBearerRequest(request);
+  if (isIntegrationBearerRequest(request)) {
+    return false;
+  }
+  // JWT админки (aud: admin) — не ограничивать по organization_id МП
+  if (request.user?.aud === 'admin') {
+    return false;
+  }
+  return Boolean(request.user?.sub);
 }
 
 function rowOwnedByOrganization(row, orgId) {

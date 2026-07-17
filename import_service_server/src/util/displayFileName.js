@@ -2,7 +2,7 @@ const path = require('path');
 const { normalizeDocType } = require('../constants/customsCatalog');
 
 const KNOWN_EXT_RE =
-  /\.(pdf|jpe?g|png|webp|gif|heic|bmp|mp4|mov|webm|mkv|avi|m4v|mp3|m4a|wav|aac|ogg|docx?|xlsx?)$/i;
+  /\.(pdf|jpe?g|png|webp|gif|heic|bmp|mp4|mov|webm|mkv|avi|m4v|mp3|m4a|wav|aac|ogg|docx?|xlsx?|rar|zip)$/i;
 
 function normalize(v) {
   return String(v ?? '').trim();
@@ -19,6 +19,12 @@ function extensionFromMime(mimeType) {
   if (mt === 'image/png') return '.png';
   if (mt === 'image/webp') return '.webp';
   if (mt === 'video/mp4') return '.mp4';
+  if (mt === 'application/vnd.rar' || mt === 'application/x-rar-compressed') {
+    return '.rar';
+  }
+  if (mt === 'application/zip' || mt === 'application/x-zip-compressed') {
+    return '.zip';
+  }
   if (mt.startsWith('audio/')) return '.m4a';
   return '.bin';
 }
@@ -32,8 +38,10 @@ function defaultBaseName(docType) {
 }
 
 function resolveExtension(docType, mimeType, clientFileName, storedName) {
-  const fromClient = path.extname(normalize(clientFileName));
-  if (fromClient && fromClient.length <= 12) return fromClient.toLowerCase();
+  const fromClient = path.extname(normalize(clientFileName)).toLowerCase();
+  if (fromClient && fromClient.length <= 12 && fromClient !== '.bin') {
+    return fromClient === '.jpeg' ? '.jpg' : fromClient;
+  }
   const fromStored = path.extname(normalize(storedName));
   if (fromStored && fromStored.length <= 12 && fromStored.toLowerCase() !== '.bin') {
     return fromStored.toLowerCase();
@@ -42,6 +50,15 @@ function resolveExtension(docType, mimeType, clientFileName, storedName) {
   const dt = normalizeDocType(docType);
   if (ext === '.bin' && dt.endsWith('_sign')) return '.pdf';
   if (ext === '.bin' && (dt.startsWith('payment_') || dt.includes('receipt'))) return '.pdf';
+  // Архив транзита / фото создания без mime — по docType считаем jpeg
+  if (
+    ext === '.bin' &&
+    (/^transit_archive_photo_\d+$/i.test(dt) ||
+      /_photo$/i.test(dt) ||
+      ['passport_front', 'passport_registration', 'car_nameplate_photo', 'car_mileage_photo', 'car_front_photo', 'car_back_photo', 'inn', 'snils'].includes(dt))
+  ) {
+    return '.jpg';
+  }
   return ext;
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
@@ -55,6 +56,18 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  void _goRequests({String? status}) {
+    if (status != null && status.isNotEmpty) {
+      context.go('/requests?status=${Uri.encodeQueryComponent(status)}');
+    } else {
+      context.go('/requests');
+    }
+  }
+
+  void _goOrganizations() {
+    context.go('/organizations');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
@@ -91,6 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 value: _requestsTotal?.toString() ?? '…',
                 icon: Icons.assignment_outlined,
                 color: AppTheme.primaryBlue,
+                onTap: () => _goRequests(),
               ),
               _StatCard(
                 title: 'Статус new',
@@ -98,12 +112,14 @@ class _DashboardPageState extends State<DashboardPage> {
                 subtitle: 'можно отправить в 1С',
                 icon: Icons.upload_outlined,
                 color: AppTheme.accentRed,
+                onTap: () => _goRequests(status: 'new'),
               ),
               _StatCard(
                 title: 'Организации',
                 value: _orgsTotal?.toString() ?? '…',
                 icon: Icons.business_outlined,
                 color: const Color(0xFF2E7D32),
+                onTap: _goOrganizations,
               ),
             ],
           ),
@@ -120,6 +136,7 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.color,
     this.subtitle,
+    this.onTap,
   });
 
   final String title;
@@ -127,6 +144,7 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String? subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -138,27 +156,31 @@ class _StatCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: Color(0xFFE0E0E0)),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: color, size: 28),
-              const Gap(12),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-              ),
-              const Gap(4),
-              Text(title, style: Theme.of(context).textTheme.titleSmall),
-              if (subtitle != null) ...[
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: color, size: 28),
+                const Gap(12),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                ),
                 const Gap(4),
-                Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+                Text(title, style: Theme.of(context).textTheme.titleSmall),
+                if (subtitle != null) ...[
+                  const Gap(4),
+                  Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

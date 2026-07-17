@@ -19,6 +19,28 @@ bool isRequestFileVideo(CustomsRequestFile file) {
   return RegExp(r'\.(mp4|mov|webm|mkv|avi|m4v)$').hasMatch(probe);
 }
 
+/// Фото по mime / расширению / docType (архив транзита и слоты создания).
+bool isRequestFileImage(CustomsRequestFile file) {
+  final mime = file.mimeType?.trim().toLowerCase() ?? '';
+  if (mime.startsWith('image/')) return true;
+  final code = CustomsDocType.normalizeCode(file.docType ?? '');
+  if (code.startsWith('transit_archive_photo')) return true;
+  if (code.endsWith('_photo') || code.contains('_photo_')) return true;
+  const creationPhotos = {
+    'passport_front',
+    'passport_registration',
+    'car_nameplate_photo',
+    'car_mileage_photo',
+    'car_front_photo',
+    'car_back_photo',
+    'inn',
+    'snils',
+  };
+  if (creationPhotos.contains(code)) return true;
+  final probe = '${file.fileName ?? ''} ${file.fileUrl ?? ''}'.toLowerCase();
+  return RegExp(r'\.(jpe?g|png|webp|gif|heic|bmp)$').hasMatch(probe);
+}
+
 /// URL для миниатюры: фото — previewUrl ?? fileUrl; видео — только previewUrl.
 String? requestFileThumbnailUrl(CustomsRequestFile file) {
   if (isRequestFileVideo(file)) {
@@ -36,26 +58,14 @@ String? requestFileThumbnailUrl(CustomsRequestFile file) {
 /// URL для скачивания / полноразмерного просмотра / плеера.
 String? requestFileFullUrl(CustomsRequestFile file) => file.fileUrl?.trim();
 
-bool isRequestFileImage(CustomsRequestFile file) {
-  final mime = file.mimeType?.trim().toLowerCase() ?? '';
-  if (mime.startsWith('image/')) return true;
-  final probe = '${file.fileName ?? ''} ${file.fileUrl ?? ''}'.toLowerCase();
-  return RegExp(r'\.(jpe?g|png|webp|gif|heic|bmp)$').hasMatch(probe);
-}
-
-/// PDF по mime/расширению; 1С часто отдаёт PDF как `.bin` + `application/octet-stream`.
+/// PDF по mime/расширению. `.bin` + octet-stream **не** считаем PDF без magic bytes.
 bool isRequestFilePdf(CustomsRequestFile file) {
   final mime = file.mimeType?.trim().toLowerCase() ?? '';
   if (mime == 'application/pdf') return true;
+  if (mime.startsWith('image/') || mime.startsWith('video/')) return false;
+  if (isRequestFileImage(file) || isRequestFileVideo(file)) return false;
   final probe = '${file.fileName ?? ''} ${file.fileUrl ?? ''}'.toLowerCase();
   if (probe.contains('.pdf')) return true;
-  if (mime == 'application/octet-stream' || mime.isEmpty) {
-    final url = file.fileUrl?.toLowerCase() ?? '';
-    if (url.contains('customs-requests/files/') &&
-        (url.endsWith('.bin') || url.endsWith('.pdf'))) {
-      return true;
-    }
-  }
   return false;
 }
 
@@ -75,11 +85,23 @@ String requestFileDownloadName(CustomsRequestFile file) {
   if (isRequestFilePdf(file)) return '$doc.pdf';
   if (isRequestFileImage(file)) {
     final fromUrl = p.extension(file.fileUrl ?? '').toLowerCase();
-    if (fromUrl.isNotEmpty && fromUrl.length <= 5) return '$doc$fromUrl';
+    if (fromUrl.isNotEmpty &&
+        fromUrl.length <= 5 &&
+        fromUrl != '.bin' &&
+        RegExp(r'\.(jpe?g|png|webp|gif|heic|bmp)$').hasMatch(fromUrl)) {
+      return '$doc$fromUrl';
+    }
+    final fromName = p.extension(file.fileName ?? '').toLowerCase();
+    if (fromName.isNotEmpty &&
+        fromName != '.bin' &&
+        RegExp(r'\.(jpe?g|png|webp|gif|heic|bmp)$').hasMatch(fromName)) {
+      return '$doc$fromName';
+    }
     return '$doc.jpg';
   }
   final ext = p.extension(file.fileName ?? file.fileUrl ?? '').toLowerCase();
-  return ext.isNotEmpty ? '$doc$ext' : doc;
+  if (ext.isNotEmpty && ext != '.bin') return '$doc$ext';
+  return doc;
 }
 
 Future<bool> fileHasPdfMagic(String path) async {
@@ -93,6 +115,35 @@ Future<bool> fileHasPdfMagic(String path) async {
   }
 }
 
+Future<bool> fileHasJpegMagic(String path) async {
+  try {
+    final raf = await File(path).open();
+    final bytes = await raf.read(3);
+    await raf.close();
+    return bytes.length >= 3 &&
+        bytes[0] == 0xff &&
+        bytes[1] == 0xd8 &&
+        bytes[2] == 0xff;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> fileHasPngMagic(String path) async {
+  try {
+    final raf = await File(path).open();
+    final bytes = await raf.read(4);
+    await raf.close();
+    return bytes.length >= 4 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4e &&
+        bytes[3] == 0x47;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Путь к локальному PDF (с расширением `.pdf`), если содержимое — PDF.
 Future<String> normalizePdfPathIfNeeded(String path) async {
   if (!await fileHasPdfMagic(path)) return path;
@@ -100,6 +151,22 @@ Future<String> normalizePdfPathIfNeeded(String path) async {
   final pdfPath = '$path.pdf';
   await File(path).copy(pdfPath);
   return pdfPath;
+}
+
+/// Если скачали `.bin`, а внутри JPEG/PNG — переименовать для системных viewer.
+Future<String> normalizeImagePathIfNeeded(String path) async {
+  final lower = path.toLowerCase();
+  if (await fileHasJpegMagic(path) && !RegExp(r'\.jpe?g$').hasMatch(lower)) {
+    final jpgPath = '$path.jpg';
+    await File(path).copy(jpgPath);
+    return jpgPath;
+  }
+  if (await fileHasPngMagic(path) && !lower.endsWith('.png')) {
+    final pngPath = '$path.png';
+    await File(path).copy(pngPath);
+    return pngPath;
+  }
+  return path;
 }
 
 /// Скачать файл с Bearer (Dio). Возвращает локальный путь или `null`.
@@ -124,6 +191,11 @@ Future<String?> downloadAuthenticatedRequestFile(
     if (await fileHasPdfMagic(savePath) || isRequestFilePdf(file)) {
       return normalizePdfPathIfNeeded(savePath);
     }
+    if (await fileHasJpegMagic(savePath) ||
+        await fileHasPngMagic(savePath) ||
+        isRequestFileImage(file)) {
+      return normalizeImagePathIfNeeded(savePath);
+    }
     return savePath;
   } catch (e, st) {
     AppLog.error(
@@ -137,6 +209,10 @@ Future<String?> downloadAuthenticatedRequestFile(
 }
 
 Future<bool> shouldOpenAsInAppPdf(String localPath, CustomsRequestFile file) async {
+  if (await fileHasJpegMagic(localPath) || await fileHasPngMagic(localPath)) {
+    return false;
+  }
+  if (isRequestFileImage(file)) return false;
   if (await fileHasPdfMagic(localPath)) return true;
   return isRequestFilePdf(file);
 }

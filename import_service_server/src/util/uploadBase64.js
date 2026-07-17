@@ -1,4 +1,5 @@
 const { maxBytesForUpload, formatLimitMb } = require('../constants/uploadLimits');
+const { resolveFileKind } = require('./fileKindDetect');
 
 /** Поля base64, которые может прислать 1С (HTTPЗапрос + JSON). */
 const BASE64_FIELD_KEYS = [
@@ -78,7 +79,13 @@ function parseOneCUploadJsonBody(body) {
 
   const resolvedMime = mimeType || null;
   const { buffer, mimeType: mimeFromDataUrl } = decodeBase64Payload(extractBase64FromBody(body));
-  const finalMime = resolvedMime || mimeFromDataUrl || 'application/octet-stream';
+  const declaredMime = resolvedMime || mimeFromDataUrl || '';
+  const kind = resolveFileKind({
+    buffer,
+    clientFileName: fileName,
+    mimeType: declaredMime || 'application/octet-stream',
+  });
+  const finalMime = kind.mimeType;
   const maxBytes = maxBytesForUpload(docType, finalMime);
   if (buffer.length > maxBytes) {
     throw new Error(`VALIDATION_ERROR: файл больше ${formatLimitMb(maxBytes)}`);
@@ -91,6 +98,7 @@ function parseOneCUploadJsonBody(body) {
     uploadTotal,
     fileName,
     mimeType: finalMime,
+    sourceMimeType: declaredMime || null,
     buffer,
   };
 }

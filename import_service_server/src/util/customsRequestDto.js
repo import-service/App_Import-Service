@@ -260,6 +260,18 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
       fileSizeBytes: Number(f.file_size_bytes),
       fileUrl: toAbsoluteUrl(f.file_url, base),
       previewUrl: f.preview_url ? toAbsoluteUrl(f.preview_url, base) : null,
+      sourceFileName:
+        f.source_file_name != null && String(f.source_file_name).trim() !== ''
+          ? String(f.source_file_name).trim()
+          : null,
+      sourceMimeType:
+        f.source_mime_type != null && String(f.source_mime_type).trim() !== ''
+          ? String(f.source_mime_type).trim()
+          : null,
+      uploadSource:
+        f.upload_source != null && String(f.upload_source).trim() !== ''
+          ? String(f.upload_source).trim()
+          : null,
       createdAt: toIso(f.created_at),
       updatedAt: toIso(f.updated_at),
     }));

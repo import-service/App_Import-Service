@@ -93,6 +93,16 @@ function authenticateUserOrIntegrationBearer(fastify) {
     if (expected && token && timingSafeEqualString(token, expected)) {
       return;
     }
+    // Admin JWT (aud: admin) → admin_sessions; иначе JWT МП → user_sessions.
+    try {
+      const decoded = await request.jwtVerify();
+      if (decoded?.aud === 'admin') {
+        await fastify.authenticateAdmin(request, reply);
+        return;
+      }
+    } catch {
+      // fall through to authenticate (user JWT)
+    }
     await fastify.authenticate(request, reply);
   };
 }
@@ -228,6 +238,7 @@ async function finalizeCustomsUpload(fastify, request, reply, {
   buf,
   mimeType,
   clientFileName,
+  sourceMimeType,
 }) {
   if (!docType) {
     return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'docType обязателен' });
@@ -246,6 +257,7 @@ async function finalizeCustomsUpload(fastify, request, reply, {
   }
 
   const storageKey = storageKeyForRequest(row);
+  const declaredMime = normalize(sourceMimeType != null ? sourceMimeType : mimeType);
   const saved = await upsertRequestFile(
     fastify.pool,
     UPLOAD_ROOT,
@@ -255,6 +267,11 @@ async function finalizeCustomsUpload(fastify, request, reply, {
     buf,
     normalize(mimeType) || 'application/octet-stream',
     clientFileName,
+    {
+      sourceFileName: clientFileName,
+      sourceMimeType: declaredMime || null,
+      uploadSource: source === 'integration' ? 'integration' : source === 'demo' ? 'demo' : 'user',
+    },
   );
 
   let batchInfo = { batchComplete: false };
@@ -331,6 +348,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
           buf: parsed.buffer,
           mimeType: parsed.mimeType,
           clientFileName: parsed.fileName,
+          sourceMimeType: parsed.sourceMimeType,
         });
       }
 
@@ -379,6 +397,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
         row = data.row;
       }
 
+      const declaredMime = normalize(mp.mimetype) || '';
       return finalizeCustomsUpload(fastify, request, reply, {
         row,
         docType,
@@ -386,8 +405,9 @@ module.exports = async function customsRequestsRoutes(fastify) {
         uploadTotal,
         source,
         buf,
-        mimeType: normalize(mp.mimetype) || 'application/octet-stream',
+        mimeType: declaredMime || 'application/octet-stream',
         clientFileName: sanitizeFileName(mp.filename),
+        sourceMimeType: declaredMime || null,
       });
     },
   );
@@ -964,12 +984,13 @@ module.exports = async function customsRequestsRoutes(fastify) {
 
       try {
         const [rows] = await fastify.pool.query(
-          `SELECT f.mime_type, r.organization_id
+          `SELECT f.mime_type, f.stored_name, f.preview_stored_name, r.organization_id
            FROM customs_request_files f
            INNER JOIN customs_requests r ON r.id = f.request_id AND r.deleted_at IS NULL
-           WHERE f.stored_name = ? AND f.deleted_at IS NULL
+           WHERE f.deleted_at IS NULL
+             AND (f.stored_name = ? OR f.preview_stored_name = ?)
            LIMIT 1`,
-          [storedName],
+          [storedName, storedName],
         );
         if (!rows.length) {
           return reply.code(404).send({ error: 'NOT_FOUND' });
@@ -982,7 +1003,12 @@ module.exports = async function customsRequestsRoutes(fastify) {
           }
         }
 
-        const mimeType = rows[0].mime_type || 'application/octet-stream';
+        const isPreview =
+          rows[0].preview_stored_name &&
+          String(rows[0].preview_stored_name) === storedName;
+        const mimeType = isPreview
+          ? 'image/jpeg'
+          : rows[0].mime_type || 'application/octet-stream';
 
         const stat = await fs.stat(filePath);
         if (!stat.isFile()) {

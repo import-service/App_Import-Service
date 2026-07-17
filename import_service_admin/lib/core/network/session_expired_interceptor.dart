@@ -12,10 +12,20 @@ class SessionExpiredInterceptor extends Interceptor {
     return path.contains('admin/auth/login');
   }
 
+  /// Превью/скачивание файлов: 401 не значит «сессия админа умерла».
+  static bool _skipSessionExpired(RequestOptions options) {
+    if (options.extra['skipSessionExpired'] == true) return true;
+    final path = options.path.toLowerCase();
+    final full = options.uri.toString().toLowerCase();
+    return path.contains('customs-requests/files/') ||
+        full.contains('customs-requests/files/');
+  }
+
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.response?.statusCode == 401 &&
-        !_isLoginRequest(err.requestOptions)) {
+        !_isLoginRequest(err.requestOptions) &&
+        !_skipSessionExpired(err.requestOptions)) {
       final callback = _onSessionExpired;
       if (callback != null) {
         callback();

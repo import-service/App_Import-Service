@@ -18,18 +18,30 @@ class RequestsPage extends StatefulWidget {
 }
 
 class _RequestsPageState extends State<RequestsPage> {
-  late Future<({List<CustomsRequest> items, int total})> _future;
+  Future<({List<CustomsRequest> items, int total})>? _future;
   final _sending = <String>{};
+  String? _statusFilter;
+  var _depsReady = false;
 
   @override
-  void initState() {
-    super.initState();
-    _reload();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final status = GoRouterState.of(context).uri.queryParameters['status'];
+    final normalized =
+        (status != null && status.trim().isNotEmpty) ? status.trim() : null;
+    if (!_depsReady || normalized != _statusFilter) {
+      _statusFilter = normalized;
+      _depsReady = true;
+      _reload();
+    }
   }
 
   void _reload() {
     setState(() {
-      _future = sl<CustomsRequestsRepository>().listRequests(limit: 200);
+      _future = sl<CustomsRequestsRepository>().listRequests(
+        limit: 200,
+        status: _statusFilter,
+      );
     });
   }
 
@@ -92,8 +104,12 @@ class _RequestsPageState extends State<RequestsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final future = _future;
+    if (future == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return FutureBuilder<({List<CustomsRequest> items, int total})>(
-      future: _future,
+      future: future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

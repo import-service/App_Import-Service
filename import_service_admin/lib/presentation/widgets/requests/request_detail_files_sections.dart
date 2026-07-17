@@ -4,6 +4,7 @@ import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/domain/entities/customs_request_delivered_document.dart';
 import 'package:import_service_admin/domain/entities/customs_request_file.dart';
 import 'package:import_service_admin/domain/services/request_files_grouper.dart';
+import 'package:import_service_admin/presentation/widgets/auth_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class RequestDetailFilesSections extends StatelessWidget {
@@ -153,26 +154,24 @@ class _PhotoUrlRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final token = authToken?.trim();
-    final headers = (token != null && token.isNotEmpty)
-        ? <String, String>{'Authorization': 'Bearer $token'}
-        : null;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: () => _open(url),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            url,
-            headers: headers,
+          child: SizedBox(
             height: 120,
             width: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(
-              height: 80,
-              color: AppTheme.pageBackground,
-              child: const Center(child: Icon(Icons.broken_image_outlined)),
+            child: AuthNetworkImage(
+              url: url,
+              authToken: authToken,
+              fit: BoxFit.cover,
+              errorWidget: Container(
+                height: 80,
+                color: AppTheme.pageBackground,
+                child: const Center(child: Icon(Icons.broken_image_outlined)),
+              ),
             ),
           ),
         ),

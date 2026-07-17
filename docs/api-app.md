@@ -104,6 +104,7 @@
 - `external1cId`, `managerExternal1cId`, `managerFullName`
 - `files[]` — **все** документы (квитанции, фото, ЭПТС — только здесь)
   - элемент: `docType`, **`fileName`** (с расширением, для отображения и 1С), `mimeType`, `fileSizeBytes`, **`fileUrl`** (полный файл), **`previewUrl`** (JPEG-превью для фото в списках МП; `null` для PDF/видео без poster)
+  - дополнительно (для отладки / админки): **`sourceFileName`**, **`sourceMimeType`** — как пришло в upload до нормализации; **`uploadSource`**: `integration` | `user` | `demo`; **`storedName`** — имя на диске
 
 ### POST /api/customs-requests
 
@@ -247,7 +248,9 @@ Push `request_files_update` — после upload от 1С; в `data.changedDocT
 
 Скачать файл по ссылке.
 
-Авторизация: `Authorization: Bearer <accessToken>` (пользователь приложения) **или** тот же интеграционный токен 1С — `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`.
+Авторизация: `Authorization: Bearer <accessToken>` (пользователь приложения), JWT админки (`aud: admin`) **или** интеграционный токен 1С — `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`.
+
+Ищется по `stored_name` **или** `preview_stored_name` (миниатюра JPEG для списков).
 
 ## Чат по заявке
 

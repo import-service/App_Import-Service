@@ -138,6 +138,12 @@ async function upsertDemoFiles(fastify, requestId, docTypes) {
       docType,
       DEMO_PDF_BUFFER,
       'application/pdf',
+      'demo.pdf',
+      {
+        sourceFileName: 'demo.pdf',
+        sourceMimeType: 'application/pdf',
+        uploadSource: 'demo',
+      },
     );
     changed.push(docType);
   }

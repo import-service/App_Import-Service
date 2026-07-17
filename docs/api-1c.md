@@ -14,7 +14,7 @@
 
 ## GET /api/customs-requests/files/:storedName
 
-Скачать двоичное содержимое файла по имени из `fileUrl` в заявке (например `/api/customs-requests/files/<uuid>.jpg`). Заголовок такой же, как для остальных методов интеграции: `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`. Альтернатива — JWT пользователя после входа в приложение.
+Скачать двоичное содержимое файла по имени из `fileUrl` в заявке (например `/api/customs-requests/files/<uuid>.jpg`). Заголовок такой же, как для остальных методов интеграции: `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`. Альтернативы — JWT пользователя МП или JWT админки (`aud: admin`).
 
 Ошибки:
 

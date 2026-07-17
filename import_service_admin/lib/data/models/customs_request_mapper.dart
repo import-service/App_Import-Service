@@ -109,6 +109,13 @@ abstract final class CustomsRequestMapper {
             fileSizeBytes: e['fileSizeBytes'] is int
                 ? e['fileSizeBytes'] as int
                 : int.tryParse('${e['fileSizeBytes']}'),
+            storedName: e['storedName'] as String? ?? e['stored_name'] as String?,
+            sourceFileName:
+                e['sourceFileName'] as String? ?? e['source_file_name'] as String?,
+            sourceMimeType:
+                e['sourceMimeType'] as String? ?? e['source_mime_type'] as String?,
+            uploadSource:
+                e['uploadSource'] as String? ?? e['upload_source'] as String?,
           ),
         )
         .where((e) => e.fileUrl.isNotEmpty)

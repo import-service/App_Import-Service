@@ -175,7 +175,13 @@ async function syncAfterBatchComplete(fastify, requestId, source, changedDocType
   }
 
   const fileRows = await fetchAllFilesForOneC(fastify.pool, requestId);
-  const filesForUpdate = fileRows.filter((f) => changedDocTypes.includes(f.docType));
+  const changedSet = new Set(changedDocTypes);
+  const filesForUpdate = fileRows.filter((f) => {
+    if (changedSet.has(f.docType)) return true;
+    // Развёрнутый архив: слот X изменён → включаем и X_1..X_N.
+    const m = /^(.+)_\d+$/.exec(f.docType);
+    return Boolean(m) && changedSet.has(m[1]);
+  });
 
   const oneCUpdate = await pushCustomsRequestUpdateTo1C(fastify, requestId, {
     files: filesForUpdate,
