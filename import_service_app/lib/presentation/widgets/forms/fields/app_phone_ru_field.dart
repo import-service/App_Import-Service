@@ -16,6 +16,7 @@ class AppPhoneRuField extends StatelessWidget {
     this.textInputAction,
     this.density = AppLabeledFieldDensity.request,
     this.validate = true,
+    this.readOnly = false,
   });
 
   final String label;
@@ -25,6 +26,7 @@ class AppPhoneRuField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final AppLabeledFieldDensity density;
   final bool validate;
+  final bool readOnly;
 
   static const _hint = '+7 (999) 000-00-00';
 
@@ -40,6 +42,7 @@ class AppPhoneRuField extends StatelessWidget {
       textInputAction: textInputAction,
       markRequired: markRequired,
       density: density,
+      readOnly: readOnly,
       inputFormatters: [PhoneRuInputFormatter()],
       validator: validate
           ? (value) =>

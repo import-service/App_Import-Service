@@ -16,6 +16,7 @@ class RequestLabeledInputField extends StatelessWidget {
     this.markRequired = true,
     this.minLines,
     this.maxLines,
+    this.readOnly = false,
   });
 
   final String label;
@@ -28,6 +29,7 @@ class RequestLabeledInputField extends StatelessWidget {
   final bool markRequired;
   final int? minLines;
   final int? maxLines;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +44,7 @@ class RequestLabeledInputField extends StatelessWidget {
       markRequired: markRequired,
       minLines: minLines,
       maxLines: maxLines,
+      readOnly: readOnly,
       density: AppLabeledFieldDensity.request,
     );
   }

@@ -23,6 +23,7 @@ class AppClearableLabeledField extends StatefulWidget {
     this.errorMaxLines = 3,
     this.minLines,
     this.maxLines,
+    this.readOnly = false,
   });
 
   final String label;
@@ -38,6 +39,7 @@ class AppClearableLabeledField extends StatefulWidget {
   final int errorMaxLines;
   final int? minLines;
   final int? maxLines;
+  final bool readOnly;
 
   @override
   State<AppClearableLabeledField> createState() =>
@@ -46,7 +48,7 @@ class AppClearableLabeledField extends StatefulWidget {
 
 class _AppClearableLabeledFieldState extends State<AppClearableLabeledField> {
   Widget? _suffixIcon(BuildContext context) {
-    if (widget.controller.text.isEmpty) return null;
+    if (widget.readOnly || widget.controller.text.isEmpty) return null;
 
     return buildAppFieldClearButton(
       context,
@@ -94,6 +96,8 @@ class _AppClearableLabeledFieldState extends State<AppClearableLabeledField> {
           builder: (context, _) {
             return TextFormField(
               controller: widget.controller,
+              readOnly: widget.readOnly,
+              enableInteractiveSelection: true,
               validator: widget.validator,
               keyboardType: widget.keyboardType,
               textInputAction: widget.textInputAction,

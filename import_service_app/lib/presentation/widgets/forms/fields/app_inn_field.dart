@@ -19,6 +19,7 @@ class AppInnField extends StatelessWidget {
     this.textInputAction,
     this.density = AppLabeledFieldDensity.request,
     this.validate = true,
+    this.readOnly = false,
   });
 
   final String label;
@@ -29,6 +30,7 @@ class AppInnField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final AppLabeledFieldDensity density;
   final bool validate;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +45,7 @@ class AppInnField extends StatelessWidget {
       textInputAction: textInputAction,
       markRequired: markRequired,
       density: density,
+      readOnly: readOnly,
       inputFormatters: [
         InnInputFormatter(maxDigits: maxDigits),
         LengthLimitingTextInputFormatter(

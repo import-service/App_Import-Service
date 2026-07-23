@@ -32,7 +32,6 @@ import 'package:import_service_app/presentation/widgets/forms/input_formatters/p
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/snils_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/vin_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/request_labeled_input_field.dart';
-import 'package:import_service_app/presentation/widgets/selection/organization_type_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 
@@ -101,9 +100,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         companyInn: _innDigits(_companyInnController.text),
         companyEmail: _companyEmailController.text,
         companyPhone: _normalizePhoneForApi(_companyPhoneController.text),
-        personFullName: _organizationType == OrganizationType.ip
-            ? _companyNameController.text
-            : _personNameController.text,
+        personFullName: _personNameController.text,
         personPhone: _normalizePhoneForApi(_personPhoneController.text),
         personSnils: _snilsDigits(_personSnilsController.text),
         carBrand: _brandController.text,
@@ -140,9 +137,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final companyPhoneDigits = _phoneDigits(_companyPhoneController.text);
     final snilsRaw = _snilsDigits(_personSnilsController.text);
 
-    final personName = _organizationType == OrganizationType.ip
-        ? _companyNameController.text.trim()
-        : _personNameController.text.trim();
+    final personName = _personNameController.text.trim();
     if (_companyNameController.text.trim().isEmpty ||
         innDigits.isEmpty ||
         personName.isEmpty ||
@@ -201,9 +196,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final personPhoneDigits = _phoneDigits(_personPhoneController.text);
     final companyPhoneDigits = _phoneDigits(_companyPhoneController.text);
     final snilsRaw = _snilsDigits(_personSnilsController.text);
-    final personName = _organizationType == OrganizationType.ip
-        ? _companyNameController.text.trim()
-        : _personNameController.text.trim();
+    final personName = _personNameController.text.trim();
     final hasRequiredText = _companyNameController.text.trim().isNotEmpty &&
         innDigits.isNotEmpty &&
         personName.isNotEmpty &&
@@ -232,9 +225,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final companyInn = _innDigits(_companyInnController.text);
     final companyEmail = _companyEmailController.text.trim();
     final companyPhone = _phoneDigits(_companyPhoneController.text);
-    final personName = _organizationType == OrganizationType.ip
-        ? companyName
-        : _personNameController.text.trim();
+    final personName = _personNameController.text.trim();
     final personPhone = _phoneDigits(_personPhoneController.text);
     final personSnils = _snilsDigits(_personSnilsController.text);
     final carBrand = _brandController.text.trim();
@@ -242,11 +233,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final vin = _vinController.text.trim().toUpperCase();
 
     if (companyName.isEmpty) {
-      return missing(
-        _organizationType == OrganizationType.ip
-            ? s.fullNameLabel
-            : s.text('requestCompanyNameLabel'),
-      );
+      return missing(s.text('requestCompanyNameLabel'));
     }
     if (companyInn.isEmpty) return missing(s.innLabel);
     if (companyEmail.isEmpty) return missing(s.text('requestCompanyEmailLabel'));
@@ -492,15 +479,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   void _clampInnToOrgType() =>
       clampInnController(_companyInnController, _organizationType);
 
+  /// Черновик: физлицо / авто / файлы — из draft; юрлицо всегда из профиля.
   void _applyDraft(RequestFormModel f) {
-    _organizationType = f.organizationType;
-    _companyNameController.text = f.companyName;
-    _companyInnController.text = InnInputFormatter.formatDigits(
-      f.companyInn,
-      maxDigits: f.organizationType.innMaxDigits,
-    );
-    _companyEmailController.text = f.companyEmail;
-    _companyPhoneController.text = PhoneRuInputFormatter.formatDisplay(f.companyPhone);
     _personNameController.text = f.personFullName;
     _personPhoneController.text = PhoneRuInputFormatter.formatDisplay(f.personPhone);
     _personSnilsController.text = SnilsInputFormatter.formatDigits(f.personSnils);
@@ -527,12 +507,15 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       additionalFile1Paths: f.additionalFile1Paths,
       additionalFile2Paths: f.additionalFile2Paths,
     );
+    _prefillOrgFromProfile(sl<AuthSessionController>());
     setState(() {});
   }
 
-  void _prefillFromProfile(AuthSessionController session) {
+  /// Только поля организации из сессии (read-only в UI). Физлицо не трогаем.
+  void _prefillOrgFromProfile(AuthSessionController session) {
     final isDemo = session.isDemo;
-    final companyName = isDemo ? DemoProfileSnapshot.companyName : (session.companyName ?? '');
+    final companyName =
+        isDemo ? DemoProfileSnapshot.companyName : (session.companyName ?? '');
     final inn = isDemo ? DemoProfileSnapshot.inn : (session.inn ?? '');
     if (inn.trim().length == 12) {
       _organizationType = OrganizationType.ip;
@@ -540,34 +523,17 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       _organizationType = OrganizationType.ooo;
     }
     final email = isDemo ? DemoProfileSnapshot.email : (session.email ?? '');
-    final phone = isDemo ? DemoProfileSnapshot.phoneDisplay : (session.phone ?? '');
-    final fullName = isDemo ? DemoProfileSnapshot.fullName : (session.fullName ?? '');
+    final phone =
+        isDemo ? DemoProfileSnapshot.phoneDisplay : (session.phone ?? '');
 
-    if (_companyNameController.text.trim().isEmpty && companyName.trim().isNotEmpty) {
-      _companyNameController.text = companyName.trim();
-    }
-    if (_companyInnController.text.trim().isEmpty && inn.trim().isNotEmpty) {
-      _companyInnController.text = InnInputFormatter.formatDigits(
-        inn,
-        maxDigits: _organizationType.innMaxDigits,
-      );
-    }
-    if (_companyEmailController.text.trim().isEmpty && email.trim().isNotEmpty) {
-      _companyEmailController.text = email.trim();
-    }
-    if (_companyPhoneController.text.trim().isEmpty && phone.trim().isNotEmpty) {
-      _companyPhoneController.text = PhoneRuInputFormatter.formatDisplay(phone);
-    }
-    if (_personNameController.text.trim().isEmpty && fullName.trim().isNotEmpty) {
-      _personNameController.text = fullName.trim();
-    }
-    if (_personPhoneController.text.trim().isEmpty && phone.trim().isNotEmpty) {
-      _personPhoneController.text = PhoneRuInputFormatter.formatDisplay(phone);
-    }
-    if (isDemo && _personSnilsController.text.trim().isEmpty) {
-      _personSnilsController.text =
-          SnilsInputFormatter.formatDigits(DemoProfileSnapshot.personSnils);
-    }
+    _companyNameController.text = companyName.trim();
+    _companyInnController.text = InnInputFormatter.formatDigits(
+      inn,
+      maxDigits: _organizationType.innMaxDigits,
+    );
+    _companyEmailController.text = email.trim();
+    _companyPhoneController.text = PhoneRuInputFormatter.formatDisplay(phone);
+    _clampInnToOrgType();
   }
 
   @override
@@ -592,10 +558,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         if (d != null) {
           _applyDraft(d.form);
         } else {
-          _prefillFromProfile(sl<AuthSessionController>());
+          _prefillOrgFromProfile(sl<AuthSessionController>());
         }
       } else {
-        _prefillFromProfile(sl<AuthSessionController>());
+        _prefillOrgFromProfile(sl<AuthSessionController>());
       }
     });
   }
@@ -644,28 +610,12 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              OrganizationTypeSelector(
-                selected: _organizationType,
-                onChanged: (value) {
-                  setState(() {
-                    _organizationType = value;
-                    _clampInnToOrgType();
-                  });
-                  _scheduleSave();
-                },
-                oooLabel: s.orgTypeOoo,
-                ipLabel: s.orgTypeIp,
-              ),
-              const SizedBox(height: 14),
               RequestLabeledInputField(
-                label: _organizationType == OrganizationType.ooo
-                    ? s.text('requestCompanyNameLabel')
-                    : s.fullNameLabel,
-                hintText: _organizationType == OrganizationType.ooo
-                    ? s.text('requestCompanyNameHint')
-                    : s.text('requestPersonNameHint'),
+                label: s.text('requestCompanyNameLabel'),
+                hintText: s.text('requestCompanyNameHint'),
                 controller: _companyNameController,
                 textCapitalization: TextCapitalization.words,
+                readOnly: true,
               ),
               const SizedBox(height: 14),
               AppInnField(
@@ -673,6 +623,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 controller: _companyInnController,
                 organizationType: _organizationType,
                 validate: false,
+                readOnly: true,
               ),
               const SizedBox(height: 14),
               RequestLabeledInputField(
@@ -680,23 +631,23 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 hintText: s.emailLabel,
                 controller: _companyEmailController,
                 keyboardType: TextInputType.emailAddress,
+                readOnly: true,
               ),
               const SizedBox(height: 14),
               AppPhoneRuField(
                 label: s.text('requestCompanyPhoneLabel'),
                 controller: _companyPhoneController,
                 validate: false,
+                readOnly: true,
               ),
               const SizedBox(height: 14),
-              if (_organizationType == OrganizationType.ooo) ...[
-                RequestLabeledInputField(
-                  label: s.text('requestPersonNameLabel'),
-                  hintText: s.text('requestPersonNameHint'),
-                  controller: _personNameController,
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 14),
-              ],
+              RequestLabeledInputField(
+                label: s.text('requestPersonNameLabel'),
+                hintText: s.text('requestPersonNameHint'),
+                controller: _personNameController,
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 14),
               AppPhoneRuField(
                 label: s.text('requestPersonPhoneLabel'),
                 controller: _personPhoneController,

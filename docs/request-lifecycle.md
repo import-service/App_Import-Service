@@ -78,6 +78,8 @@ flowchart LR
 | Шаг | Действие |
 |-----|----------|
 | 1 | МП: `POST /api/customs-requests` **без** `files[]` — поля формы + **`legalInn`** (10/12 цифр) |
+|   | Заявитель = **организация входа** (ООО/ИП): наименование, ИНН, email, телефон ЮЛ — из профиля, в МП **только чтение**. |
+|   | Владелец авто = **физлицо**: ФИО, телефон, СНИЛС — **вручную** на каждую заявку (не из профиля). Выбор ООО/ИП на форме создания **нет**. |
 | 2 | МП: **11 обязательных** upload + опционально `add_doc1`, `add_doc2` |
 | 3 | Upload: `POST /api/customs-requests/upload` — `requestId`, `docType`, `file`, `uploadIndex`, `uploadTotal` |
 | 4 | На последнем upload (`uploadIndex === uploadTotal`) сервер: create в 1С, rename файлов `r{id}__` → `{external1cId}__` |
