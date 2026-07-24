@@ -1,9 +1,9 @@
 import 'package:flutter/services.dart';
 
-/// VIN: только A-Z и 0-9, верхний регистр, максимум 17 символов.
-class VinInputFormatter extends TextInputFormatter {
-  static final RegExp _allowed = RegExp(r'[A-Z0-9]');
+import 'package:import_service_app/presentation/helpers/vin_validation.dart';
 
+/// VIN: A–Z и 0–9 без I/O/Q, верхний регистр, максимум 17 символов.
+class VinInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
@@ -13,7 +13,7 @@ class VinInputFormatter extends TextInputFormatter {
     final buffer = StringBuffer();
     for (final rune in upper.runes) {
       final char = String.fromCharCode(rune);
-      if (_allowed.hasMatch(char)) {
+      if (vinAllowedChar.hasMatch(char)) {
         buffer.write(char);
       }
       if (buffer.length >= 17) break;

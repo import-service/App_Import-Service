@@ -23,6 +23,7 @@ import 'package:import_service_app/presentation/bloc/request_draft/request_draft
 import 'package:import_service_app/presentation/helpers/masked_field_validation.dart';
 import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
 import 'package:import_service_app/presentation/helpers/session_auth_error.dart';
+import 'package:import_service_app/presentation/helpers/vin_validation.dart';
 import 'package:import_service_app/presentation/pages/request_files_upload_page.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_logout_outlined_wide_button.dart';
@@ -179,7 +180,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       return false;
     }
     if (!_isValidVin(vin)) {
-      sl<AppFeedbackService>().show(s.text('vinFormatError'), kind: AppFeedbackKind.error);
+      sl<AppFeedbackService>().show(
+        vinValidationMessage(vin, s) ?? s.text('vinFormatError'),
+        kind: AppFeedbackKind.error,
+      );
       return false;
     }
     if (!_files.allRequiredReady) {
@@ -261,7 +265,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     }
     if (personSnils.length != snilsDigitCount) return s.text('snilsLengthError');
     if (!isValidSnilsDigits(personSnils)) return s.text('snilsChecksumError');
-    if (!_isValidVin(vin)) return s.text('vinFormatError');
+    if (!_isValidVin(vin)) {
+      return vinValidationMessage(vin, s) ?? s.text('vinFormatError');
+    }
     if (!_files.allRequiredReady) return s.text('requestFilesRequiredError');
     return null;
   }
@@ -280,7 +286,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     return RegExp(pattern).hasMatch(email);
   }
 
-  bool _isValidVin(String vin) => RegExp(r'^[A-HJ-NPR-Z0-9]{17}$').hasMatch(vin);
+  bool _isValidVin(String vin) => isValidVin(vin);
   bool _isValidInn(String digits, OrganizationType orgType) =>
       isValidInnDigits(digits, orgType);
 
