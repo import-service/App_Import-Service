@@ -5,6 +5,7 @@ import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
+import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
@@ -118,12 +119,21 @@ class _HomePageState extends State<HomePage> {
         final session = sl<AuthSessionController>();
         final isDemo = session.isDemo;
 
+        final isPersonApplicant =
+            OrganizationTypeInn.tryParse(session.orgType) ==
+            OrganizationType.person;
         final displayName = isDemo
             ? strings.demoClientName
-            : ((session.companyName?.trim().isNotEmpty == true
-                    ? session.companyName!.trim()
-                    : session.login?.trim()) ??
-                '—');
+            : (isPersonApplicant
+                ? ((session.fullName?.trim().isNotEmpty == true
+                        ? session.fullName!.trim()
+                        : session.companyName?.trim()) ??
+                    session.login?.trim() ??
+                    '—')
+                : ((session.companyName?.trim().isNotEmpty == true
+                        ? session.companyName!.trim()
+                        : session.login?.trim()) ??
+                    '—'));
 
         final appBarTitle = _tabIndex == 0
             ? strings.profileTabTitle
@@ -160,6 +170,7 @@ class _HomePageState extends State<HomePage> {
               ProfileTabView(
                 isDemo: isDemo,
                 headlineTitle: displayName,
+                isPersonApplicant: isPersonApplicant,
                 managerLabel: strings.profileManagerLabel,
                 phoneLabel: strings.profilePhoneLabel,
                 emailLabel: strings.profileEmailLabel,

@@ -115,6 +115,7 @@ class AuthService {
       login: profile.login,
       role: profile.role,
       companyName: profile.companyName,
+      orgType: profile.orgType,
       inn: profile.inn,
       phone: profile.phone,
       email: profile.email,

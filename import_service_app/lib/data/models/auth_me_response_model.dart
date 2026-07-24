@@ -5,6 +5,7 @@ class AuthMeResponseModel {
     required this.login,
     required this.role,
     required this.companyName,
+    required this.orgType,
     required this.inn,
     required this.phone,
     required this.email,
@@ -19,6 +20,7 @@ class AuthMeResponseModel {
   final String login;
   final String role;
   final String companyName;
+  final String orgType;
   final String inn;
   final String phone;
   final String email;
@@ -48,6 +50,10 @@ class AuthMeResponseModel {
       companyName: _firstString(
         json,
         const ['legalEntityName', 'companyName', 'organizationName', 'orgName'],
+      ),
+      orgType: _firstString(
+        json,
+        const ['orgType', 'org_type', 'organizationType'],
       ),
       inn: _firstString(
         json,
@@ -87,6 +93,7 @@ class AuthMeResponseModel {
       'login': login,
       'role': role,
       'companyName': companyName,
+      'orgType': orgType,
       'inn': inn,
       'phone': phone,
       'email': email,

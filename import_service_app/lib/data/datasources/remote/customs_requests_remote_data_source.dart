@@ -241,7 +241,7 @@ final class CustomsRequestsRemoteDataSource {
 
   static Map<String, dynamic> _buildCreateFormPayload(RequestFormModel form) {
     return <String, dynamic>{
-      'orgType': form.organizationType == OrganizationType.ip ? 'IP' : 'OOO',
+      'orgType': form.organizationType.profileApiLabel,
       'legalEntityName': form.companyName.trim(),
       'inn': form.companyInn.trim(),
       'legalInn': form.companyInn.trim(),

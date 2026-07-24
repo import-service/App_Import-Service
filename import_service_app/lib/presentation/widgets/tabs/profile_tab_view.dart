@@ -19,6 +19,7 @@ class ProfileTabView extends StatelessWidget {
     required this.innLabel,
     required this.logoutLabel,
     required this.onLogout,
+    this.isPersonApplicant = false,
     this.companyName,
     this.inn,
     this.phone,
@@ -36,6 +37,8 @@ class ProfileTabView extends StatelessWidget {
   final String innLabel;
   final String logoutLabel;
   final VoidCallback onLogout;
+  /// Заявитель — физическое лицо: без строки «Название компании».
+  final bool isPersonApplicant;
   final String? companyName;
   final String? inn;
   final String? phone;
@@ -96,7 +99,8 @@ class ProfileTabView extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if ((companyName ?? '').trim().isNotEmpty)
+                        if (!isPersonApplicant &&
+                            (companyName ?? '').trim().isNotEmpty)
                           ProfileMetaRow(
                             label: companyLabel,
                             value: companyName!.trim(),
@@ -128,7 +132,10 @@ class ProfileTabView extends StatelessWidget {
                     ),
             ),
           ),
-          AppLogoutOutlinedWideButton(label: logoutLabel, onPressed: onLogout),
+          AppLogoutOutlinedWideButton(
+            label: logoutLabel,
+            onPressed: onLogout,
+          ),
         ],
       ),
     );

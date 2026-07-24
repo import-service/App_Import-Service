@@ -172,6 +172,7 @@ class _RegistrationRequestBottomSheetState
             }),
             oooLabel: strings.orgTypeOoo,
             ipLabel: strings.orgTypeIp,
+            personLabel: strings.orgTypePerson,
           ),
           const Gap(12),
           AppLabeledTextField(

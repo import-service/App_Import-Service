@@ -233,7 +233,11 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final vin = _vinController.text.trim().toUpperCase();
 
     if (companyName.isEmpty) {
-      return missing(s.text('requestCompanyNameLabel'));
+      return missing(
+        _organizationType == OrganizationType.person
+            ? s.text('requestPersonApplicantNameLabel')
+            : s.text('requestCompanyNameLabel'),
+      );
     }
     if (companyInn.isEmpty) return missing(s.innLabel);
     if (companyEmail.isEmpty) return missing(s.text('requestCompanyEmailLabel'));
@@ -511,13 +515,16 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     setState(() {});
   }
 
-  /// Только поля организации из сессии (read-only в UI). Физлицо не трогаем.
+  /// Только поля организации из сессии (read-only в UI). Физлицо «на кого» не трогаем.
   void _prefillOrgFromProfile(AuthSessionController session) {
     final isDemo = session.isDemo;
     final companyName =
         isDemo ? DemoProfileSnapshot.companyName : (session.companyName ?? '');
     final inn = isDemo ? DemoProfileSnapshot.inn : (session.inn ?? '');
-    if (inn.trim().length == 12) {
+    final parsed = OrganizationTypeInn.tryParse(session.orgType);
+    if (parsed != null) {
+      _organizationType = parsed;
+    } else if (inn.trim().length == 12) {
       _organizationType = OrganizationType.ip;
     } else if (inn.trim().length == 10) {
       _organizationType = OrganizationType.ooo;
@@ -611,8 +618,12 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               RequestLabeledInputField(
-                label: s.text('requestCompanyNameLabel'),
-                hintText: s.text('requestCompanyNameHint'),
+                label: _organizationType == OrganizationType.person
+                    ? s.text('requestPersonApplicantNameLabel')
+                    : s.text('requestCompanyNameLabel'),
+                hintText: _organizationType == OrganizationType.person
+                    ? s.text('requestPersonApplicantNameHint')
+                    : s.text('requestCompanyNameHint'),
                 controller: _companyNameController,
                 textCapitalization: TextCapitalization.words,
                 readOnly: true,

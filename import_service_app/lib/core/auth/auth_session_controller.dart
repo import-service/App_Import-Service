@@ -8,6 +8,7 @@ class AuthSessionController extends ChangeNotifier {
   String? _login;
   String? _role;
   String? _companyName;
+  String? _orgType;
   String? _inn;
   String? _phone;
   String? _email;
@@ -27,6 +28,7 @@ class AuthSessionController extends ChangeNotifier {
   String? get login => _login;
   String? get role => _role;
   String? get companyName => _companyName;
+  String? get orgType => _orgType;
   String? get inn => _inn;
   String? get phone => _phone;
   String? get email => _email;
@@ -55,6 +57,7 @@ class AuthSessionController extends ChangeNotifier {
     _login = null;
     _role = null;
     _companyName = null;
+    _orgType = null;
     _inn = null;
     _phone = null;
     _email = null;
@@ -71,6 +74,7 @@ class AuthSessionController extends ChangeNotifier {
     required String login,
     required String role,
     String? companyName,
+    String? orgType,
     String? inn,
     String? phone,
     String? email,
@@ -84,6 +88,7 @@ class AuthSessionController extends ChangeNotifier {
     _login = login;
     _role = role;
     _companyName = companyName;
+    _orgType = orgType;
     _inn = inn;
     _phone = phone;
     _email = email;
@@ -102,6 +107,7 @@ class AuthSessionController extends ChangeNotifier {
     _login = null;
     _role = null;
     _companyName = null;
+    _orgType = null;
     _inn = null;
     _phone = null;
     _email = null;

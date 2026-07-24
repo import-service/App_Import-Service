@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:import_service_app/data/models/registration_request_model.dart';
 
-/// Переключатель типа организации (не поле ввода — без обводки как у текстовых полей).
+/// Переключатель типа заявителя при регистрации (ООО / ИП / Физлицо).
 class OrganizationTypeSelector extends StatelessWidget {
   const OrganizationTypeSelector({
     super.key,
@@ -9,12 +9,14 @@ class OrganizationTypeSelector extends StatelessWidget {
     required this.onChanged,
     required this.oooLabel,
     required this.ipLabel,
+    required this.personLabel,
   });
 
   final OrganizationType selected;
   final ValueChanged<OrganizationType> onChanged;
   final String oooLabel;
   final String ipLabel;
+  final String personLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +31,10 @@ class OrganizationTypeSelector extends StatelessWidget {
           ButtonSegment<OrganizationType>(
             value: OrganizationType.ip,
             label: Text(ipLabel),
+          ),
+          ButtonSegment<OrganizationType>(
+            value: OrganizationType.person,
+            label: Text(personLabel),
           ),
         ],
         selected: {selected},

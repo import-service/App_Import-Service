@@ -100,9 +100,10 @@ final class RequestFormModel {
           (json[key] as List<dynamic>? ?? []).map((e) => e.toString()),
         );
     return RequestFormModel(
-      organizationType: ((json['organizationType'] as String?) == 'ip')
-          ? OrganizationType.ip
-          : OrganizationType.ooo,
+      organizationType: OrganizationTypeInn.tryParse(
+            json['organizationType'] as String?,
+          ) ??
+          OrganizationType.ooo,
       companyName: (json['companyName'] as String?) ?? '',
       companyInn: _readCompanyInn(json),
       companyEmail: (json['companyEmail'] as String?) ?? '',
@@ -136,8 +137,11 @@ final class RequestFormModel {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'organizationType':
-            organizationType == OrganizationType.ip ? 'ip' : 'ooo',
+        'organizationType': switch (organizationType) {
+          OrganizationType.ooo => 'ooo',
+          OrganizationType.ip => 'ip',
+          OrganizationType.person => 'person',
+        },
         'companyName': companyName,
         'companyInn': companyInn,
         'companyEmail': companyEmail,

@@ -7,6 +7,14 @@ function normalize(v) {
   return String(v || '').trim();
 }
 
+/** Регистрация МП: OOO | IP | FL → подпись для письма. */
+function registrationOrgTitle(orgType) {
+  if (orgType === 'OOO') return 'ООО';
+  if (orgType === 'IP') return 'ИП';
+  if (orgType === 'FL') return 'Физическое лицо';
+  return orgType;
+}
+
 module.exports = async function registrationRoutes(fastify) {
   const requestBuckets = new Map();
 
@@ -18,7 +26,7 @@ module.exports = async function registrationRoutes(fastify) {
           type: 'object',
           required: ['orgType', 'inn', 'phone', 'email'],
           properties: {
-            orgType: { type: 'string', enum: ['OOO', 'IP'] },
+            orgType: { type: 'string', enum: ['OOO', 'IP', 'FL'] },
             companyName: { type: 'string', minLength: 2, maxLength: 255 },
             fullName: { type: 'string', minLength: 3, maxLength: 255 },
             inn: { type: 'string', minLength: 10, maxLength: 12 },
@@ -49,10 +57,10 @@ module.exports = async function registrationRoutes(fastify) {
       const phone = normalize(request.body.phone);
       const email = normalize(request.body.email);
 
-      if (orgType !== 'OOO' && orgType !== 'IP') {
+      if (orgType !== 'OOO' && orgType !== 'IP' && orgType !== 'FL') {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
-          message: 'orgType должен быть OOO или IP',
+          message: 'orgType должен быть OOO, IP или FL',
         });
       }
 
@@ -63,23 +71,38 @@ module.exports = async function registrationRoutes(fastify) {
         });
       }
 
-      if (orgType === 'IP' && !fullName) {
+      if ((orgType === 'IP' || orgType === 'FL') && !fullName) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
-          message: 'Для IP обязательно поле fullName (ФИО)',
+          message:
+            orgType === 'FL'
+              ? 'Для физического лица обязательно поле fullName (ФИО)'
+              : 'Для IP обязательно поле fullName (ФИО)',
         });
       }
 
-      if (!/^\d{10}(\d{2})?$/.test(inn)) {
+      if (orgType === 'OOO' && !/^\d{10}$/.test(inn)) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
-          message: 'ИНН должен содержать 10 или 12 цифр',
+          message: 'Для ООО ИНН должен содержать 10 цифр',
+        });
+      }
+      if ((orgType === 'IP' || orgType === 'FL') && !/^\d{12}$/.test(inn)) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message:
+            orgType === 'FL'
+              ? 'Для физического лица ИНН должен содержать 12 цифр'
+              : 'Для ИП ИНН должен содержать 12 цифр',
         });
       }
 
       const subject = 'Заявка регистрация приложение';
-      const title = orgType === 'OOO' ? 'ООО' : 'ИП';
-      const orgLabel = orgType === 'OOO' ? `Компания: ${companyName}` : `ФИО ИП: ${fullName}`;
+      const title = registrationOrgTitle(orgType);
+      const nameValue = orgType === 'OOO' ? companyName : fullName;
+      const nameLabel =
+        orgType === 'OOO' ? 'Компания' : orgType === 'FL' ? 'ФИО ФЛ' : 'ФИО ИП';
+      const orgLabel = `${nameLabel}: ${nameValue}`;
       const text = [
         `Приложение: ${fastify.config.smtp.appName}`,
         '',
@@ -98,9 +121,7 @@ module.exports = async function registrationRoutes(fastify) {
         <h2>Заявка регистрация приложение</h2>
         <p><b>Приложение:</b> ${fastify.config.smtp.appName}</p>
         <p><b>Тип организации:</b> ${title}</p>
-        <p><b>${orgType === 'OOO' ? 'Компания' : 'ФИО ИП'}:</b> ${
-          orgType === 'OOO' ? companyName : fullName
-        }</p>
+        <p><b>${nameLabel}:</b> ${nameValue}</p>
         <p><b>ИНН:</b> ${inn}</p>
         <p><b>Телефон:</b> ${phone}</p>
         <p><b>Email:</b> ${email}</p>
@@ -130,7 +151,7 @@ module.exports = async function registrationRoutes(fastify) {
         });
       }
 
-      const displayName = orgType === 'OOO' ? companyName : fullName;
+      const displayName = nameValue;
       notifyClientRegistrationAccepted(
         fastify.config.smtp,
         { email, displayName },

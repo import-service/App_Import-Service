@@ -13,8 +13,10 @@ function parseRole(v) {
 
 function parseOrgType(v) {
   const s = normalize(v);
-  if (s !== 'ИП' && s !== 'ООО') {
-    throw new Error('VALIDATION_ERROR: orgType должен быть "ИП" или "ООО"');
+  if (s !== 'ИП' && s !== 'ООО' && s !== 'Физическое лицо') {
+    throw new Error(
+      'VALIDATION_ERROR: orgType должен быть "ИП", "ООО" или "Физическое лицо"',
+    );
   }
   return s;
 }
@@ -75,7 +77,7 @@ module.exports = async function integrationRoutes(fastify) {
             login: { type: 'string', minLength: 1, maxLength: 255 },
             password: { type: 'string', minLength: 1 },
             role: { type: 'string', enum: ['admin', 'user', 'ADMIN', 'USER'] },
-            orgType: { type: 'string', enum: ['ИП', 'ООО'] },
+            orgType: { type: 'string', enum: ['ИП', 'ООО', 'Физическое лицо'] },
             companyName: { type: 'string', minLength: 1, maxLength: 255 },
             inn: { type: 'string', minLength: 1, maxLength: 32 },
             phone: { type: 'string', minLength: 1, maxLength: 30 },

@@ -48,6 +48,7 @@ final class JsonStringsService {
   String get requestSheetSubtitle => text('requestSheetSubtitle');
   String get orgTypeOoo => text('orgTypeOoo');
   String get orgTypeIp => text('orgTypeIp');
+  String get orgTypePerson => text('orgTypePerson');
   String get companyNameLabel => text('companyNameLabel');
   String get fullNameLabel => text('fullNameLabel');
   String get innLabel => text('innLabel');
@@ -58,14 +59,32 @@ final class JsonStringsService {
   String get innFormatError => text('innFormatError');
   String get innFormatErrorOoo => text('innFormatErrorOoo');
   String get innFormatErrorIp => text('innFormatErrorIp');
+  String get innFormatErrorPerson => text('innFormatErrorPerson');
   String get innHintOoo => text('innHintOoo');
   String get innHintIp => text('innHintIp');
+  String get innHintPerson => text('innHintPerson');
 
-  String innFormatErrorFor(OrganizationType type) =>
-      type == OrganizationType.ip ? innFormatErrorIp : innFormatErrorOoo;
+  String innFormatErrorFor(OrganizationType type) {
+    switch (type) {
+      case OrganizationType.ooo:
+        return innFormatErrorOoo;
+      case OrganizationType.ip:
+        return innFormatErrorIp;
+      case OrganizationType.person:
+        return innFormatErrorPerson;
+    }
+  }
 
-  String innHintFor(OrganizationType type) =>
-      type == OrganizationType.ip ? innHintIp : innHintOoo;
+  String innHintFor(OrganizationType type) {
+    switch (type) {
+      case OrganizationType.ooo:
+        return innHintOoo;
+      case OrganizationType.ip:
+        return innHintIp;
+      case OrganizationType.person:
+        return innHintPerson;
+    }
+  }
 
   String get snilsHint => text('snilsHint');
   String get phoneFormatError => text('phoneFormatError');
