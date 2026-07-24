@@ -36,6 +36,7 @@
   "requestUnknownError": "Не удалось отправить заявку",
   "loginUnknownError": "Не удалось выполнить вход",
   "loginInvalidCredentials": "Неверный email или пароль",
+  "sessionNeedRelogin": "Сессия на сервере недействительна. Войдите снова — черновик заявки сохранён.",
   "loginNetworkError": "Нет подключения к интернету. Проверьте сеть и повторите.",
   "logoutUnknownError": "Не удалось выполнить выход",
   "logoutButton": "Выйти",

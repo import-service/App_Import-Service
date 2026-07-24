@@ -72,6 +72,11 @@ class AuthService {
     } catch (_) {
       // Токен всё равно очищаем локально даже при ошибке backend logout.
     }
+    await clearLocalSession();
+  }
+
+  /// Сброс локального входа без вызова API (токен уже невалиден на сервере).
+  Future<void> clearLocalSession() async {
     await _secureStorage.delete(AuthStorageKeys.accessToken);
     await _prefs.remove(SessionPreferencesKeys.authProfileCache);
     _session.clear();

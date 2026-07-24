@@ -36,6 +36,7 @@
   "requestUnknownError": "提交申请失败",
   "loginUnknownError": "登录失败",
   "loginInvalidCredentials": "邮箱或密码错误",
+  "sessionNeedRelogin": "服务器会话无效。请重新登录——申请草稿已保存。",
   "loginNetworkError": "无法连接网络，请检查网络后重试。",
   "logoutUnknownError": "退出失败",
   "logoutButton": "退出",

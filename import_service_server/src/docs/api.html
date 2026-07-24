@@ -86,7 +86,7 @@
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/auth/login</code><span class="desc">Вход в приложение по логину и паролю.</span></summary>
-          <div class="body"><p><b>Auth:</b> Не требуется</p><p><b>Request:</b></p><pre>{
+          <div class="body"><p><b>Auth:</b> Не требуется</p><p>Создаёт новую сессию. Другие активные сессии того же пользователя <b>не</b> отзываются (живут до <code>expiresAt</code> или <code>POST /auth/logout</code>).</p><p><b>Request:</b></p><pre>{
   "login": "admin@gmail.com",
   "password": "123456"
 }</pre><p><b>Success:</b></p><pre>{

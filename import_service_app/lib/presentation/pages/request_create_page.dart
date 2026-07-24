@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:dartz/dartz.dart' show Either;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/error/failures.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
@@ -10,15 +13,16 @@ import 'package:import_service_app/core/ui/app_feedback_kind.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/data/demo/demo_profile_snapshot.dart';
 import 'package:import_service_app/data/local/request_draft_attachments_space.dart';
-import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/data/models/request_draft.dart';
 import 'package:import_service_app/data/models/request_form_model.dart';
 import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/domain/entities/create_vehicle_result.dart';
 import 'package:import_service_app/domain/entities/request_files_batch_upload_result.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
+import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/presentation/helpers/masked_field_validation.dart';
 import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
+import 'package:import_service_app/presentation/helpers/session_auth_error.dart';
 import 'package:import_service_app/presentation/pages/request_files_upload_page.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_logout_outlined_wide_button.dart';
@@ -33,7 +37,6 @@ import 'package:import_service_app/presentation/widgets/forms/input_formatters/s
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/vin_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/request_labeled_input_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 
 class RequestCreatePage extends StatefulWidget {
   const RequestCreatePage({super.key, this.draftId});
@@ -360,6 +363,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (!mounted) return;
     await result.fold<Future<void>>(
       (Failure f) async {
+        if (isSessionAuthErrorMessage(f.message)) {
+          await _handleSessionLost(strings);
+          return;
+        }
         final msg = _userFriendlySubmitError(f, strings);
         final isSizeLimit =
             resolveRequestFileSizeLimitMessage(f.message.trim(), strings) != null;
@@ -422,6 +429,11 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (!mounted) return;
     await result.fold<Future<void>>(
       (Failure f) async {
+        if (isSessionAuthErrorMessage(f.message)) {
+          await _handleSessionLost(strings);
+          if (mounted) setState(() => _submitting = false);
+          return;
+        }
         final msg = _userFriendlySubmitError(f, strings);
         if (mounted) {
           setState(() => _submitRuntimeError = msg);
@@ -453,6 +465,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
 
   String _userFriendlySubmitError(Failure f, JsonStringsService s) {
     final raw = f.message.trim();
+    if (isSessionAuthErrorMessage(raw)) {
+      return sessionAuthErrorMessage(s);
+    }
     final sizeMsg = resolveRequestFileSizeLimitMessage(raw, s);
     if (sizeMsg != null) return sizeMsg;
     final low = raw.toLowerCase();
@@ -466,6 +481,19 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       return raw;
     }
     return s.text('requestCreateSubmitError');
+  }
+
+  Future<void> _handleSessionLost(JsonStringsService strings) async {
+    _debounce?.cancel();
+    await _writeDraft();
+    final msg = sessionAuthErrorMessage(strings);
+    if (mounted) {
+      setState(() => _submitRuntimeError = msg);
+    }
+    sl<AppFeedbackService>().show(msg, kind: AppFeedbackKind.warning);
+    await sl<AuthService>().clearLocalSession();
+    if (!mounted) return;
+    context.go('/login');
   }
 
   Future<void> _saveDraftExplicit() async {

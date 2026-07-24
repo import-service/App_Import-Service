@@ -37,10 +37,9 @@ module.exports = async function authRoutes(fastify) {
 
       const userId = user.id;
       const role = user.role || 'user';
-      await fastify.pool.query(
-        'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
-        [userId],
-      );
+      // Не отзываем другие активные сессии: повторный вход (другой телефон /
+      // переустановка) не должен ломать ещё живой токен на устройстве.
+      // Отзыв — только через POST /auth/logout по текущему jti или по expires_at.
 
       const jti = uuidv4();
       const ms = expiresInToMs(fastify.config.jwtExpiresIn);
