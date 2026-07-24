@@ -248,7 +248,7 @@
   "answerNo": "否",
   "snilsLengthError": "SNILS 不正确",
   "snilsChecksumError": "SNILS 不正确",
-  "snilsHint": "000-000-000-00",
+  "snilsHint": "000-000-000 00",
   "vinFormatError": "VIN 必须为 17 位（A-Z, 0-9）",
   "requestFilesTitle": "上传文件",
   "requestUploadButton": "上传文件",

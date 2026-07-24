@@ -2,13 +2,13 @@ import 'package:flutter/services.dart';
 
 const int snilsDigitCount = 11;
 
-/// Лимит символов в поле с дефисами: `XXX-XXX-XXX-XX` → 14.
+/// Лимит символов в поле: `XXX-XXX-XXX XX` → 14.
 const int snilsFormattedCharLimit = 14;
 
 /// Только цифры СНИЛС (11).
 String snilsDigitsOnly(String? raw) => (raw ?? '').replaceAll(RegExp(r'\D'), '');
 
-/// Ввод СНИЛС: `XXX-XXX-XXX-XX` (11 цифр).
+/// Ввод СНИЛС: `XXX-XXX-XXX XX` (11 цифр; перед контрольными — пробел).
 class SnilsInputFormatter extends TextInputFormatter {
   const SnilsInputFormatter();
 
@@ -45,7 +45,7 @@ class SnilsInputFormatter extends TextInputFormatter {
     b.write(digits.substring(p3Start, p3Start + p3Len));
     if (digits.length <= 9) return b.toString();
 
-    b.write('-');
+    b.write(' ');
     const p4Start = 9;
     final p4Len =
         (digits.length - p4Start) >= 2 ? 2 : (digits.length - p4Start);
@@ -61,7 +61,7 @@ class SnilsInputFormatter extends TextInputFormatter {
     final oldDigits = snilsDigitsOnly(oldValue.text);
     var digits = snilsDigitsOnly(newValue.text);
 
-    // Backspace по дефису не убирает цифру — снимаем последнюю цифру сами.
+    // Backspace по разделителю не убирает цифру — снимаем последнюю цифру сами.
     final isDeletion = newValue.text.length < oldValue.text.length;
     if (isDeletion && digits.length >= oldDigits.length && oldDigits.isNotEmpty) {
       digits = oldDigits.substring(0, oldDigits.length - 1);
