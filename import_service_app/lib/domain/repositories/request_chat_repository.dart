@@ -21,4 +21,10 @@ abstract class RequestChatRepository {
     String requestId, {
     required int upToMessageId,
   });
+
+  Future<Either<Failure, ChatAttachment>> uploadAttachment(
+    String requestId, {
+    required String filePath,
+    String? fileName,
+  });
 }

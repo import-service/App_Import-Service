@@ -261,7 +261,7 @@ Push `request_files_update` — после upload от 1С; в `data.changedDocT
 Ограничения:
 
 - `text` до 2000 символов
-- вложения только ссылками (`fileUrl`)
+- вложения: сначала upload → в сообщении ссылки (`fileUrl`, `fileName`, `mimeType`), до 10 шт.
 
 ### GET /api/customs-requests/:id/messages
 
@@ -278,7 +278,17 @@ Query:
 
 ### POST /api/customs-requests/:id/messages
 
-Отправить сообщение пользователем.
+Отправить сообщение пользователем. Тело: `text`, `clientMessageId`, опционально `attachments[]`.
+
+### POST /api/customs-requests/:id/messages/attachments
+
+Multipart `file` (JPEG/PNG/WebP/GIF/PDF, до 25 МБ). Auth: JWT пользователя.
+
+Успех: `{ "fileUrl", "fileName", "mimeType", "fileSizeBytes" }` — затем передать в `attachments` при отправке сообщения.
+
+### GET /api/chat-attachments/:storedName
+
+Скачать вложение чата (JWT или integration Bearer).
 
 ### POST /api/customs-requests/:id/messages/read
 
@@ -286,13 +296,26 @@ Query:
 
 ## Realtime (WSS)
 
-Прод:
+**МП:**
 
 - `wss://157-22-173-7.sslip.io/ws/<requestId>/?token=<accessToken>`
 
+**1С (полный дуплекс, HTTP чата при этом остаётся):**
+
+- `wss://157-22-173-7.sslip.io/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER_TOKEN>`
+
+После connect: `{ "type": "ready", "requestId", "external1cId", "role": "1c" }`.
+
+От 1С на сокет:
+
+- `{ "type": "history" }` → `{ "type": "history", "items": [...] }`
+- `{ "type": "send", "message1cId", "text", "attachments", "sender1cId", "senderName" }` → `{ "type": "send_ack", "ok": true, ... }`
+
+События комнаты (в т.ч. когда клиент написал в МП): `message_created` / `message_incoming`.
+
 Локально/напрямую:
 
-- `ws://<host>:3010/ws/<requestId>/?token=<accessToken>`
+- `ws://<host>:3010/ws/...`
 
 ## API веб-админки
 

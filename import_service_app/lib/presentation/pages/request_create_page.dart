@@ -26,6 +26,7 @@ import 'package:import_service_app/presentation/helpers/session_auth_error.dart'
 import 'package:import_service_app/presentation/helpers/vin_validation.dart';
 import 'package:import_service_app/presentation/pages/request_files_upload_page.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
+import 'package:import_service_app/presentation/widgets/bottom_sheets/request_create_exit_confirm_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_logout_outlined_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_filled_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_outlined_wide_button.dart';
@@ -62,8 +63,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   final _commentController = TextEditingController();
 
   late final String _draftId;
-  Timer? _debounce;
   bool _explicitDraftSaved = false;
+  bool _allowPop = false;
+  bool _leaving = false;
   bool _submitting = false;
   String? _submitRuntimeError;
   int _uploadDone = 0;
@@ -95,7 +97,26 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
 
   void _onAnyFieldChanged() {
     if (mounted) setState(() {});
-    _scheduleSave();
+  }
+
+  /// Есть ли что сохранять как черновик (не только префилл организации).
+  bool _shouldPromptOnLeave() {
+    if (widget.draftId != null || _explicitDraftSaved) return true;
+    final f = _buildForm();
+    if (f.personFullName.trim().isNotEmpty) return true;
+    if (f.personPhone.trim().isNotEmpty) return true;
+    if (f.personSnils.trim().isNotEmpty) return true;
+    if (f.carBrand.trim().isNotEmpty) return true;
+    if (f.carModel.trim().isNotEmpty) return true;
+    if (f.vin.trim().isNotEmpty) return true;
+    if (f.comment.trim().isNotEmpty) return true;
+    if (f.hasSunroof ||
+        f.hasAllWheelDrive ||
+        f.wasInRussiaLast12Months ||
+        f.hasOtherCars) {
+      return true;
+    }
+    return _files.hasAnyFiles;
   }
 
   RequestFormModel _buildForm() => RequestFormModel(
@@ -129,8 +150,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         additionalFile1Paths: List<String>.from(_files.additionalFile1Paths),
         additionalFile2Paths: List<String>.from(_files.additionalFile2Paths),
       );
-
-  bool _shouldAutoPersist() => RequestFormModel.countFilledFields(_buildForm()) > 0;
 
   bool _validateForSubmit() {
     final s = sl<JsonStringsService>();
@@ -290,14 +309,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   bool _isValidInn(String digits, OrganizationType orgType) =>
       isValidInnDigits(digits, orgType);
 
-  void _scheduleSave() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 450), () async {
-      if (!mounted || !_shouldAutoPersist()) return;
-      await _writeDraft();
-    });
-  }
-
   Future<void> _writeDraft() async {
     await sl<RequestDraftCubit>().upsert(
       RequestDraft(
@@ -306,6 +317,47 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         form: _buildForm(),
       ),
     );
+    _explicitDraftSaved = true;
+  }
+
+  Future<void> _discardDraftLocally() async {
+    await sl<RequestDraftCubit>().delete(_draftId);
+    _explicitDraftSaved = false;
+  }
+
+  Future<void> _popNow() async {
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _confirmLeave() async {
+    if (_leaving || _submitting) return;
+    if (!_shouldPromptOnLeave()) {
+      await _discardDraftLocally();
+      await _popNow();
+      return;
+    }
+    _leaving = true;
+    try {
+      final choice = await RequestCreateExitConfirmBottomSheet.show(context);
+      if (!mounted || choice == null) return;
+      if (choice == RequestCreateExitChoice.saveDraft) {
+        await _writeDraft();
+        if (!mounted) return;
+        sl<AppFeedbackService>().show(
+          sl<JsonStringsService>().text('requestDraftSaved'),
+          kind: AppFeedbackKind.success,
+          clearSnackBars: false,
+        );
+        await _popNow();
+        return;
+      }
+      await _discardDraftLocally();
+      await _popNow();
+    } finally {
+      _leaving = false;
+    }
   }
 
   Future<void> _retryPendingUploads() async {
@@ -356,7 +408,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       strings.text('requestCreateSuccess'),
       kind: AppFeedbackKind.success,
     );
-    Navigator.of(context).pop();
+    await _popNow();
   }
 
   Future<void> _runUpload({
@@ -409,7 +461,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final strings = sl<JsonStringsService>();
     if (!_validateForSubmit()) return;
 
-    _debounce?.cancel();
     setState(() {
       _submitting = true;
       _submitRuntimeError = null;
@@ -490,7 +541,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }
 
   Future<void> _handleSessionLost(JsonStringsService strings) async {
-    _debounce?.cancel();
     await _writeDraft();
     final msg = sessionAuthErrorMessage(strings);
     if (mounted) {
@@ -503,8 +553,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }
 
   Future<void> _saveDraftExplicit() async {
-    _debounce?.cancel();
-    _explicitDraftSaved = true;
     await _writeDraft();
     if (!mounted) return;
     sl<AppFeedbackService>().show(
@@ -609,7 +657,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _companyNameController.removeListener(_onAnyFieldChanged);
     _companyInnController.removeListener(_onAnyFieldChanged);
     _companyEmailController.removeListener(_onAnyFieldChanged);
@@ -621,9 +668,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     _modelController.removeListener(_onAnyFieldChanged);
     _vinController.removeListener(_onAnyFieldChanged);
     _commentController.removeListener(_onAnyFieldChanged);
-    if (!_explicitDraftSaved && RequestFormModel.countFilledFields(_buildForm()) == 0) {
-      unawaited(sl<RequestDraftCubit>().delete(_draftId));
-    }
     _companyNameController.dispose();
     _companyInnController.dispose();
     _companyEmailController.dispose();
@@ -642,7 +686,13 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   Widget build(BuildContext context) {
     final s = sl<JsonStringsService>();
     final isWide = MediaQuery.of(context).size.width >= 1000;
-    return Scaffold(
+    return PopScope(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        unawaited(_confirmLeave());
+      },
+      child: Scaffold(
       appBar: BrandPrimaryAppBar(title: s.text('requestCreateTitle')),
       body: SafeArea(
         top: false,
@@ -732,7 +782,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 value: _hasSunroof,
                 onChanged: (v) {
                   setState(() => _hasSunroof = v);
-                  _scheduleSave();
                 },
               ),
               const SizedBox(height: 14),
@@ -742,7 +791,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 value: _hasAllWheelDrive,
                 onChanged: (v) {
                   setState(() => _hasAllWheelDrive = v);
-                  _scheduleSave();
                 },
               ),
               const SizedBox(height: 14),
@@ -752,7 +800,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 value: _wasInRussiaLast12Months,
                 onChanged: (v) {
                   setState(() => _wasInRussiaLast12Months = v);
-                  _scheduleSave();
                 },
               ),
               const SizedBox(height: 14),
@@ -762,7 +809,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 value: _hasOtherCars,
                 onChanged: (v) {
                   setState(() => _hasOtherCars = v);
-                  _scheduleSave();
                 },
               ),
               const SizedBox(height: 14),
@@ -779,6 +825,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -846,7 +893,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       const SizedBox(height: 12),
       AppLogoutOutlinedWideButton(
         label: s.actionCancel,
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: _confirmLeave,
         height: 56,
       ),
     ];
@@ -878,7 +925,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     );
     if (result == null || !mounted) return;
     setState(() => _files = result);
-    _scheduleSave();
   }
 
   Widget _yesNoField({

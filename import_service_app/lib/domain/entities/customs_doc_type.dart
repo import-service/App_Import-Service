@@ -81,8 +81,12 @@ enum CustomsDocType {
   ];
 
   static const Set<CustomsDocType> clientSignOnlyTypes = {
-    fundsTransferApplication,
     passportNotarizedCopy,
+  };
+
+  /// Не показывать в секции «На подпись» МП (слот и пустой, и с файлом).
+  static const Set<CustomsDocType> hiddenFromMpSigningSection = {
+    fundsTransferApplication,
   };
 
   static const List<CustomsDocType> paymentTypes = [
@@ -123,6 +127,9 @@ enum CustomsDocType {
   String get signedApiCode => '${apiCode}_sign';
 
   bool get isClientSignOnly => clientSignOnlyTypes.contains(this);
+
+  bool get isHiddenFromMpSigningSection =>
+      hiddenFromMpSigningSection.contains(this);
 
   bool get isTransitArchive =>
       transitArchiveTypes.contains(this) || apiCode.startsWith('transit_archive_');

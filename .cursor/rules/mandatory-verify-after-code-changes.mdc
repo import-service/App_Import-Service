@@ -32,13 +32,14 @@ node -e "require('./src/routes/customsRequests'); console.log('ok')"
 ```
 
 - Подставить изменённые модули в `require`.
-- После правок API — обновить `docs/api-app.md` / `src/docs/api.html` при необходимости.
+- После правок API — обновить **`src/docs/api.html`** (сайт `/docs` для 1С и программистов) и задеплоить. `docs/*.md` — только для агента, не delivery.
 - После правок server на проде — `scripts/deploy-server-vps.ps1` (см. `server-deploy-vps.mdc`).
 
 ## Запрещено
 
 - Писать «готово» без analyze (Flutter) или load-check (server).
-- Менять контракт API без синхронизации `docs/`.
+- Менять контракт API без обновления **`api.html`** на проде (см. `docs-for-humans-is-html.mdc`).
+- Считать «документация готова» только по правкам в `docs/*.md`.
 
 ## Если analyze не запускался
 

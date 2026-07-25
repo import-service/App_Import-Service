@@ -54,6 +54,21 @@ class RequestFilesPayload {
       odometerPhotoPaths.isNotEmpty &&
       carFrontPhotoPaths.isNotEmpty &&
       carRearPhotoPaths.isNotEmpty;
+
+  bool get hasAnyFiles =>
+      passportFrontPaths.isNotEmpty ||
+      passportAddressPaths.isNotEmpty ||
+      innPaths.isNotEmpty ||
+      snilsPaths.isNotEmpty ||
+      invoicePaths.isNotEmpty ||
+      contractPaths.isNotEmpty ||
+      paymentReceiptPaths.isNotEmpty ||
+      vinPlatePhotoPaths.isNotEmpty ||
+      odometerPhotoPaths.isNotEmpty ||
+      carFrontPhotoPaths.isNotEmpty ||
+      carRearPhotoPaths.isNotEmpty ||
+      additionalFile1Paths.isNotEmpty ||
+      additionalFile2Paths.isNotEmpty;
 }
 
 class RequestFilesUploadPage extends StatefulWidget {

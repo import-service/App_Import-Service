@@ -183,18 +183,20 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
 
   Future<void> send(String text) async {
     var t = text.trim();
-    if (t.isEmpty) {
-      return;
-    }
     if (t.length > 2000) {
       t = t.substring(0, 2000);
+    }
+    final atts = List<ChatAttachment>.from(state.pendingAttachments);
+    if (t.isEmpty && atts.isEmpty) {
+      return;
     }
     if (isClosed) {
       return;
     }
 
     if (_session.isDemo) {
-      _appendDemoExchange(t);
+      _appendDemoExchange(t.isEmpty ? '(файл)' : t);
+      emit(state.copyWith(pendingAttachments: const []));
       return;
     }
     if (state.isUnavailable) {
@@ -208,11 +210,13 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
       isFrom1c: false,
       createdAt: DateTime.now().toUtc(),
       readByUser: true,
+      attachments: atts,
     );
     emit(
       state.copyWith(
         isSending: true,
         error: null,
+        pendingAttachments: const [],
         messages: _sortAndDedupe([...state.messages, optimistic]),
       ),
     );
@@ -220,6 +224,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
       requestId,
       text: t,
       clientMessageId: clientId,
+      attachments: atts,
     );
     if (isClosed) {
       return;
@@ -232,6 +237,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
               isSending: false,
               isUnavailable: true,
               messages: _removeByClientId(state.messages, clientId),
+              pendingAttachments: atts,
             ),
           );
         } else {
@@ -240,6 +246,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
               isSending: false,
               error: f.message,
               messages: _removeByClientId(state.messages, clientId),
+              pendingAttachments: atts,
             ),
           );
         }
@@ -255,6 +262,55 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
         );
         unawaited(_markReadInBackground(next));
       },
+    );
+  }
+
+  Future<void> addLocalFileAttachment({
+    required String filePath,
+    String? fileName,
+  }) async {
+    if (_session.isDemo || state.isUnavailable || state.isUploadingAttachment) {
+      return;
+    }
+    if (state.pendingAttachments.length >= 5) {
+      emit(state.copyWith(error: _strings.text('chatAttachLimit')));
+      return;
+    }
+    emit(state.copyWith(isUploadingAttachment: true, error: null));
+    final r = await _repo.uploadAttachment(
+      requestId,
+      filePath: filePath,
+      fileName: fileName,
+    );
+    if (isClosed) return;
+    r.fold(
+      (f) {
+        emit(
+          state.copyWith(
+            isUploadingAttachment: false,
+            error: f.message,
+          ),
+        );
+      },
+      (att) {
+        emit(
+          state.copyWith(
+            isUploadingAttachment: false,
+            pendingAttachments: [...state.pendingAttachments, att],
+            error: null,
+          ),
+        );
+      },
+    );
+  }
+
+  void removePendingAttachment(ChatAttachment att) {
+    emit(
+      state.copyWith(
+        pendingAttachments: state.pendingAttachments
+            .where((e) => e.fileUrl != att.fileUrl)
+            .toList(),
+      ),
     );
   }
 

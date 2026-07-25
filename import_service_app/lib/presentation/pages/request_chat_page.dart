@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
@@ -22,6 +23,7 @@ import 'package:import_service_app/presentation/bloc/request_chat/request_chat_s
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Маршрут: `/request/:id/chat` — чат [api-app.md] REST+WSS; в демо: автоответ.
 class RequestChatPage extends StatelessWidget {
@@ -256,63 +258,105 @@ class _RequestChatViewState extends State<_RequestChatView> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              IconButton(
-                icon: const Icon(Icons.attach_file_outlined, color: AppTheme.textSecondary),
-                onPressed: () {
-                  sl<AppFeedbackService>().show(
-                    s.chatInDevelopment,
-                    kind: AppFeedbackKind.warning,
-                  );
-                },
-                tooltip: s.chatInDevelopment,
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: TextInputAction.newline,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    hintText: s.chatInputPlaceholder,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: AppTheme.requestCardBorder),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: AppTheme.inputOutlineGray,
-                        width: 1.2,
-                      ),
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.white,
+              if (cstate.pendingAttachments.isNotEmpty) ...[
+                SizedBox(
+                  height: 36,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: cstate.pendingAttachments.length,
+                    separatorBuilder: (_, _) => const Gap(6),
+                    itemBuilder: (context, i) {
+                      final a = cstate.pendingAttachments[i];
+                      final label = (a.fileName?.trim().isNotEmpty ?? false)
+                          ? a.fileName!.trim()
+                          : 'файл';
+                      return InputChip(
+                        label: Text(label, overflow: TextOverflow.ellipsis),
+                        onDeleted: cstate.isSending
+                            ? null
+                            : () => context
+                                .read<RequestChatCubit>()
+                                .removePendingAttachment(a),
+                      );
+                    },
                   ),
-                  onSubmitted: (_) {
-                    if (!cstate.isSending) {
-                      _submit(context, cstate);
-                    }
-                  },
                 ),
-              ),
-              IconButton(
-                onPressed: cstate.isSending
-                    ? null
-                    : () => _submit(context, cstate),
-                icon: Icon(
-                  Icons.send_rounded,
-                  color: cstate.isSending
-                      ? AppTheme.textSecondary.withValues(alpha: 0.4)
-                      : AppTheme.textSecondary,
-                ),
+                const Gap(6),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: cstate.isUploadingAttachment
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.attach_file_outlined,
+                            color: AppTheme.textSecondary,
+                          ),
+                    onPressed: (cstate.isSending || cstate.isUploadingAttachment)
+                        ? null
+                        : () => _pickAttachment(context),
+                    tooltip: s.text('chatAttachTooltip'),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      minLines: 1,
+                      maxLines: 5,
+                      textInputAction: TextInputAction.newline,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: s.chatInputPlaceholder,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppTheme.requestCardBorder,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppTheme.inputOutlineGray,
+                            width: 1.2,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.white,
+                      ),
+                      onSubmitted: (_) {
+                        if (!cstate.isSending) {
+                          _submit(context, cstate);
+                        }
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: cstate.isSending
+                        ? null
+                        : () => _submit(context, cstate),
+                    icon: Icon(
+                      Icons.send_rounded,
+                      color: cstate.isSending
+                          ? AppTheme.textSecondary.withValues(alpha: 0.4)
+                          : AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -321,12 +365,34 @@ class _RequestChatViewState extends State<_RequestChatView> {
     );
   }
 
+  Future<void> _pickAttachment(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'],
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty || !context.mounted) return;
+    final f = result.files.first;
+    final path = f.path;
+    if (path == null || path.isEmpty) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('chatAttachPickError'),
+        kind: AppFeedbackKind.error,
+      );
+      return;
+    }
+    await context.read<RequestChatCubit>().addLocalFileAttachment(
+          filePath: path,
+          fileName: f.name,
+        );
+  }
+
   void _submit(BuildContext context, RequestChatState cstate) {
     if (cstate.isSending) {
       return;
     }
     final t = _controller.text;
-    if (t.trim().isEmpty) {
+    if (t.trim().isEmpty && cstate.pendingAttachments.isEmpty) {
       return;
     }
     context.read<RequestChatCubit>().send(t);
@@ -452,13 +518,55 @@ class _ChatBubble extends StatelessWidget {
                     isOut ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    message.text,
-                    style: t.textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textPrimary,
-                      height: 1.2,
+                  if (message.text.trim().isNotEmpty)
+                    Text(
+                      message.text,
+                      style: t.textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textPrimary,
+                        height: 1.2,
+                      ),
                     ),
-                  ),
+                  if (message.attachments.isNotEmpty) ...[
+                    if (message.text.trim().isNotEmpty) const Gap(6),
+                    for (final a in message.attachments)
+                      if (a.fileUrl.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: InkWell(
+                            onTap: () async {
+                              final uri = Uri.tryParse(a.fileUrl.trim());
+                              if (uri == null) return;
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            },
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.attach_file,
+                                  size: 16,
+                                  color: AppTheme.primaryBlue,
+                                ),
+                                const Gap(4),
+                                Flexible(
+                                  child: Text(
+                                    (a.fileName?.trim().isNotEmpty ?? false)
+                                        ? a.fileName!.trim()
+                                        : 'Файл',
+                                    style: t.textTheme.bodySmall?.copyWith(
+                                      color: AppTheme.primaryBlue,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                  ],
                   const Gap(3),
                   Row(
                     mainAxisSize: MainAxisSize.min,

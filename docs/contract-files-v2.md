@@ -123,7 +123,8 @@ Push в МП: **метаданные** — после `state`; **файлы** �
 | docType | 1С → МП (upload) | МП → 1С |
 |---------|------------------|---------|
 | Обычные (`contract`, `kuts`, …) | да | `*_sign` |
-| `funds_transfer_application`, `passport_notarized_copy` | нет | только `*_sign` |
+| `passport_notarized_copy` | нет | только `*_sign` |
+| `funds_transfer_application` | — | не в UI «На подпись» МП |
 | Квитанции, фото, ЭПТС | да, как файл с `docType` | чеки `*_receipt` |
 
 Переподпись: 1С re-upload оригинала + `state` с `signature_revision_required`; клиент upload нового `*_sign`.

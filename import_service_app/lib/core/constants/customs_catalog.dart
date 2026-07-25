@@ -126,9 +126,6 @@ List<CustomsDocType> signingDocTypesForDealType(DealType dealType) {
     CustomsDocType.customsRepAgreement,
     CustomsDocType.contract,
   ];
-  if (dealType != DealType.cash) {
-    types.add(CustomsDocType.fundsTransferApplication);
-  }
   types.add(CustomsDocType.passportNotarizedCopy);
   switch (dealType) {
     case DealType.cash:
@@ -182,8 +179,9 @@ bool isSigningPackageStarted({
   return false;
 }
 
-/// Client-only типы (`funds_transfer_application`, `passport_notarized_copy`):
+/// Client-only типы (`passport_notarized_copy`):
 /// оригинал из 1С не приходит — слот upload `*_sign` с начала пакета на подпись.
+/// `funds_transfer_application` в секции «На подпись» МП не показывается.
 bool isClientOnlySigningSlotVisible(RequestStatusSubType? statusSubType) {
   if (statusSubType == null) return false;
   return kSigningPackageStartedSubTypes.contains(statusSubType);

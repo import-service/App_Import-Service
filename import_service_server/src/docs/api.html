@@ -319,6 +319,20 @@
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{ "upToMessageId": 9001 }</pre><p><b>Success:</b></p><pre>{ "ok": true, "updated": 12, "upToMessageId": 9001 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
         </details>
         <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/:id/messages/attachments</code><span class="desc">Загрузить вложение чата (МП) → fileUrl для сообщения.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p>
+            <p><b>Content-Type:</b> <code>multipart/form-data</code>, поле <code>file</code>.</p>
+            <p><b>Лимиты:</b> изображения и PDF, до 25 МБ.</p>
+            <p><b>Success:</b></p><pre>{
+  "fileUrl": "{{BASE_URL}}/api/chat-attachments/chat_123_….pdf",
+  "fileName": "scan.pdf",
+  "mimeType": "application/pdf",
+  "fileSizeBytes": 102400
+}</pre>
+            <p>Дальше передать объект в <code>attachments[]</code> при <code>POST …/messages</code>.</p>
+            <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/push/tokens</code><span class="desc">Зарегистрировать FCM-токен устройства для push.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
   "token": "fcm_device_token",
@@ -331,18 +345,12 @@
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{ "token": "fcm_device_token" }</pre><p><b>Success:</b></p><pre>{ "ok": true, "updated": 1 }</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>503 PUSH_STORAGE_NOT_READY</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method ws">WS</span><code class="path">{{WS_BASE_URL}}/ws/&lt;requestId&gt;/?token=&lt;accessToken&gt;</code><span class="desc">Realtime события чата (отдельный порт на сервере, проксируется с того же хоста).</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken (query <code>token</code>)</p><p><b>Пример URL:</b></p><pre>{
-  "wsUrl": "{{WS_BASE_URL}}/ws/123/?token=sample_access_token_value"
-}</pre><p><b>Success:</b></p><pre>{
-  "type": "message_created",
-  "payload": {
-    "id": 9003,
-    "requestId": 123,
-    "senderType": "user",
-    "text": "Здравствуйте, уточните статус"
-  }
-}</pre><p><b>Errors:</b></p><ul><li><code>401 (handshake)</code></li></ul></div>
+          <summary class="summary"><span class="method ws">WS</span><code class="path">{{WS_BASE_URL}}/ws/&lt;requestId&gt;/?token=&lt;accessToken&gt;</code><span class="desc">Realtime чат для МП (JWT пользователя).</span></summary>
+          <div class="body"><p><b>Auth:</b> JWT пользователя (query <code>token</code> или Bearer).</p>
+            <p><b>Пример URL:</b></p><pre>{{WS_BASE_URL}}/ws/123/?token=sample_access_token_value</pre>
+            <p><b>События комнаты:</b> <code>message_created</code> / <code>message_incoming</code>.</p>
+            <p>WSS для 1С — другой URL, см. вкладку <a href="/docs/integration">API для 1С</a>.</p>
+            <p><b>Errors:</b></p><ul><li><code>401 (handshake)</code></li></ul></div>
         </details>
       </section>
     </section>
@@ -885,8 +893,8 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
 }</pre><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method get">GET</span><code class="path">/api/integration/customs-request-messages</code><span class="desc">Получить всю переписку по заявке 1С (HTTP, без WSS).</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Назначение:</b> 1С получает <b>всю</b> переписку чата по <code>external1cId</code> одним запросом (без WSS и без инкрементального polling).</p>
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/integration/customs-request-messages</code><span class="desc">История переписки по заявке (HTTP; альтернатива — WSS history).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Назначение:</b> 1С получает <b>всю</b> переписку чата по <code>external1cId</code> одним запросом. Realtime — карточка WSS ниже.</p>
             <table class="fields">
               <tr><th>Параметр</th><th>Обяз.</th><th>Назначение</th></tr>
               <tr><td><code>external1cId</code></td><td>да</td><td>Id заявки в 1С.</td></tr>
@@ -953,6 +961,67 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
     "message_1c_id": "GUID-MSG-1C-0001"
   }
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-request-messages/attachments</code><span class="desc">Загрузить вложение чата с 1С → fileUrl для сообщения.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
+            <p><b>Query:</b> <code>external1cId</code> (обязателен).</p>
+            <p><b>Content-Type:</b> <code>multipart/form-data</code>, поле <code>file</code>.</p>
+            <p><b>Лимиты:</b> изображения и PDF, до 25 МБ.</p>
+            <p><b>Пример URL:</b></p><pre>{{BASE_URL}}/api/integration/customs-request-messages/attachments?external1cId=GUID-REQUEST-1C</pre>
+            <p><b>Success:</b></p><pre>{
+  "fileUrl": "{{BASE_URL}}/api/chat-attachments/chat_123_….pdf",
+  "fileName": "scan.pdf",
+  "mimeType": "application/pdf",
+  "fileSizeBytes": 102400
+}</pre>
+            <p>Дальше передать объект в <code>attachments[]</code> при HTTP <code>POST …/customs-request-messages</code> или в WSS <code>{ "type": "send", "attachments": […] }</code>.</p>
+            <p>Если у 1С уже есть публичный <code>fileUrl</code> — upload на наш сервер не обязателен.</p>
+            <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card" open>
+          <summary class="summary"><span class="method ws">WS</span><code class="path">{{WS_BASE_URL}}/ws/1c/?external1cId=&lt;GUID&gt;&amp;token=&lt;INTEGRATION_BEARER_TOKEN&gt;</code><span class="desc">WSS чат для 1С: полный дуплекс (history + send + события).</span></summary>
+          <div class="body">
+            <p><b>Auth:</b> тот же <code>INTEGRATION_BEARER_TOKEN</code>, что для HTTP integration (query <code>token</code> или заголовок Authorization Bearer). JWT пользователя МП сюда <b>не</b> подходит.</p>
+            <p><b>URL (рекомендуемый):</b></p><pre>{{WS_BASE_URL}}/ws/1c/?external1cId=GUID-REQUEST-1C&amp;token=INTEGRATION_BEARER_TOKEN</pre>
+            <p><b>HTTP чата не отменяется:</b> GET/POST <code>/api/integration/customs-request-messages</code> и исходящий push сервера → 1С на <code>…/customs-request-chat</code> остаются.</p>
+            <p><b>После connect сервер шлёт:</b></p><pre>{
+  "type": "ready",
+  "requestId": 123,
+  "external1cId": "GUID-REQUEST-1C",
+  "role": "1c"
+}</pre>
+            <p><b>1С → сервер (получить историю):</b></p><pre>{ "type": "history" }</pre>
+            <p><b>Ответ:</b></p><pre>{
+  "type": "history",
+  "requestId": 123,
+  "external1cId": "GUID-REQUEST-1C",
+  "items": [ /* те же поля, что у HTTP GET */ ]
+}</pre>
+            <p><b>1С → сервер (отправить сообщение менеджера):</b></p><pre>{
+  "type": "send",
+  "message1cId": "GUID-MSG-1C-0001",
+  "text": "Добрый день, документы приняты",
+  "sender1cId": "u-1",
+  "senderName": "Иванов",
+  "attachments": []
+}</pre>
+            <p><b>Ack:</b></p><pre>{ "type": "send_ack", "ok": true, "id": 9001, "requestId": 123, "dedup": false }</pre>
+            <p>или <code>{ "type": "send_ack", "ok": false, "error": "…", "message": "…" }</code>.</p>
+            <p><b>Сервер → 1С (новое сообщение в комнате, в т.ч. клиент из МП):</b></p><pre>{
+  "type": "message_created",
+  "requestId": 123,
+  "external1cId": "GUID-REQUEST-1C",
+  "message": {
+    "id": 9003,
+    "text": "Текст от клиента",
+    "attachments": [],
+    "authorType": "app_user"
+  }
+}</pre>
+            <p>Вложения: сначала HTTP upload (карточка выше) → <code>fileUrl</code> в <code>attachments</code>. Бинарник по WSS не шлём.</p>
+            <p><b>Errors handshake:</b> без/с неверным токеном — соединение рвётся (часто выглядит как вечное «открывается»).</p>
+          </div>
         </details>
       </section>
     </section>

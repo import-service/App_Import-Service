@@ -102,6 +102,7 @@ RequestFilesGrouped groupRequestFiles({
     final applicableSet = applicable.toSet();
 
     for (final base in applicable) {
+      if (base.isHiddenFromMpSigningSection) continue;
       final original = base.isClientSignOnly ? null : pick(base.apiCode);
       final signed = pick(base.signedApiCode);
       if (!_shouldShowSigningRow(
@@ -140,6 +141,7 @@ RequestFilesGrouped groupRequestFiles({
       final base = CustomsDocType.tryParse(key.substring(0, key.length - 5));
       if (base == null || applicableSet.contains(base)) continue;
       if (!base.isSigningBase) continue;
+      if (base.isHiddenFromMpSigningSection) continue;
 
       final signed = pick(key);
       if (signed == null) continue;
@@ -188,6 +190,8 @@ RequestFilesGrouped groupRequestFiles({
     final code = CustomsDocType.normalizeCode(f.docType);
     if (code.isEmpty || used.contains(code)) continue;
     if (code.endsWith('_sign')) continue;
+    final (type, _) = CustomsDocType.parseWithSign(code);
+    if (type?.isHiddenFromMpSigningSection ?? false) continue;
     other.add(f);
   }
 

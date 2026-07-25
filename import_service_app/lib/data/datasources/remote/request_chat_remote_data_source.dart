@@ -136,4 +136,48 @@ final class RequestChatRemoteDataSource {
       AppLog.error('Chat read', tag: 'RequestChatRemote', error: e, stackTrace: st);
     }
   }
+
+  Future<ChatAttachment> uploadAttachment(
+    String requestId, {
+    required String filePath,
+    String? fileName,
+  }) async {
+    final idEnc = Uri.encodeComponent(requestId);
+    final path = 'customs-requests/$idEnc/messages/attachments';
+    final name = (fileName != null && fileName.trim().isNotEmpty)
+        ? fileName.trim()
+        : filePath.split(RegExp(r'[\\/]')).last;
+    try {
+      final form = FormData.fromMap(<String, dynamic>{
+        'file': await MultipartFile.fromFile(filePath, filename: name),
+      });
+      final response = await _dio.post<dynamic>(
+        path,
+        data: form,
+        options: Options(
+          contentType: 'multipart/form-data',
+          sendTimeout: const Duration(minutes: 2),
+          receiveTimeout: const Duration(minutes: 2),
+        ),
+      );
+      final d = response.data;
+      if (d is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ upload');
+      }
+      final att = ChatAttachment.fromJson(d);
+      if (att.fileUrl.isEmpty) {
+        throw const UnknownServerException('Пустой fileUrl');
+      }
+      return att;
+    } on DioException catch (e, st) {
+      final mapped = ErrorHandler.handle(e);
+      AppLog.error('Chat attach: $path', tag: 'RequestChatRemote', error: e, stackTrace: st);
+      throw mapped;
+    } on ServerException {
+      rethrow;
+    } catch (e, st) {
+      AppLog.error('Chat attach', tag: 'RequestChatRemote', error: e, stackTrace: st);
+      throw const UnknownServerException('Не удалось загрузить файл');
+    }
+  }
 }

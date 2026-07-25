@@ -78,4 +78,26 @@ final class RequestChatRepositoryImpl implements RequestChatRepository {
       return Left(CacheFailure(e.toString()));
     }
   }
+
+  @override
+  Future<Either<Failure, ChatAttachment>> uploadAttachment(
+    String requestId, {
+    required String filePath,
+    String? fileName,
+  }) async {
+    try {
+      final att = await _remote.uploadAttachment(
+        requestId,
+        filePath: filePath,
+        fileName: fileName,
+      );
+      return Right(att);
+    } on ConflictException catch (e) {
+      return Left(ChatNotAvailableFailure(e.message));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
 }

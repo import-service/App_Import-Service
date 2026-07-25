@@ -141,14 +141,16 @@
 
 | Код | Название | Документы пакета (`docType`) |
 |-----|----------|------------------------------|
-| `bilateral` | Двухсторонняя сделка | `recycling_fee_calc`, `kuts`, `explanatory_note`, `customs_rep_agreement`, `funds_transfer_application`, `passport_notarized_copy`, `contract` |
-| `cash` | Наличный расчёт | Как `bilateral`, **без** `funds_transfer_application`; + `receipt`, `additional_agreement` |
+| `bilateral` | Двухсторонняя сделка | `recycling_fee_calc`, `kuts`, `explanatory_note`, `customs_rep_agreement`, `passport_notarized_copy`, `contract` |
+| `cash` | Наличный расчёт | Как `bilateral` + `receipt`, `additional_agreement` |
 | `tripartite` | Трёхсторонняя сделка | Как `bilateral` + `tripartite_agreement` |
 | `quadripartite` | Четырёхсторонняя сделка | Как `bilateral` + `quadripartite_agreement` |
 
-**Не выгружаются из 1С в МП** (клиент загружает только подпись `*_sign`): `funds_transfer_application`, `passport_notarized_copy`.
+**Не выгружаются из 1С в МП** (клиент загружает только подпись `*_sign`): `passport_notarized_copy`.
 
-`funds_transfer_application` — **«Заявление на перевод»** (перевод остатков средств после растаможивания), не перевоз автомобиля.
+`funds_transfer_application` — код API сохранён, но **в секции «На подпись» МП не показывается**.
+
+`passport_notarized_copy` — нотариальная копия паспорта (client-only `*_sign`).
 
 ### Справочник `statusSubType` (подстатус)
 
@@ -390,6 +392,26 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
 - `400 VALIDATION_ERROR`
 - `401 INVALID_INTEGRATION_TOKEN`
 - `404 NOT_FOUND` - заявка с `external1cId` не найдена
+
+## GET /api/integration/customs-request-messages
+
+История переписки: `?external1cId=…` → `{ requestId, external1cId, items }`.
+
+## POST /api/integration/customs-request-messages/attachments
+
+Загрузить файл вложения на сервер (multipart `file`, query `external1cId`).  
+Ответ: `{ fileUrl, fileName, mimeType, fileSizeBytes }` — затем в `attachments` сообщения (HTTP или WSS `send`).
+
+Допустимо: изображения и PDF, до 25 МБ.
+
+## WSS для 1С (опционально, HTTP остаётся)
+
+```
+wss://157-22-173-7.sslip.io/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER_TOKEN>
+```
+
+- `history` / `send` / события `message_created`|`message_incoming` — см. `api-app.md` § Realtime.
+- Исходящий push сервера → 1С на `…/customs-request-chat` при сообщении из МП **сохраняется**.
 
 ## Правила интеграции организаций
 

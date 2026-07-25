@@ -119,7 +119,7 @@ flowchart LR
 
 **Правило двух файлов:** оригинал `contract` + подпись `contract_sign`. Оригинал **не** перезаписывается подписью.
 
-**Client-only (оригинала из 1С нет):** `funds_transfer_application_sign`, `passport_notarized_copy_sign` — только upload с МП, см. таблицу в catalog-reference.
+**Client-only (оригинала из 1С нет):** `passport_notarized_copy_sign` — только upload с МП. `funds_transfer_application` в UI «На подпись» МП не показывается.
 
 **Секция МП:** «На подпись» — **только** docType из `files[]` + матрица `dealType`, **не** все типы из enum заранее.
 
