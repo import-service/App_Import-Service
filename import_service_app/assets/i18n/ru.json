@@ -192,6 +192,7 @@
   "chatAttachLimit": "Не больше 5 вложений в одном сообщении",
   "chatAttachPickError": "Не удалось выбрать файл",
   "pushToastNewMessage": "Новое сообщение от менеджера",
+  "pushChatGoMessage": "Открыть чат по заявке?",
   "pushToastRequestUpdated": "Статус заявки обновлен",
   "pushToastFilesUpdated": "Обновлены документы заявки",
   "requestCardNewMessageHint": "Новое сообщение",

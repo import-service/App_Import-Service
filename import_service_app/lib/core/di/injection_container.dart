@@ -10,6 +10,7 @@ import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/network/dio_client.dart';
 import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
+import 'package:import_service_app/core/push/chat_screen_presence.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/storage/secure_storage_service.dart';
 import 'package:import_service_app/data/datasources/remote/auth_remote_data_source.dart';
@@ -44,6 +45,7 @@ Future<void> initDependencies() async {
   sl.registerSingleton<RequestAttentionCubit>(RequestAttentionCubit());
   sl.registerSingleton<RequestChatUnreadCubit>(RequestChatUnreadCubit());
   sl.registerSingleton<HomeCarsNavigationController>(HomeCarsNavigationController());
+  sl.registerSingleton<ChatScreenPresence>(ChatScreenPresence());
 
   final carInventoryCubit = CarInventoryCubit(prefs);
   sl.registerSingleton<CarInventoryCubit>(carInventoryCubit);

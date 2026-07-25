@@ -11,7 +11,7 @@ import 'package:import_service_app/domain/repositories/request_chat_repository.d
 import 'package:import_service_app/presentation/bloc/request_chat/request_chat_state.dart';
 import 'package:uuid/uuid.dart';
 
-/// Чат по заявке: демо-ответ, REST + WSS [api-app.md].
+/// Чат: WSS дуплекс (history/send/read), HTTP fallback.
 final class RequestChatCubit extends Cubit<RequestChatState> {
   RequestChatCubit({
     required this.requestId,
@@ -77,19 +77,9 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
     r.fold(
       (f) {
         if (f is ChatNotAvailableFailure) {
-          emit(
-            state.copyWith(
-              isLoading: false,
-              isUnavailable: true,
-            ),
-          );
+          emit(state.copyWith(isLoading: false, isUnavailable: true));
         } else {
-          emit(
-            state.copyWith(
-              isLoading: false,
-              error: f.message,
-            ),
-          );
+          emit(state.copyWith(isLoading: false, error: f.message));
         }
       },
       (raw) {
@@ -101,59 +91,68 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
             error: null,
           ),
         );
-        unawaited(_markReadInBackground(sorted));
         _connectWss();
+        unawaited(_markReadInBackground(sorted));
       },
     );
   }
 
   void _connectWss() {
-    if (_session.isDemo) {
-      return;
-    }
+    if (_session.isDemo) return;
     final t = _session.accessToken;
-    if (t == null || t.isEmpty) {
-      return;
-    }
-    if (_wss.isActive) {
-      return;
-    }
+    if (t == null || t.isEmpty) return;
+    if (_wss.isActive) return;
     final url = ApiConfig.chatWebsocketUrl(requestId, t);
     _wss.connect(
       url: url,
       onMessage: (msg) {
-        if (isClosed) {
-          return;
-        }
+        if (isClosed) return;
         _ingestWssMessage(msg);
       },
+      onRead: (ev) {
+        if (isClosed) return;
+        _applyReadEvent(ev);
+      },
       onError: (e, st) {
-        if (isClosed) {
-          return;
-        }
+        if (isClosed) return;
         emit(state.copyWith(wssConnected: false));
       },
       onDone: () {
-        if (isClosed) {
-          return;
-        }
+        if (isClosed) return;
         emit(state.copyWith(wssConnected: false));
       },
     );
     emit(state.copyWith(wssConnected: true));
   }
 
+  void _applyReadEvent(ChatReadEvent ev) {
+    if (ev.by != '1c') return;
+    final next = state.messages.map((m) {
+      if (m.isFrom1c) return m;
+      final id = m.id;
+      if (id == null || id > ev.upToMessageId) return m;
+      return m.copyWith(readBy1c: true, deliveryStatus: 'delivered');
+    }).toList();
+    emit(state.copyWith(messages: next));
+  }
+
   void _ingestWssMessage(ChatMessage msg) {
-    if (msg.id != null) {
-      if (state.messages.any((m) => m.id == msg.id)) {
-        return;
-      }
+    if (msg.id != null && state.messages.any((m) => m.id == msg.id)) {
+      final next = state.messages
+          .map((m) => m.id == msg.id ? msg : m)
+          .toList();
+      emit(state.copyWith(messages: _sortAndDedupe(next)));
+      unawaited(_markReadInBackground(next));
+      return;
     }
     final c = msg.clientMessageId;
     if (c != null && c.isNotEmpty) {
-      if (state.messages.any(
-        (m) => m.id != null && m.clientMessageId == c,
-      )) {
+      if (state.messages.any((m) => m.id != null && m.clientMessageId == c)) {
+        final next = state.messages.map((m) {
+          if (m.clientMessageId == c) return msg;
+          return m;
+        }).toList();
+        emit(state.copyWith(messages: _sortAndDedupe(next)));
         return;
       }
     }
@@ -163,45 +162,40 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
   }
 
   Future<void> _markReadInBackground(List<ChatMessage> list) async {
-    if (_session.isDemo) {
-      return;
-    }
+    if (_session.isDemo) return;
     var maxId = 0;
     for (final m in list) {
       if (m.isFrom1c) {
         final n = m.id;
-        if (n != null && n > maxId) {
-          maxId = n;
-        }
+        if (n != null && n > maxId) maxId = n;
       }
     }
-    if (maxId == 0) {
-      return;
+    if (maxId == 0) return;
+    if (_wss.isActive) {
+      try {
+        await _wss.sendRead(upToMessageId: maxId);
+        return;
+      } catch (_) {
+        // fallback HTTP
+      }
     }
     await _repo.markReadUpTo(requestId, upToMessageId: maxId);
   }
 
   Future<void> send(String text) async {
     var t = text.trim();
-    if (t.length > 2000) {
-      t = t.substring(0, 2000);
-    }
+    if (t.length > 2000) t = t.substring(0, 2000);
     final atts = List<ChatAttachment>.from(state.pendingAttachments);
-    if (t.isEmpty && atts.isEmpty) {
-      return;
-    }
-    if (isClosed) {
-      return;
-    }
+    if (t.isEmpty && atts.isEmpty) return;
+    if (isClosed) return;
 
     if (_session.isDemo) {
       _appendDemoExchange(t.isEmpty ? '(файл)' : t);
       emit(state.copyWith(pendingAttachments: const []));
       return;
     }
-    if (state.isUnavailable) {
-      return;
-    }
+    if (state.isUnavailable) return;
+
     final clientId = _uuid.v4();
     final optimistic = ChatMessage(
       id: null,
@@ -209,7 +203,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
       text: t,
       isFrom1c: false,
       createdAt: DateTime.now().toUtc(),
-      readByUser: true,
+      deliveryStatus: 'pending',
       attachments: atts,
     );
     emit(
@@ -220,48 +214,64 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
         messages: _sortAndDedupe([...state.messages, optimistic]),
       ),
     );
-    final r = await _repo.sendMessage(
-      requestId,
-      text: t,
-      clientMessageId: clientId,
-      attachments: atts,
-    );
-    if (isClosed) {
-      return;
+
+    ChatMessage? server;
+    Object? err;
+    if (_wss.isActive) {
+      try {
+        server = await _wss.sendMessage(
+          clientMessageId: clientId,
+          text: t,
+          attachments: atts,
+        );
+      } catch (e) {
+        err = e;
+      }
     }
-    r.fold(
-      (f) {
-        if (f is ChatNotAvailableFailure) {
-          emit(
-            state.copyWith(
-              isSending: false,
-              isUnavailable: true,
-              messages: _removeByClientId(state.messages, clientId),
-              pendingAttachments: atts,
-            ),
-          );
-        } else {
-          emit(
-            state.copyWith(
-              isSending: false,
-              error: f.message,
-              messages: _removeByClientId(state.messages, clientId),
-              pendingAttachments: atts,
-            ),
-          );
-        }
-      },
-      (server) {
-        final afterRemove = _removeByClientId(state.messages, clientId);
-        final next = _replaceOrAppendServer(afterRemove, server);
+    if (server == null) {
+      final r = await _repo.sendMessage(
+        requestId,
+        text: t,
+        clientMessageId: clientId,
+        attachments: atts,
+      );
+      r.fold((f) => err = f, (s) {
+        server = s;
+        err = null;
+      });
+    }
+
+    if (isClosed) return;
+    if (server == null) {
+      final f = err;
+      if (f is ChatNotAvailableFailure) {
         emit(
           state.copyWith(
             isSending: false,
-            messages: next,
+            isUnavailable: true,
+            messages: _removeByClientId(state.messages, clientId),
+            pendingAttachments: atts,
           ),
         );
-        unawaited(_markReadInBackground(next));
-      },
+      } else {
+        emit(
+          state.copyWith(
+            isSending: false,
+            error: f is Failure ? f.message : (f?.toString() ?? 'error'),
+            messages: _removeByClientId(state.messages, clientId),
+            pendingAttachments: atts,
+          ),
+        );
+      }
+      return;
+    }
+
+    final afterRemove = _removeByClientId(state.messages, clientId);
+    emit(
+      state.copyWith(
+        isSending: false,
+        messages: _replaceOrAppendServer(afterRemove, server!),
+      ),
     );
   }
 
@@ -321,7 +331,8 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
       text: userText,
       isFrom1c: false,
       createdAt: DateTime.now().toUtc(),
-      readByUser: true,
+      deliveryStatus: 'delivered',
+      readBy1c: true,
     );
     _demoSeq += 1;
     final reply = ChatMessage(
@@ -357,9 +368,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
   }
 
   void clearError() {
-    if (isClosed) {
-      return;
-    }
+    if (isClosed) return;
     emit(state.copyWith(error: null));
   }
 

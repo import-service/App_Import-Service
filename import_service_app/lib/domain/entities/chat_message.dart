@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// Сообщение чата заявки ([api-app.md], camelCase + snake_case при парсе).
+/// Сообщение чата заявки.
 final class ChatMessage extends Equatable {
   const ChatMessage({
     this.id,
@@ -8,7 +8,9 @@ final class ChatMessage extends Equatable {
     required this.text,
     required this.isFrom1c,
     required this.createdAt,
-    this.readByUser = true,
+    this.readByUser = false,
+    this.readBy1c = false,
+    this.deliveryStatus,
     this.attachments = const <ChatAttachment>[],
   });
 
@@ -17,8 +19,40 @@ final class ChatMessage extends Equatable {
   final String text;
   final bool isFrom1c;
   final DateTime createdAt;
+  /// Входящее от 1С прочитано пользователем МП.
   final bool readByUser;
+  /// Исходящее к 1С прочитано менеджером.
+  final bool readBy1c;
+  /// `pending` | `delivered` | `failed` — для исходящих.
+  final String? deliveryStatus;
   final List<ChatAttachment> attachments;
+
+  bool get isDelivered =>
+      deliveryStatus == 'delivered' || readBy1c || (id != null && !isFrom1c);
+
+  ChatMessage copyWith({
+    int? id,
+    String? clientMessageId,
+    String? text,
+    bool? isFrom1c,
+    DateTime? createdAt,
+    bool? readByUser,
+    bool? readBy1c,
+    String? deliveryStatus,
+    List<ChatAttachment>? attachments,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      clientMessageId: clientMessageId ?? this.clientMessageId,
+      text: text ?? this.text,
+      isFrom1c: isFrom1c ?? this.isFrom1c,
+      createdAt: createdAt ?? this.createdAt,
+      readByUser: readByUser ?? this.readByUser,
+      readBy1c: readBy1c ?? this.readBy1c,
+      deliveryStatus: deliveryStatus ?? this.deliveryStatus,
+      attachments: attachments ?? this.attachments,
+    );
+  }
 
   static DateTime? _parseTime(dynamic v) {
     if (v == null) return null;
@@ -28,12 +62,13 @@ final class ChatMessage extends Equatable {
     return null;
   }
 
-  static bool _readFromJson(Map<String, dynamic> json) {
-    final a = json['readByUser'] ?? json['read_by_user'];
-    if (a is bool) return a;
-    final readAt = json['readByUserAt'] ?? json['read_by_user_at'];
-    if (readAt is String && readAt.trim().isNotEmpty) return true;
-    return true;
+  static bool _hasTimestamp(Map<String, dynamic> json, List<String> keys) {
+    for (final k in keys) {
+      final v = json[k];
+      if (v is String && v.trim().isNotEmpty) return true;
+      if (v != null && v is! String) return true;
+    }
+    return false;
   }
 
   static bool _from1cFromJson(Map<String, dynamic> json) {
@@ -64,13 +99,26 @@ final class ChatMessage extends Equatable {
             (json['text_content'] as String?))
         ?.trim() ??
         '';
+    final isFrom1c = _from1cFromJson(json);
+    final delivery = (json['deliveryStatus'] ?? json['delivery_status'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
     return ChatMessage(
       id: id,
-      clientMessageId: json['clientMessageId'] as String? ?? json['client_message_id'] as String?,
+      clientMessageId:
+          json['clientMessageId'] as String? ?? json['client_message_id'] as String?,
       text: text,
-      isFrom1c: _from1cFromJson(json),
-      createdAt: _parseTime(json['createdAt'] ?? json['created_at'] ?? json['ts']) ?? DateTime.now().toUtc(),
-      readByUser: _readFromJson(json),
+      isFrom1c: isFrom1c,
+      createdAt: _parseTime(json['createdAt'] ?? json['created_at'] ?? json['ts']) ??
+          DateTime.now().toUtc(),
+      readByUser: _hasTimestamp(json, ['readByUserAt', 'read_by_user_at']) ||
+          json['readByUser'] == true ||
+          json['read_by_user'] == true,
+      readBy1c: _hasTimestamp(json, ['readBy1cAt', 'read_by_1c_at']) ||
+          json['readBy1c'] == true ||
+          json['read_by_1c'] == true,
+      deliveryStatus: delivery,
       attachments: _attachmentsFromJson(json),
     );
   }
@@ -87,8 +135,8 @@ final class ChatMessage extends Equatable {
       final nested = raw['attachments'];
       if (nested is List<dynamic>) {
         return nested
-            .whereType<Map<String, dynamic>>()
-            .map((e) => ChatAttachment.fromJson(e))
+            .whereType<Map>()
+            .map((e) => ChatAttachment.fromJson(Map<String, dynamic>.from(e)))
             .toList();
       }
     }
@@ -96,10 +144,20 @@ final class ChatMessage extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, clientMessageId, text, isFrom1c, createdAt, readByUser, attachments];
+  List<Object?> get props => [
+        id,
+        clientMessageId,
+        text,
+        isFrom1c,
+        createdAt,
+        readByUser,
+        readBy1c,
+        deliveryStatus,
+        attachments,
+      ];
 }
 
-/// Вложение-ссылка (не бинарник) — [api-app.md] POST [attachments].
+/// Вложение-ссылка (не бинарник).
 final class ChatAttachment extends Equatable {
   const ChatAttachment({
     required this.fileUrl,

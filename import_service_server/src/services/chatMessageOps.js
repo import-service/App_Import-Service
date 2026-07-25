@@ -1,4 +1,7 @@
+const { v4: uuidv4 } = require('uuid');
 const { notifyMessageFrom1C } = require('./pushNotifications');
+const { sendUserMessageTo1C } = require('./oneCChatOut');
+const { handleDemoUserChatMessage, isDemoExternal1cId } = require('./demoFlow');
 
 const MAX_TEXT = 2000;
 
@@ -29,6 +32,10 @@ function parseRowAttachments(value) {
   return value;
 }
 
+const MESSAGE_SELECT = `id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
+                text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
+                read_by_user_at, read_by_1c_at, created_at, updated_at`;
+
 function messageDto(row, external1cId) {
   const parsed = parseRowAttachments(row.attachments_json);
   return {
@@ -45,6 +52,7 @@ function messageDto(row, external1cId) {
     deliveredTo1cAt: row.delivered_to_1c_at,
     last1cError: row.last_1c_error,
     readByUserAt: row.read_by_user_at,
+    readBy1cAt: row.read_by_1c_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -63,17 +71,37 @@ async function findRequestByExternal1cId(pool, external1cId) {
   return rows[0] || null;
 }
 
+async function findRequestById(pool, requestId) {
+  const [rows] = await pool.query(
+    `SELECT id, external_1c_id, deleted_at, organization_id
+     FROM customs_requests
+     WHERE id = ? AND deleted_at IS NULL
+     LIMIT 1`,
+    [requestId],
+  );
+  return rows[0] || null;
+}
+
 async function listMessagesAsc(pool, requestId) {
   const [rows] = await pool.query(
-    `SELECT id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
-            text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
-            read_by_user_at, created_at, updated_at
+    `SELECT ${MESSAGE_SELECT}
      FROM customs_request_messages
      WHERE request_id = ? AND deleted_at IS NULL
      ORDER BY id ASC`,
     [requestId],
   );
   return rows;
+}
+
+async function loadMessageRow(pool, messageId) {
+  const [rowRows] = await pool.query(
+    `SELECT ${MESSAGE_SELECT}
+     FROM customs_request_messages
+     WHERE id = ?
+     LIMIT 1`,
+    [messageId],
+  );
+  return rowRows[0] || null;
 }
 
 /**
@@ -138,22 +166,13 @@ async function createMessageFrom1c(fastify, {
   );
 
   const newId = ins.insertId;
-  const [rowRows] = await fastify.pool.query(
-    `SELECT id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
-            text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
-            read_by_user_at, created_at, updated_at
-     FROM customs_request_messages
-     WHERE id=?
-     LIMIT 1`,
-    [newId],
-  );
-  const messageRow = rowRows[0];
+  const messageRow = await loadMessageRow(fastify.pool, newId);
   const dto = messageDto(messageRow, extId);
 
   if (fastify.chatWss) {
     try {
       await fastify.chatWss.broadcast(requestId, {
-        type: 'message_incoming',
+        type: 'message_created',
         requestId,
         external1cId: extId,
         message: dto,
@@ -182,6 +201,289 @@ async function createMessageFrom1c(fastify, {
   };
 }
 
+/**
+ * Сообщение клиента из МП (HTTP или WSS).
+ */
+async function createMessageFromUser(fastify, {
+  requestId,
+  userId,
+  text,
+  attachments = [],
+  clientMessageId,
+}) {
+  const id = Number(requestId);
+  const reqRow = await findRequestById(fastify.pool, id);
+  if (!reqRow) {
+    const e = new Error('NOT_FOUND');
+    e.code = 'NOT_FOUND';
+    throw e;
+  }
+  if (!reqRow.external_1c_id) {
+    const e = new Error('CHAT_NOT_AVAILABLE');
+    e.code = 'CHAT_NOT_AVAILABLE';
+    e.messageRu = 'Чат недоступен';
+    throw e;
+  }
+
+  const bodyText = clipText(text || '');
+  const atts = Array.isArray(attachments) ? attachments : [];
+  if (!bodyText && !atts.length) {
+    const e = new Error('VALIDATION_ERROR');
+    e.code = 'VALIDATION_ERROR';
+    e.messageRu = 'Пустое сообщение';
+    throw e;
+  }
+  for (const a of atts) {
+    if (!normalize(a.fileUrl)) {
+      const e = new Error('VALIDATION_ERROR');
+      e.code = 'VALIDATION_ERROR';
+      e.messageRu = 'fileUrl обязателен';
+      throw e;
+    }
+  }
+
+  const cid = normalize(clientMessageId) || uuidv4();
+  const [existing] = await fastify.pool.query(
+    `SELECT ${MESSAGE_SELECT}
+     FROM customs_request_messages
+     WHERE client_message_id = ? AND deleted_at IS NULL
+     LIMIT 1`,
+    [cid],
+  );
+  if (existing.length) {
+    const r = existing[0];
+    return {
+      ok: true,
+      dedup: true,
+      id: r.id,
+      requestId: id,
+      message: messageDto(r, reqRow.external_1c_id),
+      oneC: { status: 200, via: 'dedup' },
+    };
+  }
+
+  const payloadJson = atts.length ? { attachments: atts } : null;
+  const [ins] = await fastify.pool.query(
+    `INSERT INTO customs_request_messages
+       (request_id, author_type, user_id, direction, client_message_id, text_content, attachments_json,
+        delivery_status)
+     VALUES (?, 'app_user', ?, 'to_1c', ?, ?, ?, 'pending')`,
+    [id, userId, cid, bodyText, jsonAttachmentsOrNull(payloadJson)],
+  );
+
+  const messageId = ins.insertId;
+  let messageRow = await loadMessageRow(fastify.pool, messageId);
+  let oneC;
+
+  if (isDemoExternal1cId(reqRow.external_1c_id)) {
+    oneC = { status: 200, demo: true, via: 'demo' };
+    await fastify.pool.query(
+      `UPDATE customs_request_messages
+       SET delivery_status='delivered',
+           delivered_to_1c_at=NOW(3),
+           last_1c_error=NULL
+       WHERE id=? AND deleted_at IS NULL`,
+      [messageId],
+    );
+    messageRow = await loadMessageRow(fastify.pool, messageId);
+    handleDemoUserChatMessage(fastify, id, bodyText).catch((e) => {
+      fastify.log.warn({ requestId: id, err: e.message }, 'demo chat reply failed');
+    });
+  } else {
+    let deliverViaWss = false;
+    if (fastify.chatWss) {
+      try {
+        const stats = await fastify.chatWss.roomStats(id);
+        deliverViaWss = Number(stats.integrationSubscribers || 0) > 0;
+      } catch (e) {
+        fastify.log.warn({ err: e.message, requestId: id }, 'chat roomStats failed; fallback HTTP→1С');
+      }
+    }
+
+    if (deliverViaWss) {
+      oneC = { status: 200, via: 'wss' };
+      await fastify.pool.query(
+        `UPDATE customs_request_messages
+         SET delivery_status='delivered',
+             delivered_to_1c_at=NOW(3),
+             last_1c_error=NULL
+         WHERE id=? AND deleted_at IS NULL`,
+        [messageId],
+      );
+      messageRow = await loadMessageRow(fastify.pool, messageId);
+    } else {
+      try {
+        const { json } = await sendUserMessageTo1C(fastify, {
+          external1cId: reqRow.external_1c_id,
+          clientMessageId: cid,
+          text: bodyText,
+          attachmentsJson: atts,
+        });
+        oneC = { status: 200, via: 'http', json };
+        const externalMessageId = json && (json.oneCMessageId || json.message1cId || json.id_1c)
+          ? String(json.oneCMessageId || json.message1cId || json.id_1c)
+          : null;
+        await fastify.pool.query(
+          `UPDATE customs_request_messages
+           SET delivery_status='delivered',
+               delivered_to_1c_at=NOW(3),
+               last_1c_error=NULL
+           WHERE id=? AND deleted_at IS NULL`,
+          [messageId],
+        );
+        if (externalMessageId) {
+          await fastify.pool.query(
+            `UPDATE customs_request_messages SET message_1c_id=COALESCE(message_1c_id, ?) WHERE id=? AND deleted_at IS NULL`,
+            [externalMessageId, messageId],
+          );
+        }
+        messageRow = await loadMessageRow(fastify.pool, messageId);
+      } catch (e) {
+        oneC = { error: e.message, body: e.body || null, via: 'http' };
+        await fastify.pool.query(
+          `UPDATE customs_request_messages
+           SET delivery_status='failed', last_1c_error=?
+           WHERE id=? AND deleted_at IS NULL`,
+          [String(e.message || 'ONE_C_ERROR').slice(0, 1000), messageId],
+        );
+        messageRow = await loadMessageRow(fastify.pool, messageId);
+      }
+    }
+  }
+
+  const dto = messageDto(messageRow, reqRow.external_1c_id);
+  let wssBroadcast = null;
+  if (fastify.chatWss) {
+    try {
+      wssBroadcast = await fastify.chatWss.broadcast(id, {
+        type: 'message_created',
+        requestId: id,
+        external1cId: reqRow.external_1c_id || null,
+        message: dto,
+        oneC: oneC && oneC.status === 200
+          ? { ok: true, via: oneC.via || null, response: oneC.json || null }
+          : { ok: false, error: oneC?.error || oneC },
+      });
+    } catch (e) {
+      fastify.log.error(e, 'chat broadcast failed (outgoing user message)');
+    }
+  }
+
+  if (
+    oneC &&
+    oneC.via === 'wss' &&
+    !isDemoExternal1cId(reqRow.external_1c_id) &&
+    Number(wssBroadcast?.integrationDelivered || 0) === 0
+  ) {
+    try {
+      const { json } = await sendUserMessageTo1C(fastify, {
+        external1cId: reqRow.external_1c_id,
+        clientMessageId: cid,
+        text: bodyText,
+        attachmentsJson: atts,
+      });
+      oneC = { status: 200, via: 'http', fallbackFromWss: true, json };
+      await fastify.pool.query(
+        `UPDATE customs_request_messages
+         SET delivery_status='delivered',
+             delivered_to_1c_at=NOW(3),
+             last_1c_error=NULL
+         WHERE id=? AND deleted_at IS NULL`,
+        [messageId],
+      );
+      messageRow = await loadMessageRow(fastify.pool, messageId);
+    } catch (e) {
+      oneC = { error: e.message, body: e.body || null, via: 'http', fallbackFromWss: true };
+      await fastify.pool.query(
+        `UPDATE customs_request_messages
+         SET delivery_status='failed', last_1c_error=?
+         WHERE id=? AND deleted_at IS NULL`,
+        [String(e.message || 'ONE_C_ERROR').slice(0, 1000), messageId],
+      );
+      messageRow = await loadMessageRow(fastify.pool, messageId);
+    }
+  }
+
+  return {
+    ok: true,
+    dedup: false,
+    id: messageId,
+    requestId: id,
+    message: messageDto(messageRow, reqRow.external_1c_id),
+    oneC,
+  };
+}
+
+async function markReadByUser(fastify, { requestId, upToMessageId }) {
+  const upTo = Number(upToMessageId);
+  if (!Number.isFinite(upTo) || upTo <= 0) {
+    const e = new Error('VALIDATION_ERROR');
+    e.code = 'VALIDATION_ERROR';
+    e.messageRu = 'Некорректный upToMessageId';
+    throw e;
+  }
+  const [r] = await fastify.pool.query(
+    `UPDATE customs_request_messages
+     SET read_by_user_at=NOW(3)
+     WHERE request_id=?
+       AND id<=?
+       AND direction='from_1c'
+       AND read_by_user_at IS NULL
+       AND deleted_at IS NULL`,
+    [requestId, upTo],
+  );
+  const updated = r.affectedRows || 0;
+  if (fastify.chatWss) {
+    try {
+      await fastify.chatWss.broadcast(requestId, {
+        type: 'read',
+        requestId,
+        upToMessageId: upTo,
+        by: 'user',
+        updated,
+      });
+    } catch (e) {
+      fastify.log.error(e, 'chat broadcast failed (read by user)');
+    }
+  }
+  return { ok: true, updated, upToMessageId: upTo, by: 'user' };
+}
+
+async function markReadBy1c(fastify, { requestId, upToMessageId }) {
+  const upTo = Number(upToMessageId);
+  if (!Number.isFinite(upTo) || upTo <= 0) {
+    const e = new Error('VALIDATION_ERROR');
+    e.code = 'VALIDATION_ERROR';
+    e.messageRu = 'Некорректный upToMessageId';
+    throw e;
+  }
+  const [r] = await fastify.pool.query(
+    `UPDATE customs_request_messages
+     SET read_by_1c_at=NOW(3)
+     WHERE request_id=?
+       AND id<=?
+       AND direction='to_1c'
+       AND read_by_1c_at IS NULL
+       AND deleted_at IS NULL`,
+    [requestId, upTo],
+  );
+  const updated = r.affectedRows || 0;
+  if (fastify.chatWss) {
+    try {
+      await fastify.chatWss.broadcast(requestId, {
+        type: 'read',
+        requestId,
+        upToMessageId: upTo,
+        by: '1c',
+        updated,
+      });
+    } catch (e) {
+      fastify.log.error(e, 'chat broadcast failed (read by 1c)');
+    }
+  }
+  return { ok: true, updated, upToMessageId: upTo, by: '1c' };
+}
+
 module.exports = {
   MAX_TEXT,
   normalize,
@@ -190,6 +492,10 @@ module.exports = {
   parseRowAttachments,
   messageDto,
   findRequestByExternal1cId,
+  findRequestById,
   listMessagesAsc,
   createMessageFrom1c,
+  createMessageFromUser,
+  markReadByUser,
+  markReadBy1c,
 };

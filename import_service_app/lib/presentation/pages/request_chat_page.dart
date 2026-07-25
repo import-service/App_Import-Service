@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
+import 'package:import_service_app/core/push/chat_screen_presence.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/themes/request_status_list_style.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -62,11 +63,13 @@ class _RequestChatViewState extends State<_RequestChatView> {
   @override
   void initState() {
     super.initState();
+    sl<ChatScreenPresence>().enter(widget.requestId);
     sl<RequestChatUnreadCubit>().clearUnread(widget.requestId);
   }
 
   @override
   void dispose() {
+    sl<ChatScreenPresence>().leave(widget.requestId);
     _controller.dispose();
     _scroll.dispose();
     super.dispose();
@@ -582,9 +585,11 @@ class _ChatBubble extends StatelessWidget {
                       if (isOut) ...[
                         const Gap(4),
                         Icon(
-                          Icons.done_all,
+                          message.readBy1c || message.isDelivered
+                              ? Icons.done_all
+                              : Icons.done,
                           size: 14,
-                          color: message.readByUser
+                          color: message.readBy1c
                               ? const Color(0xFF29B6F6)
                               : AppTheme.textSecondary,
                         ),

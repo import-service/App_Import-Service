@@ -197,6 +197,7 @@
   "chatAttachLimit": "一条消息最多 5 个附件",
   "chatAttachPickError": "无法选择文件",
   "pushToastNewMessage": "经理发来了新消息",
+  "pushChatGoMessage": "打开该申请的聊天？",
   "pushToastRequestUpdated": "申请状态已更新",
   "pushToastFilesUpdated": "申请文件已更新",
   "requestCardNewMessageHint": "新消息",

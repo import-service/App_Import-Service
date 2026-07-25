@@ -1,17 +1,14 @@
-const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const { verifyIntegrationBearer, isIntegrationBearerRequest } = require('../util/integrationAuth');
-const { sendUserMessageTo1C } = require('../services/oneCChatOut');
-const { handleDemoUserChatMessage, isDemoExternal1cId } = require('../services/demoFlow');
 const { mpOrganizationId } = require('../util/requestOrganizationAccess');
 const {
   createMessageFrom1c,
+  createMessageFromUser,
+  markReadByUser,
   listMessagesAsc,
   messageDto,
   findRequestByExternal1cId,
   normalize,
-  clipText,
-  jsonAttachmentsOrNull,
   parseRowAttachments,
 } = require('../services/chatMessageOps');
 const {
@@ -73,7 +70,7 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       const [rows] = await fastify.pool.query(
         `SELECT id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
                 text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
-                read_by_user_at, created_at, updated_at
+                read_by_user_at, read_by_1c_at, created_at, updated_at
          FROM customs_request_messages
          WHERE ${where}
          ORDER BY id DESC
@@ -136,148 +133,32 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
 
-      const sub = Number(request.user.sub);
-      const text = clipText(request.body.text || '');
-      const attachments = Array.isArray(request.body.attachments) ? request.body.attachments : [];
-      if (!text && !attachments.length) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Пустое сообщение' });
-      }
-      for (const a of attachments) {
-        if (!normalize(a.fileUrl)) {
-          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'fileUrl обязателен' });
-        }
-      }
-
-      const clientMessageId = normalize(request.body.clientMessageId) || uuidv4();
-
-      const [existing] = await fastify.pool.query(
-        `SELECT id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
-                text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
-                read_by_user_at, created_at, updated_at
-         FROM customs_request_messages
-         WHERE client_message_id = ? AND deleted_at IS NULL
-         LIMIT 1`,
-        [clientMessageId],
-      );
-      if (existing.length) {
-        const r = existing[0];
+      try {
+        const result = await createMessageFromUser(fastify, {
+          requestId: id,
+          userId: Number(request.user.sub),
+          text: request.body.text,
+          attachments: Array.isArray(request.body.attachments) ? request.body.attachments : [],
+          clientMessageId: request.body.clientMessageId,
+        });
+        const msg = result.message || {};
         return reply.send({
-          ...r,
-          attachments: parseRowAttachments(r.attachments_json),
+          ...msg,
+          id: result.id,
+          oneC: result.oneC,
         });
-      }
-
-      const payloadJson = attachments.length ? { attachments } : null;
-      const [ins] = await fastify.pool.query(
-        `INSERT INTO customs_request_messages
-           (request_id, author_type, user_id, direction, client_message_id, text_content, attachments_json,
-            delivery_status)
-         VALUES (?, 'app_user', ?, 'to_1c', ?, ?, ?, 'pending')`,
-        [id, sub, clientMessageId, text, jsonAttachmentsOrNull(payloadJson)],
-      );
-
-      const messageId = ins.insertId;
-      const [rowRows] = await fastify.pool.query(
-        `SELECT id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
-                text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
-                read_by_user_at, created_at, updated_at
-         FROM customs_request_messages
-         WHERE id = ?
-         LIMIT 1`,
-        [messageId],
-      );
-      const messageRow = rowRows[0];
-
-      let oneC;
-      if (!ar.row.external_1c_id) {
-        oneC = { status: 0, error: { code: 'MISSING_EXTERNAL_1C_ID' } };
-        await fastify.pool.query(
-          `UPDATE customs_request_messages
-           SET delivery_status='failed', last_1c_error=?
-           WHERE id=? AND deleted_at IS NULL`,
-          ['MISSING_EXTERNAL_1C_ID', messageId],
-        );
-        messageRow.delivery_status = 'failed';
-        messageRow.last_1c_error = 'MISSING_EXTERNAL_1C_ID';
-      } else if (isDemoExternal1cId(ar.row.external_1c_id)) {
-        oneC = { status: 200, demo: true };
-        await fastify.pool.query(
-          `UPDATE customs_request_messages
-           SET delivery_status='delivered',
-               delivered_to_1c_at=NOW(3),
-               last_1c_error=NULL
-           WHERE id=? AND deleted_at IS NULL`,
-          [messageId],
-        );
-        messageRow.delivery_status = 'delivered';
-        messageRow.delivered_to_1c_at = new Date();
-        handleDemoUserChatMessage(fastify, id, text).catch((e) => {
-          fastify.log.warn({ requestId: id, err: e.message }, 'demo chat reply failed');
-        });
-      } else {
-        try {
-          const { json } = await sendUserMessageTo1C(fastify, {
-            external1cId: ar.row.external_1c_id,
-            clientMessageId,
-            text,
-            attachmentsJson: attachments || [],
-          });
-          oneC = { status: 200, json };
-          const externalMessageId = json && (json.oneCMessageId || json.message1cId || json.id_1c) ? String(json.oneCMessageId || json.message1cId || json.id_1c) : null;
-          await fastify.pool.query(
-            `UPDATE customs_request_messages
-             SET delivery_status='delivered',
-                 delivered_to_1c_at=NOW(3),
-                 last_1c_error=NULL
-             WHERE id=? AND deleted_at IS NULL`,
-            [messageId],
-          );
-          messageRow.delivery_status = 'delivered';
-          messageRow.delivered_to_1c_at = new Date();
-          if (externalMessageId) {
-            // если 1С вдруг вернул id, сохраняем (не обязательно уникально, но удобно)
-            await fastify.pool.query(
-              `UPDATE customs_request_messages SET message_1c_id=COALESCE(message_1c_id, ?) WHERE id=? AND deleted_at IS NULL`,
-              [externalMessageId, messageId],
-            );
-            messageRow.message_1c_id = messageRow.message_1c_id || externalMessageId;
-          }
-        } catch (e) {
-          oneC = { error: e.message, body: e.body || null };
-          await fastify.pool.query(
-            `UPDATE customs_request_messages
-             SET delivery_status='failed', last_1c_error=?
-             WHERE id=? AND deleted_at IS NULL`,
-            [String(e.message || 'ONE_C_ERROR').slice(0, 1000), messageId],
-          );
-          messageRow.delivery_status = 'failed';
-          messageRow.last_1c_error = String(e.message || 'ONE_C_ERROR');
+      } catch (e) {
+        if (e.code === 'CHAT_NOT_AVAILABLE') {
+          return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });
         }
-      }
-
-      if (request.server.chatWss) {
-        try {
-          await request.server.chatWss.broadcast(id, {
-            type: 'message_created',
-            requestId: id,
-            external1cId: ar.row.external_1c_id || null,
-            message: {
-              ...messageRow,
-              attachments: parseRowAttachments(messageRow.attachments_json),
-            },
-            oneC: oneC && oneC.json ? { ok: true, response: oneC.json } : { ok: false, error: oneC?.error },
-          });
-        } catch (e) {
-          fastify.log.error(e, 'chat broadcast failed (outgoing user message)');
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
         }
+        if (e.code === 'NOT_FOUND') {
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
+        throw e;
       }
-
-      return reply.send({
-        ...messageRow,
-        attachments: parseRowAttachments(messageRow.attachments_json),
-        attachments_json: undefined,
-        oneC,
-      });
     },
   );
 
@@ -310,31 +191,18 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
 
-      const upTo = Number(request.body.upToMessageId);
-      if (!Number.isFinite(upTo) || upTo <= 0) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный upToMessageId' });
-      }
-
-      const [r] = await fastify.pool.query(
-        `UPDATE customs_request_messages
-         SET read_by_user_at=NOW(3)
-         WHERE request_id=?
-           AND id<=?
-           AND direction='from_1c'
-           AND read_by_user_at IS NULL
-           AND deleted_at IS NULL`,
-        [id, upTo],
-      );
-
-      if (request.server.chatWss) {
-        try {
-          await request.server.chatWss.broadcast(id, { type: 'read', requestId: id, upToMessageId: upTo, updated: r.affectedRows || 0 });
-        } catch (e) {
-          fastify.log.error(e, 'chat broadcast failed (read receipt)');
+      try {
+        const result = await markReadByUser(fastify, {
+          requestId: id,
+          upToMessageId: request.body.upToMessageId,
+        });
+        return reply.send(result);
+      } catch (e) {
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
         }
+        throw e;
       }
-
-      return reply.send({ ok: true, updated: r.affectedRows || 0, upToMessageId: upTo });
     },
   );
 

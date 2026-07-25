@@ -4,19 +4,21 @@ const { WebSocketServer } = require('ws');
 const { timingSafeEqualString } = require('../util/security');
 const {
   findRequestByExternal1cId,
+  findRequestById,
   listMessagesAsc,
   createMessageFrom1c,
+  createMessageFromUser,
+  markReadByUser,
+  markReadBy1c,
   messageDto,
   normalize,
 } = require('./chatMessageOps');
 
 /**
- * WSS комнаты чата.
+ * WSS комнаты чата — единый дуплекс для МП и 1С.
  *
- * МП:  `/ws/{requestId}/?token=<JWT>` или Authorization Bearer JWT
- * 1С:  `/ws/1c/?external1cId=…&token=<INTEGRATION_BEARER>` (полный дуплекс)
- *
- * Локальный `POST /broadcast` на 127.0.0.1 — пуш из API.
+ * МП:  `/ws/{requestId}/?token=<JWT>` — history / send / read
+ * 1С:  `/ws/1c/?external1cId=…&token=<INTEGRATION_BEARER>` — history / send / read
  */
 function startChatWss(fastify) {
   if (fastify.__chatWssInited) {
@@ -54,6 +56,7 @@ function startChatWss(fastify) {
     }
     try {
       const decoded = await fastify.jwt.verify(token);
+      if (decoded?.aud === 'admin') return null;
       return { kind: 'jwt', decoded };
     } catch {
       return null;
@@ -83,20 +86,16 @@ function startChatWss(fastify) {
       return;
     }
 
-    if (ws.__authKind !== 'integration') {
-      sendJson(ws, { type: 'error', error: 'FORBIDDEN', message: 'Только integration-сокет' });
-      return;
-    }
-
-    const external1cId = ws.__external1cId;
     const requestId = ws.__roomId;
+    const external1cId = ws.__external1cId;
+    const authKind = ws.__authKind;
 
     if (type === 'history') {
       const rows = await listMessagesAsc(fastify.pool, requestId);
       sendJson(ws, {
         type: 'history',
         requestId,
-        external1cId,
+        external1cId: external1cId || null,
         items: rows.map((r) => messageDto(r, external1cId)),
       });
       return;
@@ -104,14 +103,25 @@ function startChatWss(fastify) {
 
     if (type === 'send') {
       try {
-        const result = await createMessageFrom1c(fastify, {
-          external1cId,
-          message1cId: body.message1cId,
-          text: body.text,
-          attachments: body.attachments,
-          sender1cId: body.sender1cId,
-          senderName: body.senderName,
-        });
+        let result;
+        if (authKind === 'integration') {
+          result = await createMessageFrom1c(fastify, {
+            external1cId,
+            message1cId: body.message1cId,
+            text: body.text,
+            attachments: body.attachments,
+            sender1cId: body.sender1cId,
+            senderName: body.senderName,
+          });
+        } else {
+          result = await createMessageFromUser(fastify, {
+            requestId,
+            userId: ws.__userId,
+            text: body.text,
+            attachments: body.attachments,
+            clientMessageId: body.clientMessageId,
+          });
+        }
         sendJson(ws, {
           type: 'send_ack',
           ok: true,
@@ -119,10 +129,28 @@ function startChatWss(fastify) {
           id: result.id,
           requestId: result.requestId,
           message: result.message || null,
+          oneC: result.oneC || null,
         });
       } catch (e) {
         sendJson(ws, {
           type: 'send_ack',
+          ok: false,
+          error: e.code || 'INTERNAL_ERROR',
+          message: e.messageRu || e.message || 'error',
+        });
+      }
+      return;
+    }
+
+    if (type === 'read') {
+      try {
+        const result = authKind === 'integration'
+          ? await markReadBy1c(fastify, { requestId, upToMessageId: body.upToMessageId })
+          : await markReadByUser(fastify, { requestId, upToMessageId: body.upToMessageId });
+        sendJson(ws, { type: 'read_ack', ...result });
+      } catch (e) {
+        sendJson(ws, {
+          type: 'read_ack',
           ok: false,
           error: e.code || 'INTERNAL_ERROR',
           message: e.messageRu || e.message || 'error',
@@ -138,6 +166,58 @@ function startChatWss(fastify) {
     if (req.method === 'GET' && req.url === '/healthz') {
       res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('ok');
+      return;
+    }
+
+    if (req.method === 'GET' && String(req.url || '').startsWith('/room-stats')) {
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(String(req.socket.remoteAddress || ''))) {
+        res.writeHead(403, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'FORBIDDEN' }));
+        return;
+      }
+      const provided = String(req.headers['x-broadcast-secret'] || '');
+      if (!timingSafeEqualString(provided, String(cfg.broadcastSecret || ''))) {
+        res.writeHead(401, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'UNAUTHORIZED' }));
+        return;
+      }
+      let u;
+      try {
+        u = new URL(req.url, 'http://localhost');
+      } catch {
+        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'BAD_URL' }));
+        return;
+      }
+      if (u.pathname !== '/room-stats') {
+        res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'NOT_FOUND' }));
+        return;
+      }
+      const requestId = Number(u.searchParams.get('requestId'));
+      if (!requestId) {
+        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'BAD_ROOM' }));
+        return;
+      }
+      const set = getRoomSet(requestId);
+      let subscribers = 0;
+      let integrationSubscribers = 0;
+      let jwtSubscribers = 0;
+      for (const client of set) {
+        if (client.readyState !== 1) continue;
+        subscribers += 1;
+        if (client.__authKind === 'integration') integrationSubscribers += 1;
+        if (client.__authKind === 'jwt') jwtSubscribers += 1;
+      }
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        ok: true,
+        requestId,
+        subscribers,
+        integrationSubscribers,
+        jwtSubscribers,
+      }));
       return;
     }
 
@@ -174,14 +254,24 @@ function startChatWss(fastify) {
         const payload = JSON.stringify(body.event || {});
         const set = getRoomSet(requestId);
         let delivered = 0;
+        let integrationDelivered = 0;
+        let jwtDelivered = 0;
         for (const client of set) {
           if (client.readyState === 1) {
             client.send(payload);
             delivered += 1;
+            if (client.__authKind === 'integration') integrationDelivered += 1;
+            if (client.__authKind === 'jwt') jwtDelivered += 1;
           }
         }
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: true, delivered, subscribers: set.size }));
+        res.end(JSON.stringify({
+          ok: true,
+          delivered,
+          integrationDelivered,
+          jwtDelivered,
+          subscribers: set.size,
+        }));
       });
       return;
     }
@@ -220,6 +310,7 @@ function startChatWss(fastify) {
       let roomId = 0;
       let external1cId = '';
       let authKind = auth.kind;
+      let userId = null;
 
       const oneCMatch = u.pathname.match(/^\/ws\/1c\/?$/);
       const mpMatch = u.pathname.match(/^\/ws\/([0-9]+)\/?$/);
@@ -246,6 +337,17 @@ function startChatWss(fastify) {
           return;
         }
         roomId = Number(mpMatch[1]);
+        userId = Number(auth.decoded?.sub);
+        if (!roomId || !userId) {
+          socket.destroy();
+          return;
+        }
+        const row = await findRequestById(fastify.pool, roomId);
+        if (!row || Number(row.organization_id) !== userId) {
+          socket.destroy();
+          return;
+        }
+        external1cId = row.external_1c_id || '';
       } else {
         socket.destroy();
         return;
@@ -260,6 +362,7 @@ function startChatWss(fastify) {
         ws.__roomId = roomId;
         ws.__authKind = authKind;
         ws.__external1cId = external1cId || null;
+        ws.__userId = userId;
         getRoomSet(roomId).add(ws);
         ws.on('close', () => {
           getRoomSet(roomId).delete(ws);
@@ -292,6 +395,23 @@ function startChatWss(fastify) {
   });
 
   const api = {
+    async roomStats(requestId) {
+      const res = await fetch(
+        `http://127.0.0.1:${cfg.broadcastPort}/room-stats?requestId=${Number(requestId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'X-Broadcast-Secret': String(cfg.broadcastSecret),
+          },
+        },
+      );
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`ROOM_STATS_FAILED: ${res.status} ${t}`);
+      }
+      return res.json();
+    },
+
     async broadcast(requestId, event) {
       const res = await fetch(`http://127.0.0.1:${cfg.broadcastPort}/broadcast`, {
         method: 'POST',
@@ -305,6 +425,7 @@ function startChatWss(fastify) {
         const t = await res.text();
         throw new Error(`BROADCAST_FAILED: ${res.status} ${t}`);
       }
+      return res.json();
     },
   };
 

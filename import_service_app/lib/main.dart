@@ -8,6 +8,7 @@ import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/core/logging/bootstrap_logger.dart';
+import 'package:import_service_app/core/push/chat_screen_presence.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/push/push_request_handler.dart';
 import 'package:import_service_app/core/push/request_remote_update.dart';
@@ -20,6 +21,7 @@ import 'package:import_service_app/core/ui/app_scaffold_messenger_key.dart';
 import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 import 'package:import_service_app/presentation/router/app_router.dart';
+import 'package:import_service_app/presentation/widgets/bottom_sheets/chat_push_go_bottom_sheet.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 Future<void> main() async {
@@ -92,11 +94,11 @@ class _MyAppState extends State<MyApp> {
     _pushForegroundSub = sl<PushNotificationsService>().foregroundTargetStream
         .listen((target) {
           if (target.kind == PushOpenKind.requestChat) {
+            if (sl<ChatScreenPresence>().isOpen(target.requestId)) {
+              return;
+            }
             sl<RequestChatUnreadCubit>().markUnread(target.requestId);
-            sl<AppFeedbackService>().show(
-              sl<JsonStringsService>().pushToastNewMessage,
-              kind: AppFeedbackKind.success,
-            );
+            unawaited(_showChatPushGo(target.requestId));
           } else {
             sl<RequestAttentionCubit>().markStatusUpdated(target.requestId);
             sl<AppFeedbackService>().show(
@@ -105,6 +107,24 @@ class _MyAppState extends State<MyApp> {
             );
           }
         });
+  }
+
+  Future<void> _showChatPushGo(String requestId) async {
+    final ctx = appRouter.routerDelegate.navigatorKey.currentContext ??
+        appScaffoldMessengerKey.currentContext;
+    if (ctx == null || !ctx.mounted) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().pushToastNewMessage,
+        kind: AppFeedbackKind.success,
+      );
+      return;
+    }
+    final go = await ChatPushGoBottomSheet.show(ctx);
+    if (go == true) {
+      sl<RequestChatUnreadCubit>().clearUnread(requestId);
+      final encodedId = Uri.encodeComponent(requestId);
+      appRouter.push('/request/$encodedId/chat');
+    }
   }
 
   @override

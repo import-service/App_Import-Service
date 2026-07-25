@@ -51,7 +51,7 @@ module.exports = async function docsRoutes(fastify) {
 
   fastify.get('/docs/:section', async (request, reply) => {
     const section = String(request.params.section || '').toLowerCase();
-    const allowed = new Set(['app', 'integration', 'onec', 'catalogs', 'admin', 'tz']);
+    const allowed = new Set(['app', 'integration', 'wss1c', 'onec', 'catalogs', 'admin', 'tz']);
     if (!allowed.has(section)) {
       reply.redirect('/docs/app', 302);
       return;
