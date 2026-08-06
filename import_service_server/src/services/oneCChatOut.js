@@ -55,7 +55,14 @@ function buildOneCChatUrl(createUrl) {
 /**
  * @param {import('fastify').FastifyInstance} fastify
  */
-async function sendUserMessageTo1C(fastify, { external1cId, clientMessageId, text, attachmentsJson }) {
+async function sendUserMessageTo1C(fastify, {
+  external1cId,
+  clientMessageId,
+  text,
+  attachmentsJson,
+  senderName,
+  recipientName,
+}) {
   const settings = await getAppSettings(fastify.pool);
   const chatUrl = buildOneCChatUrl(settings.oneCRequestCreateUrl);
   if (!chatUrl) {
@@ -69,6 +76,9 @@ async function sendUserMessageTo1C(fastify, { external1cId, clientMessageId, tex
     clientMessageId,
     text,
     attachments: attachmentsJson,
+    senderName: senderName || null,
+    recipientName: recipientName || null,
+    authorType: 'app_user',
   };
 
   let lastErr;

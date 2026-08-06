@@ -32,12 +32,88 @@ function parseRowAttachments(value) {
   return value;
 }
 
+/** Разбор attachments_json → массив файлов + meta (sender/recipient). */
+function splitAttachmentsPayload(parsed) {
+  if (!parsed) {
+    return { attachments: [], meta: {} };
+  }
+  if (Array.isArray(parsed)) {
+    return { attachments: parsed, meta: {} };
+  }
+  if (typeof parsed === 'object') {
+    const attachments = Array.isArray(parsed.attachments) ? parsed.attachments : [];
+    const meta = parsed.meta && typeof parsed.meta === 'object' ? { ...parsed.meta } : {};
+    // Старый формат: sender* могли лежать на корне рядом с attachments.
+    if (meta.senderName == null && parsed.senderName != null) meta.senderName = parsed.senderName;
+    if (meta.sender1cId == null && parsed.sender1cId != null) meta.sender1cId = parsed.sender1cId;
+    if (meta.recipientName == null && parsed.recipientName != null) {
+      meta.recipientName = parsed.recipientName;
+    }
+    return { attachments, meta };
+  }
+  return { attachments: [], meta: {} };
+}
+
+/**
+ * Имена сторон заявки для чата (снимок / fallback для старых сообщений).
+ * @returns {{ clientName: string, managerName: string }}
+ */
+async function resolveChatPartyNames(pool, requestId) {
+  const id = Number(requestId);
+  if (!Number.isFinite(id) || id <= 0) {
+    return { clientName: 'Клиент', managerName: 'Менеджер' };
+  }
+  const [rows] = await pool.query(
+    `SELECT r.individual_full_name, r.manager_full_name, r.organization_id,
+            o.company_name, o.login
+     FROM customs_requests r
+     LEFT JOIN organizations o ON o.id = r.organization_id
+     WHERE r.id = ?
+     LIMIT 1`,
+    [id],
+  );
+  if (!rows.length) {
+    return { clientName: 'Клиент', managerName: 'Менеджер' };
+  }
+  const r = rows[0];
+  const clientName = normalize(r.individual_full_name)
+    || normalize(r.company_name)
+    || normalize(r.login)
+    || 'Клиент';
+  const managerName = normalize(r.manager_full_name) || 'Менеджер';
+  return { clientName, managerName };
+}
+
 const MESSAGE_SELECT = `id, request_id, author_type, user_id, direction, client_message_id, message_1c_id,
                 text_content, attachments_json, delivery_status, delivered_to_1c_at, last_1c_error,
                 read_by_user_at, read_by_1c_at, created_at, updated_at`;
 
-function messageDto(row, external1cId) {
+/**
+ * @param {object} row
+ * @param {string|null} external1cId
+ * @param {{ clientName?: string, managerName?: string }|null} parties
+ */
+function messageDto(row, external1cId, parties = null) {
   const parsed = parseRowAttachments(row.attachments_json);
+  const { attachments, meta } = splitAttachmentsPayload(parsed);
+  const authorType = row.author_type;
+  const isFrom1c = authorType === 'manager_1c' || row.direction === 'from_1c';
+
+  let senderName = normalize(meta.senderName) || null;
+  let sender1cId = normalize(meta.sender1cId) || null;
+  let recipientName = normalize(meta.recipientName) || null;
+
+  if (!senderName) {
+    senderName = isFrom1c
+      ? (normalize(parties?.managerName) || 'Менеджер')
+      : (normalize(parties?.clientName) || 'Клиент');
+  }
+  if (!recipientName) {
+    recipientName = isFrom1c
+      ? (normalize(parties?.clientName) || 'Клиент')
+      : (normalize(parties?.managerName) || 'Менеджер');
+  }
+
   return {
     id: row.id,
     requestId: row.request_id,
@@ -47,7 +123,10 @@ function messageDto(row, external1cId) {
     clientMessageId: row.client_message_id,
     message1cId: row.message_1c_id,
     text: row.text_content,
-    attachments: parsed,
+    attachments,
+    sender1cId,
+    senderName,
+    recipientName,
     deliveryStatus: row.delivery_status,
     deliveredTo1cAt: row.delivered_to_1c_at,
     last1cError: row.last_1c_error,
@@ -56,6 +135,12 @@ function messageDto(row, external1cId) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+async function listMessageDtos(pool, requestId, external1cId) {
+  const parties = await resolveChatPartyNames(pool, requestId);
+  const rows = await listMessagesAsc(pool, requestId);
+  return rows.map((r) => messageDto(r, external1cId, parties));
 }
 
 async function findRequestByExternal1cId(pool, external1cId) {
@@ -139,18 +224,28 @@ async function createMessageFrom1c(fastify, {
     throw e;
   }
   const requestId = reqRow.id;
+  const parties = await resolveChatPartyNames(fastify.pool, requestId);
 
   const [ex] = await fastify.pool.query(
     `SELECT id FROM customs_request_messages WHERE message_1c_id=? AND deleted_at IS NULL LIMIT 1`,
     [msgId],
   );
   if (ex.length) {
-    return { ok: true, dedup: true, id: ex[0].id, requestId, external1cId: extId };
+    const existingRow = await loadMessageRow(fastify.pool, ex[0].id);
+    return {
+      ok: true,
+      dedup: true,
+      id: ex[0].id,
+      requestId,
+      external1cId: extId,
+      message: existingRow ? messageDto(existingRow, extId, parties) : null,
+    };
   }
 
   const meta = {
-    sender1cId: sender1cId || null,
-    senderName: senderName || null,
+    sender1cId: normalize(sender1cId) || null,
+    senderName: normalize(senderName) || parties.managerName,
+    recipientName: parties.clientName,
   };
   const [ins] = await fastify.pool.query(
     `INSERT INTO customs_request_messages
@@ -161,13 +256,13 @@ async function createMessageFrom1c(fastify, {
       requestId,
       msgId,
       bodyText,
-      jsonAttachmentsOrNull(atts.length ? { attachments: atts, meta } : { attachments: [], meta }),
+      jsonAttachmentsOrNull({ attachments: atts, meta }),
     ],
   );
 
   const newId = ins.insertId;
   const messageRow = await loadMessageRow(fastify.pool, newId);
-  const dto = messageDto(messageRow, extId);
+  const dto = messageDto(messageRow, extId, parties);
 
   if (fastify.chatWss) {
     try {
@@ -252,17 +347,24 @@ async function createMessageFromUser(fastify, {
   );
   if (existing.length) {
     const r = existing[0];
+    const parties = await resolveChatPartyNames(fastify.pool, id);
     return {
       ok: true,
       dedup: true,
       id: r.id,
       requestId: id,
-      message: messageDto(r, reqRow.external_1c_id),
+      message: messageDto(r, reqRow.external_1c_id, parties),
       oneC: { status: 200, via: 'dedup' },
     };
   }
 
-  const payloadJson = atts.length ? { attachments: atts } : null;
+  const parties = await resolveChatPartyNames(fastify.pool, id);
+  const meta = {
+    sender1cId: null,
+    senderName: parties.clientName,
+    recipientName: parties.managerName,
+  };
+  const payloadJson = { attachments: atts, meta };
   const [ins] = await fastify.pool.query(
     `INSERT INTO customs_request_messages
        (request_id, author_type, user_id, direction, client_message_id, text_content, attachments_json,
@@ -318,6 +420,8 @@ async function createMessageFromUser(fastify, {
           clientMessageId: cid,
           text: bodyText,
           attachmentsJson: atts,
+          senderName: parties.clientName,
+          recipientName: parties.managerName,
         });
         oneC = { status: 200, via: 'http', json };
         const externalMessageId = json && (json.oneCMessageId || json.message1cId || json.id_1c)
@@ -351,7 +455,7 @@ async function createMessageFromUser(fastify, {
     }
   }
 
-  const dto = messageDto(messageRow, reqRow.external_1c_id);
+  const dto = messageDto(messageRow, reqRow.external_1c_id, parties);
   let wssBroadcast = null;
   if (fastify.chatWss) {
     try {
@@ -381,6 +485,8 @@ async function createMessageFromUser(fastify, {
         clientMessageId: cid,
         text: bodyText,
         attachmentsJson: atts,
+        senderName: parties.clientName,
+        recipientName: parties.managerName,
       });
       oneC = { status: 200, via: 'http', fallbackFromWss: true, json };
       await fastify.pool.query(
@@ -409,7 +515,7 @@ async function createMessageFromUser(fastify, {
     dedup: false,
     id: messageId,
     requestId: id,
-    message: messageDto(messageRow, reqRow.external_1c_id),
+    message: messageDto(messageRow, reqRow.external_1c_id, parties),
     oneC,
   };
 }
@@ -490,7 +596,10 @@ module.exports = {
   clipText,
   jsonAttachmentsOrNull,
   parseRowAttachments,
+  splitAttachmentsPayload,
+  resolveChatPartyNames,
   messageDto,
+  listMessageDtos,
   findRequestByExternal1cId,
   findRequestById,
   listMessagesAsc,

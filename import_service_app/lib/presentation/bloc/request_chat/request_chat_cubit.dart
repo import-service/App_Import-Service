@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/auth/session_lost_handler.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
+import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/error/failures.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/data/websocket/chat_broadcast_wss_client.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
 import 'package:import_service_app/presentation/bloc/request_chat/request_chat_state.dart';
+import 'package:import_service_app/presentation/helpers/session_auth_error.dart';
 import 'package:uuid/uuid.dart';
 
 /// Чат: WSS дуплекс (history/send/read), HTTP fallback.
@@ -79,7 +82,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
         if (f is ChatNotAvailableFailure) {
           emit(state.copyWith(isLoading: false, isUnavailable: true));
         } else {
-          emit(state.copyWith(isLoading: false, error: f.message));
+          emit(state.copyWith(isLoading: false, error: _mapError(f)));
         }
       },
       (raw) {
@@ -257,7 +260,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
         emit(
           state.copyWith(
             isSending: false,
-            error: f is Failure ? f.message : (f?.toString() ?? 'error'),
+            error: _mapError(f),
             messages: _removeByClientId(state.messages, clientId),
             pendingAttachments: atts,
           ),
@@ -298,7 +301,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
         emit(
           state.copyWith(
             isUploadingAttachment: false,
-            error: f.message,
+            error: _mapError(f),
           ),
         );
       },
@@ -365,6 +368,19 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
 
   List<ChatMessage> _removeByClientId(List<ChatMessage> list, String clientId) {
     return list.where((m) => m.clientMessageId != clientId).toList();
+  }
+
+  /// Сессионные 401 — только через [SessionLostHandler], без сырого кода в UI.
+  String? _mapError(Object? err) {
+    final raw = err is Failure ? err.message : err?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    if (sl<SessionLostHandler>().handleIfSessionAuthError(raw)) {
+      return null;
+    }
+    if (isSessionAuthErrorMessage(raw)) {
+      return null;
+    }
+    return raw;
   }
 
   void clearError() {

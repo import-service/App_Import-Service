@@ -5,7 +5,7 @@ const { timingSafeEqualString } = require('../util/security');
 const {
   findRequestByExternal1cId,
   findRequestById,
-  listMessagesAsc,
+  listMessageDtos,
   createMessageFrom1c,
   createMessageFromUser,
   markReadByUser,
@@ -91,12 +91,12 @@ function startChatWss(fastify) {
     const authKind = ws.__authKind;
 
     if (type === 'history') {
-      const rows = await listMessagesAsc(fastify.pool, requestId);
+      const items = await listMessageDtos(fastify.pool, requestId, external1cId || null);
       sendJson(ws, {
         type: 'history',
         requestId,
         external1cId: external1cId || null,
-        items: rows.map((r) => messageDto(r, external1cId)),
+        items,
       });
       return;
     }

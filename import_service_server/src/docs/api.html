@@ -908,7 +908,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   "query": {
     "external1cId": "GUID-REQUEST-1C"
   }
-}</pre><p><b>Success:</b></p><pre>{
+}</pre>            <p><b>Success:</b></p><pre>{
   "requestId": 123,
   "external1cId": "GUID-REQUEST-1C",
   "items": [
@@ -922,15 +922,28 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
       "message1cId": null,
       "text": "Добрый день, подскажите по сроку выпуска",
       "attachments": [],
+      "sender1cId": null,
+      "senderName": "ООО Ромашка",
+      "recipientName": "Иванов",
       "deliveryStatus": "delivered",
       "deliveredTo1cAt": "2026-05-28T06:10:00.000Z",
       "last1cError": null,
       "readByUserAt": null,
       "createdAt": "2026-05-28T06:10:00.000Z",
       "updatedAt": "2026-05-28T06:10:00.000Z"
+    },
+    {
+      "id": 9002,
+      "authorType": "manager_1c",
+      "direction": "from_1c",
+      "text": "Добрый день, документы приняты",
+      "attachments": [],
+      "sender1cId": "u-1",
+      "senderName": "Иванов",
+      "recipientName": "ООО Ромашка"
     }
   ]
-}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+}</pre><p>Поля <code>senderName</code> / <code>recipientName</code> — отображаемые имена (не GUID). Для сообщений менеджера берутся из <code>senderName</code>/<code>sender1cId</code> при send; для сообщений клиента — имя организации/ФИО со снимка на момент отправки. Старые сообщения без снимка — best-effort из заявки.</p><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-request-messages</code><span class="desc">Сообщение от 1С/менеджера в чат заявки.</span></summary>
@@ -1054,6 +1067,9 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
     "text": "Текст от клиента",
     "attachments": [],
     "authorType": "app_user",
+    "senderName": "ООО Ромашка",
+    "recipientName": "Иванов",
+    "sender1cId": null,
     "deliveryStatus": "delivered",
     "readBy1cAt": null
   },
@@ -1086,9 +1102,12 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   "external1cId": "GUID-REQUEST-1C",
   "clientMessageId": "f14d9f58-f1c0-4f4d-b3ef-f92d0cc7077f",
   "text": "Добрый день, подскажите по сроку выпуска",
+  "authorType": "app_user",
+  "senderName": "ООО Ромашка",
+  "recipientName": "Иванов",
   "attachments": [
     {
-      "fileUrl": "{{BASE_URL}}/api/chat-attachments/chat_123_….pdf",
+      "fileUrl": "{{BASE_URL}}/api/chat-attachments/r123_….pdf",
       "fileName": "question.pdf",
       "mimeType": "application/pdf"
     }
@@ -1104,14 +1123,26 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
       <section class="group">
         <h2>Вложения к сообщению</h2>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-request-messages/attachments</code><span class="desc">Upload файла → fileUrl для WSS send или HTTP.</span></summary>
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/customs-request-messages/attachments</code><span class="desc">Upload файла → fileUrl (JSON+base64 для 1С или multipart).</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
-            <p><b>Query:</b> <code>external1cId</code> (обязателен).</p>
-            <p><b>Content-Type:</b> <code>multipart/form-data</code>, поле <code>file</code>.</p>
+            <div class="callout"><b>Для 1С (рекомендуется):</b> <code>Content-Type: application/json</code>, файл в <code>fileBase64</code> — как у upload заявки. Multipart в 1С обычно недоступен.</div>
+            <p><b>JSON (1С):</b></p><pre>{
+  "external1cId": "GUID-REQUEST-1C",
+  "fileName": "scan.pdf",
+  "mimeType": "application/pdf",
+  "fileBase64": "JVBERi0xLjQK..."
+}</pre>
+            <table class="fields">
+              <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
+              <tr><td><code>external1cId</code></td><td>да</td><td>Id заявки в 1С.</td></tr>
+              <tr><td><code>fileBase64</code></td><td>да</td><td>Содержимое файла. Альт.: <code>file</code>, <code>fileContent</code>, <code>base64</code>.</td></tr>
+              <tr><td><code>fileName</code></td><td>нет</td><td>Имя файла.</td></tr>
+              <tr><td><code>mimeType</code></td><td>нет</td><td>MIME; иначе по magic bytes.</td></tr>
+            </table>
+            <p><b>Multipart (опционально):</b> query <code>external1cId</code>, поле <code>file</code>.</p>
             <p><b>Лимиты:</b> изображения и PDF, до 25 МБ.</p>
-            <p><b>Пример URL:</b></p><pre>{{BASE_URL}}/api/integration/customs-request-messages/attachments?external1cId=GUID-REQUEST-1C</pre>
             <p><b>Success:</b></p><pre>{
-  "fileUrl": "{{BASE_URL}}/api/chat-attachments/chat_123_….pdf",
+  "fileUrl": "{{BASE_URL}}/api/chat-attachments/r123_….pdf",
   "fileName": "scan.pdf",
   "mimeType": "application/pdf",
   "fileSizeBytes": 102400
@@ -1270,12 +1301,12 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
 }</pre><p><b>Errors:</b></p><ul><li><code>404 NOT_FOUND</code></li><li><code>409 CONFLICT</code></li><li><code>502 ONE_C_CREATE_FAILED</code></li><li><code>503 ONE_C_URL_NOT_CONFIGURED</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/customs-requests/:id</code><span class="desc">Удалить заявку и файлы с диска.</span></summary>
-          <div class="body"><p><b>Success:</b></p><pre>{ "ok": true, "deletedFiles": 12 }</pre></div>
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/customs-requests/:id</code><span class="desc">Удалить заявку, файлы заявки, чат и вложения чата.</span></summary>
+          <div class="body"><p><b>Success:</b></p><pre>{ "ok": true, "deletedFiles": 12, "chatFilesRemoved": 3, "chatMessagesSoftDeleted": 8 }</pre><p>С диска: <code>uploads/customs-requests</code> и <code>uploads/chat-attachments</code>. Сообщения чата — soft-delete (<code>deleted_at</code>).</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/storage/stats</code><span class="desc">Диск, uploads, retention, зависшие исходящие в 1С.</span></summary>
-          <div class="body"><p>Поля: <code>uploadsBytes</code>, <code>diskFreeBytes</code>, <code>diskTotalBytes</code>, <code>retentionMonths</code>, <code>staleOutbound[]</code>, <code>topRequestsByBytes[]</code>.</p><p>Автоудаление: только <code>status=closed</code> старше <code>retentionMonths</code> (по умолчанию 6).</p></div>
+          <div class="body"><p>Поля: <code>uploadsBytes</code>, <code>diskFreeBytes</code>, <code>diskTotalBytes</code>, <code>retentionMonths</code>, <code>staleOutbound[]</code>, <code>topRequestsByBytes[]</code>.</p><p>Автоудаление: только <code>status=closed</code> старше <code>retentionMonths</code> (по умолчанию 6). Вместе с заявкой удаляются файлы заявки, сообщения чата и вложения чата.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method put">PUT</span><code class="path">/api/admin/storage/retention</code><span class="desc">Срок хранения closed-заявок (месяцы).</span></summary>
@@ -1283,7 +1314,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/storage/purge-expired</code><span class="desc">Удалить просроченные closed сейчас.</span></summary>
-          <div class="body"><p>Фоновый job тоже запускается раз в сутки.</p></div>
+          <div class="body"><p>Фоновый job тоже запускается раз в сутки. В ответе также <code>chatFilesRemoved</code>, <code>chatMessagesSoftDeleted</code>.</p></div>
         </details>
         <div class="callout"><b>Исходящие в 1С:</b> автоповтор раз в час при <code>oneCCreatePending</code> / <code>oneCUpdatePending</code>. В DTO: <code>oneCCreateHoursPending</code>, <code>oneCUpdateHoursPending</code>, <code>oneCOutboundStaleOver24h</code>. Суточный алерт в лог и <code>one_c_outbound_daily_alerts</code>.</div>
       </section>

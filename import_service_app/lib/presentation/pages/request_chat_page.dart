@@ -504,6 +504,11 @@ class _ChatBubble extends StatelessWidget {
       ),
     );
     final time = _formatTime(message.createdAt, loc);
+    final senderLabel = message.isFrom1c
+        ? (message.senderName?.trim().isNotEmpty == true
+            ? message.senderName!.trim()
+            : null)
+        : null;
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 2),
       child: Align(
@@ -512,93 +517,116 @@ class _ChatBubble extends StatelessWidget {
           constraints: BoxConstraints(
             maxWidth: MediaQuery.sizeOf(context).width * 0.8,
           ),
-          child: DecoratedBox(
-            decoration: isOut ? outDecoration : inDecoration,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                crossAxisAlignment:
-                    isOut ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (message.text.trim().isNotEmpty)
-                    Text(
-                      message.text,
-                      style: t.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textPrimary,
-                        height: 1.2,
-                      ),
+          child: Column(
+            crossAxisAlignment:
+                isOut ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (senderLabel != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, right: 4, bottom: 2),
+                  child: Text(
+                    senderLabel,
+                    style: t.textTheme.labelSmall?.copyWith(
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
                     ),
-                  if (message.attachments.isNotEmpty) ...[
-                    if (message.text.trim().isNotEmpty) const Gap(6),
-                    for (final a in message.attachments)
-                      if (a.fileUrl.trim().isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: InkWell(
-                            onTap: () async {
-                              final uri = Uri.tryParse(a.fileUrl.trim());
-                              if (uri == null) return;
-                              await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              );
-                            },
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.attach_file,
-                                  size: 16,
-                                  color: AppTheme.primaryBlue,
-                                ),
-                                const Gap(4),
-                                Flexible(
-                                  child: Text(
-                                    (a.fileName?.trim().isNotEmpty ?? false)
-                                        ? a.fileName!.trim()
-                                        : 'Файл',
-                                    style: t.textTheme.bodySmall?.copyWith(
-                                      color: AppTheme.primaryBlue,
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
+                  ),
+                ),
+              DecoratedBox(
+                decoration: isOut ? outDecoration : inDecoration,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: isOut
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.text.trim().isNotEmpty)
+                        Text(
+                          message.text,
+                          style: t.textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.textPrimary,
+                            height: 1.2,
                           ),
                         ),
-                  ],
-                  const Gap(3),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: isOut ? MainAxisAlignment.end : MainAxisAlignment.start,
-                    children: [
-                      Text(
-                        time,
-                        style: t.textTheme.labelSmall?.copyWith(
-                          color: AppTheme.textSecondary,
-                          fontSize: 10,
-                        ),
-                      ),
-                      if (isOut) ...[
-                        const Gap(4),
-                        Icon(
-                          message.readBy1c || message.isDelivered
-                              ? Icons.done_all
-                              : Icons.done,
-                          size: 14,
-                          color: message.readBy1c
-                              ? const Color(0xFF29B6F6)
-                              : AppTheme.textSecondary,
-                        ),
+                      if (message.attachments.isNotEmpty) ...[
+                        if (message.text.trim().isNotEmpty) const Gap(6),
+                        for (final a in message.attachments)
+                          if (a.fileUrl.trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: InkWell(
+                                onTap: () async {
+                                  final uri = Uri.tryParse(a.fileUrl.trim());
+                                  if (uri == null) return;
+                                  await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                },
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.attach_file,
+                                      size: 16,
+                                      color: AppTheme.primaryBlue,
+                                    ),
+                                    const Gap(4),
+                                    Flexible(
+                                      child: Text(
+                                        (a.fileName?.trim().isNotEmpty ?? false)
+                                            ? a.fileName!.trim()
+                                            : 'Файл',
+                                        style: t.textTheme.bodySmall?.copyWith(
+                                          color: AppTheme.primaryBlue,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                       ],
+                      const Gap(3),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: isOut
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
+                        children: [
+                          Text(
+                            time,
+                            style: t.textTheme.labelSmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                              fontSize: 10,
+                            ),
+                          ),
+                          if (isOut) ...[
+                            const Gap(4),
+                            Icon(
+                              message.readBy1c || message.isDelivered
+                                  ? Icons.done_all
+                                  : Icons.done,
+                              size: 14,
+                              color: message.readBy1c
+                                  ? const Color(0xFF29B6F6)
+                                  : AppTheme.textSecondary,
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

@@ -5,11 +5,11 @@ const {
   createMessageFrom1c,
   createMessageFromUser,
   markReadByUser,
-  listMessagesAsc,
+  listMessageDtos,
   messageDto,
+  resolveChatPartyNames,
   findRequestByExternal1cId,
   normalize,
-  parseRowAttachments,
 } = require('../services/chatMessageOps');
 const {
   ensureChatUploadDir,
@@ -17,6 +17,7 @@ const {
   chatAttachmentDiskPath,
   requestIdFromChatStoredName,
 } = require('../services/chatAttachmentStorage');
+const { parseChatAttachmentJsonBody } = require('../util/uploadBase64');
 
 async function assertRequestChatAvailable(pool, requestId, orgId = null) {
   const [rows] = await pool.query(
@@ -78,14 +79,8 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         args,
       );
 
-      const items = rows.map((r) => {
-        const parsed = parseRowAttachments(r.attachments_json);
-        return {
-          ...r,
-          attachments: parsed,
-          attachments_json: undefined,
-        };
-      });
+      const parties = await resolveChatPartyNames(fastify.pool, id);
+      const items = rows.map((r) => messageDto(r, ar.row.external_1c_id, parties));
 
       return reply.send({ items, limit, beforeId: beforeId || null });
     },
@@ -227,9 +222,9 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
       const requestId = reqRow.id;
-      const rows = await listMessagesAsc(fastify.pool, requestId);
+      const items = await listMessageDtos(fastify.pool, requestId, external1cId);
       return reply.send({
-        items: rows.map((r) => messageDto(r, external1cId)),
+        items,
         requestId,
         external1cId,
       });
@@ -308,22 +303,38 @@ module.exports = async function customsRequestChatRoutes(fastify) {
 
   await ensureChatUploadDir();
 
-  async function handleChatAttachmentUpload(request, reply, requestId) {
-    const mp = await request.file();
-    if (!mp) {
-      return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нужен multipart: file' });
+  async function handleChatAttachmentUpload(request, reply, requestId, jsonBody = null) {
+    let buf;
+    let clientFileName;
+    let mimeType;
+
+    if (jsonBody) {
+      buf = jsonBody.buffer;
+      clientFileName = jsonBody.fileName;
+      mimeType = jsonBody.mimeType;
+    } else {
+      const mp = await request.file();
+      if (!mp) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: 'Нужен multipart: file или JSON с fileBase64',
+        });
+      }
+      const chunks = [];
+      for await (const chunk of mp.file) {
+        chunks.push(chunk);
+      }
+      buf = Buffer.concat(chunks);
+      clientFileName = mp.filename;
+      mimeType = mp.mimetype;
     }
-    const chunks = [];
-    for await (const chunk of mp.file) {
-      chunks.push(chunk);
-    }
-    const buf = Buffer.concat(chunks);
+
     try {
       const saved = await saveChatAttachment(fastify, {
         requestId,
         buffer: buf,
-        clientFileName: mp.filename,
-        mimeType: mp.mimetype,
+        clientFileName,
+        mimeType,
       });
       return reply.send({
         fileUrl: saved.absoluteFileUrl || saved.fileUrl,
@@ -363,13 +374,34 @@ module.exports = async function customsRequestChatRoutes(fastify) {
     '/integration/customs-request-messages/attachments',
     { preHandler: verifyIntegrationBearer },
     async (request, reply) => {
+      const contentType = String(request.headers['content-type'] || '').toLowerCase();
+
+      if (contentType.includes('application/json')) {
+        let parsed;
+        try {
+          parsed = parseChatAttachmentJsonBody(request.body || {});
+        } catch (e) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: e.message || 'Некорректное тело JSON',
+          });
+        }
+        const reqRow = await findRequestByExternal1cId(fastify.pool, parsed.external1cId);
+        if (!reqRow) {
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
+        return handleChatAttachmentUpload(request, reply, reqRow.id, parsed);
+      }
+
       const external1cId = normalize(
-        request.query.external1cId || request.headers['x-external-1c-id'],
+        request.query.external1cId
+          || request.headers['x-external-1c-id']
+          || (request.body && request.body.external1cId),
       );
       if (!external1cId) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
-          message: 'Нужен query external1cId',
+          message: 'Нужен query/body external1cId',
         });
       }
       const reqRow = await findRequestByExternal1cId(fastify.pool, external1cId);

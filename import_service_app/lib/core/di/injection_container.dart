@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_storage_keys.dart';
+import 'package:import_service_app/core/auth/session_lost_handler.dart';
+import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/network/dio_client.dart';
@@ -27,6 +29,7 @@ import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory
 import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
+import 'package:import_service_app/presentation/helpers/session_auth_error.dart';
 
 /// Глобальный контейнер зависимостей. Регистрации добавляй в [initDependencies].
 final sl = GetIt.instance;
@@ -44,7 +47,9 @@ Future<void> initDependencies() async {
   requestDraftCubit.reloadFromDisk();
   sl.registerSingleton<RequestAttentionCubit>(RequestAttentionCubit());
   sl.registerSingleton<RequestChatUnreadCubit>(RequestChatUnreadCubit());
-  sl.registerSingleton<HomeCarsNavigationController>(HomeCarsNavigationController());
+  sl.registerSingleton<HomeCarsNavigationController>(
+    HomeCarsNavigationController(),
+  );
   sl.registerSingleton<ChatScreenPresence>(ChatScreenPresence());
 
   final carInventoryCubit = CarInventoryCubit(prefs);
@@ -61,8 +66,9 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<AuthSessionController>(AuthSessionController.new);
 
   final session = sl<AuthSessionController>();
-  final restoredToken =
-      await sl<SecureStorageService>().read(AuthStorageKeys.accessToken);
+  final restoredToken = await sl<SecureStorageService>().read(
+    AuthStorageKeys.accessToken,
+  );
 
   if (restoredToken != null && restoredToken.trim().isNotEmpty) {
     session.restore(restoredToken);
@@ -70,9 +76,26 @@ Future<void> initDependencies() async {
     session.restore(null);
   }
 
+  sl.registerLazySingleton<JsonStringsService>(JsonStringsService.new);
+  final savedLanguage = prefs.getString('app_language');
+  if (savedLanguage == 'zh') {
+    appLocale.value = const Locale('zh');
+  } else if (savedLanguage == 'ru') {
+    appLocale.value = const Locale('ru');
+  } else {
+    final platform = WidgetsBinding.instance.platformDispatcher.locale;
+    appLocale.value = Locale(platform.languageCode);
+  }
+  await sl<JsonStringsService>().load(appLocale.value);
+
+  // Callback ленивый: SessionLostHandler регистрируется ниже, до первых API.
   sl.registerLazySingleton<DioClient>(
     () => DioClient(
       tokenProvider: () => sl<AuthSessionController>().accessToken,
+      onSessionAuthError: (raw) {
+        if (!sl.isRegistered<SessionLostHandler>()) return;
+        sl<SessionLostHandler>().handleIfSessionAuthError(raw);
+      },
     ),
   );
   sl.registerLazySingleton<Dio>(() => sl<DioClient>().dio);
@@ -116,25 +139,24 @@ Future<void> initDependencies() async {
     ),
   );
 
+  sl.registerLazySingleton<SessionLostHandler>(
+    () => SessionLostHandler(
+      authService: sl<AuthService>(),
+      session: sl<AuthSessionController>(),
+      feedback: sl<AppFeedbackService>(),
+      strings: sl<JsonStringsService>(),
+    ),
+  );
+
   await sl<AuthService>().restoreProfileFromCache();
   try {
     await sl<AuthService>().refreshProfile();
-  } catch (_) {
-    // Сеть или недействительный токен — экран входа при необходимости задаёт роутер.
+  } catch (e) {
+    final msg = e is ServerException ? e.message : e.toString();
+    if (isSessionAuthErrorMessage(msg)) {
+      await sl<AuthService>().clearLocalSession();
+    }
   }
-
-  sl.registerLazySingleton<JsonStringsService>(JsonStringsService.new);
-  final savedLanguage = prefs.getString('app_language');
-  if (savedLanguage == 'zh') {
-    appLocale.value = const Locale('zh');
-  } else if (savedLanguage == 'ru') {
-    appLocale.value = const Locale('ru');
-  } else {
-    final platform = WidgetsBinding.instance.platformDispatcher.locale;
-    appLocale.value = Locale(platform.languageCode);
-  }
-
-  await sl<JsonStringsService>().load(appLocale.value);
 
   // BLoC/Cubit в GetIt: см. [CarInventoryCubit], [RequestDraftCubit].
 }

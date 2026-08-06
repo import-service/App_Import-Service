@@ -605,7 +605,12 @@ module.exports = async function adminRoutes(fastify) {
       if (!r.ok) {
         return reply.code(500).send({ error: 'DELETE_FAILED' });
       }
-      return reply.send({ ok: true, deletedFiles: r.deletedFiles || 0 });
+      return reply.send({
+        ok: true,
+        deletedFiles: r.deletedFiles || 0,
+        chatFilesRemoved: r.chatFilesRemoved || 0,
+        chatMessagesSoftDeleted: r.chatMessagesSoftDeleted || 0,
+      });
     },
   );
 

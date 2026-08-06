@@ -103,8 +103,39 @@ function parseOneCUploadJsonBody(body) {
   };
 }
 
+/**
+ * JSON + base64 для вложения чата (1С). Без docType / uploadIndex.
+ */
+function parseChatAttachmentJsonBody(body) {
+  const external1cId = normalize(body?.external1cId);
+  const fileName = normalize(body?.fileName || body?.file_name || body?.name);
+  const mimeType = normalize(body?.mimeType || body?.mime_type || body?.contentType);
+
+  if (!external1cId) {
+    throw new Error('VALIDATION_ERROR: external1cId обязателен');
+  }
+
+  const { buffer, mimeType: mimeFromDataUrl } = decodeBase64Payload(extractBase64FromBody(body));
+  const declaredMime = mimeType || mimeFromDataUrl || '';
+  const kind = resolveFileKind({
+    buffer,
+    clientFileName: fileName,
+    mimeType: declaredMime || 'application/octet-stream',
+  });
+  const finalMime = kind.mimeType;
+  // Чат: только фото/PDF, лимит как у документов (проверяется в saveChatAttachment).
+  return {
+    external1cId,
+    fileName: fileName || undefined,
+    mimeType: finalMime,
+    sourceMimeType: declaredMime || null,
+    buffer,
+  };
+}
+
 module.exports = {
   parseOneCUploadJsonBody,
+  parseChatAttachmentJsonBody,
   extractBase64FromBody,
   decodeBase64Payload,
 };

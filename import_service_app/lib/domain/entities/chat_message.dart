@@ -12,6 +12,9 @@ final class ChatMessage extends Equatable {
     this.readBy1c = false,
     this.deliveryStatus,
     this.attachments = const <ChatAttachment>[],
+    this.senderName,
+    this.recipientName,
+    this.sender1cId,
   });
 
   final int? id;
@@ -26,6 +29,12 @@ final class ChatMessage extends Equatable {
   /// `pending` | `delivered` | `failed` — для исходящих.
   final String? deliveryStatus;
   final List<ChatAttachment> attachments;
+  /// Отображаемое имя отправителя (менеджер / клиент).
+  final String? senderName;
+  /// Отображаемое имя получателя.
+  final String? recipientName;
+  /// Id отправителя в 1С (если сообщение от менеджера).
+  final String? sender1cId;
 
   bool get isDelivered =>
       deliveryStatus == 'delivered' || readBy1c || (id != null && !isFrom1c);
@@ -40,6 +49,9 @@ final class ChatMessage extends Equatable {
     bool? readBy1c,
     String? deliveryStatus,
     List<ChatAttachment>? attachments,
+    String? senderName,
+    String? recipientName,
+    String? sender1cId,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -51,6 +63,9 @@ final class ChatMessage extends Equatable {
       readBy1c: readBy1c ?? this.readBy1c,
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,
       attachments: attachments ?? this.attachments,
+      senderName: senderName ?? this.senderName,
+      recipientName: recipientName ?? this.recipientName,
+      sender1cId: sender1cId ?? this.sender1cId,
     );
   }
 
@@ -82,6 +97,14 @@ final class ChatMessage extends Equatable {
         .toLowerCase();
     if (authorType == 'manager_1c') return true;
     return false;
+  }
+
+  static String? _optionalString(Map<String, dynamic> json, List<String> keys) {
+    for (final k in keys) {
+      final v = json[k];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    return null;
   }
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -120,6 +143,9 @@ final class ChatMessage extends Equatable {
           json['read_by_1c'] == true,
       deliveryStatus: delivery,
       attachments: _attachmentsFromJson(json),
+      senderName: _optionalString(json, ['senderName', 'sender_name']),
+      recipientName: _optionalString(json, ['recipientName', 'recipient_name']),
+      sender1cId: _optionalString(json, ['sender1cId', 'sender_1c_id']),
     );
   }
 
@@ -127,12 +153,13 @@ final class ChatMessage extends Equatable {
     final raw = json['attachments'];
     if (raw is List<dynamic>) {
       return raw
-          .whereType<Map<String, dynamic>>()
-          .map((e) => ChatAttachment.fromJson(e))
+          .whereType<Map>()
+          .map((e) => ChatAttachment.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     }
-    if (raw is Map<String, dynamic>) {
-      final nested = raw['attachments'];
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final nested = map['attachments'];
       if (nested is List<dynamic>) {
         return nested
             .whereType<Map>()
@@ -154,6 +181,9 @@ final class ChatMessage extends Equatable {
         readBy1c,
         deliveryStatus,
         attachments,
+        senderName,
+        recipientName,
+        sender1cId,
       ];
 }
 

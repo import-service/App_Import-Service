@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:dartz/dartz.dart' show Either;
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/auth/session_lost_handler.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/error/failures.dart';
@@ -546,10 +545,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (mounted) {
       setState(() => _submitRuntimeError = msg);
     }
-    sl<AppFeedbackService>().show(msg, kind: AppFeedbackKind.warning);
-    await sl<AuthService>().clearLocalSession();
-    if (!mounted) return;
-    context.go('/login');
+    // Черновик уже сохранён; общий handler — snackbar + clear + роутер на /login.
+    await sl<SessionLostHandler>().forceRelogin(showFeedback: true);
   }
 
   Future<void> _saveDraftExplicit() async {
