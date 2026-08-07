@@ -431,6 +431,47 @@ final class CustomsRequestsRemoteDataSource {
     return batch.item;
   }
 
+  /// `POST /api/customs-requests/:id/rating`
+  Future<CarListItem> submitRequestRating({
+    required String requestId,
+    required int rating,
+    String? comment,
+  }) async {
+    final path = 'customs-requests/${Uri.encodeComponent(requestId)}/rating';
+    try {
+      final body = <String, dynamic>{'rating': rating};
+      final trimmed = comment?.trim() ?? '';
+      if (trimmed.isNotEmpty) {
+        body['comment'] = trimmed;
+      }
+      final response = await _dio.post<dynamic>(path, data: body);
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Invalid rating response');
+      }
+      return _toCarListItem(data);
+    } on DioException catch (e, st) {
+      final mapped = ErrorHandler.handle(e);
+      AppLog.error(
+        'Submit rating failed: $path',
+        tag: 'CustomsRequestsRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw mapped;
+    } on ServerException {
+      rethrow;
+    } catch (e, st) {
+      AppLog.error(
+        'Unexpected rating failure',
+        tag: 'CustomsRequestsRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw const UnknownServerException('Не удалось отправить оценку');
+    }
+  }
+
   static CustomsRequestUploadResponse _parseUploadResponse(dynamic data) {
     if (data is! Map<String, dynamic>) {
       throw const UnknownServerException('Invalid upload response format');

@@ -28,6 +28,9 @@ class CustomsRequest extends Equatable {
     this.engineVolume,
     this.dealType,
     this.commentText,
+    this.clientRating,
+    this.clientRatingComment,
+    this.clientRatedAt,
     this.managerFullName,
     this.managerExternal1cId,
     this.external1cId,
@@ -71,6 +74,9 @@ class CustomsRequest extends Equatable {
   final bool importedLast12Months;
   final bool ownsOtherCars;
   final String? commentText;
+  final int? clientRating;
+  final String? clientRatingComment;
+  final String? clientRatedAt;
   final String? managerFullName;
   final String? managerExternal1cId;
   final String? external1cId;
@@ -142,5 +148,5 @@ class CustomsRequest extends Equatable {
 
   @override
   List<Object?> get props =>
-      [id, status, oneCUpdatePending, oneCCreatePending, updatedAt];
+      [id, status, clientRating, oneCUpdatePending, oneCCreatePending, updatedAt];
 }

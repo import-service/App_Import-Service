@@ -5,6 +5,8 @@ abstract class CustomsRequestsRepository {
     int limit,
     int offset,
     String? status,
+    bool? hasRating,
+    int? ratingMax,
   });
 
   Future<CustomsRequest> getRequest(String id);

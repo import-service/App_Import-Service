@@ -28,12 +28,19 @@ const { assertFileSizeAllowed } = require('../constants/uploadLimits');
 const { recordUploadAndMaybeSync } = require('../services/uploadBatchSync');
 const { parseOneCUploadJsonBody } = require('../util/uploadBase64');
 const { unlinkIfExists } = require('../util/imagePreview');
-const { notifyNewCustomsRequest, notifyClientCustomsRequestAccepted } = require('../services/emailNotification');
+const {
+  notifyNewCustomsRequest,
+  notifyClientCustomsRequestAccepted,
+  notifyClientRequestRating,
+} = require('../services/emailNotification');
 const {
   mpOrganizationId,
   isMpJwtRequest,
   denyUnlessOwnsRequest,
 } = require('../util/requestOrganizationAccess');
+
+const RATING_ALLOWED_STATUSES = new Set(['delivered', 'closed']);
+const RATING_COMMENT_MAX = 500;
 
 const REQUEST_STATUSES = [
   'new',
@@ -595,6 +602,130 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return;
       }
 
+      return reply.send(
+        toCustomsRequestDto(fastify, request, data.row, data.files, detailDtoOptions),
+      );
+    },
+  );
+
+  fastify.post(
+    '/customs-requests/:id/rating',
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['rating'],
+          additionalProperties: false,
+          properties: {
+            rating: { type: 'integer', minimum: 1, maximum: 5 },
+            comment: { type: 'string', maxLength: RATING_COMMENT_MAX },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      const orgId = mpOrganizationId(request);
+      if (!orgId) {
+        return reply.code(401).send({ error: 'UNAUTHORIZED' });
+      }
+
+      const rating = Number(request.body.rating);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: 'Оценка должна быть целым числом от 1 до 5',
+        });
+      }
+
+      let comment = normalize(request.body.comment);
+      if (comment.length > RATING_COMMENT_MAX) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: `Комментарий не длиннее ${RATING_COMMENT_MAX} символов`,
+        });
+      }
+      if (rating > 3) {
+        comment = '';
+      }
+
+      const existing = await fetchRequestById(fastify.pool, id);
+      if (!existing || !denyUnlessOwnsRequest(request, reply, existing.row)) {
+        if (!existing) {
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
+        return;
+      }
+
+      const row = existing.row;
+      const status = normalize(row.status);
+      if (!RATING_ALLOWED_STATUSES.has(status)) {
+        return reply.code(409).send({
+          error: 'RATING_NOT_ALLOWED',
+          message: 'Оценка доступна только для доставлено или закрыто',
+        });
+      }
+      if (row.client_rating != null && Number(row.client_rating) >= 1) {
+        return reply.code(409).send({
+          error: 'ALREADY_RATED',
+          message: 'Оценка по этой заявке уже оставлена',
+        });
+      }
+
+      const [result] = await fastify.pool.query(
+        `UPDATE customs_requests
+         SET client_rating = ?,
+             client_rating_comment = ?,
+             client_rated_at = CURRENT_TIMESTAMP(3),
+             updated_at = CURRENT_TIMESTAMP(3)
+         WHERE id = ? AND organization_id = ? AND deleted_at IS NULL
+           AND client_rating IS NULL`,
+        [rating, comment || null, id, orgId],
+      );
+
+      if (!result.affectedRows) {
+        return reply.code(409).send({
+          error: 'ALREADY_RATED',
+          message: 'Оценка по этой заявке уже оставлена',
+        });
+      }
+
+      let organizationLogin = null;
+      try {
+        const [orgRows] = await fastify.pool.query(
+          'SELECT login FROM organizations WHERE id = ? LIMIT 1',
+          [orgId],
+        );
+        organizationLogin = orgRows[0]?.login != null ? String(orgRows[0].login) : null;
+      } catch (err) {
+        fastify.log.warn({ err, requestId: id }, 'rating: org login lookup failed');
+      }
+
+      if (Number(row.is_test) !== 1) {
+        notifyClientRequestRating(
+          fastify.config.smtp,
+          {
+            requestId: id,
+            rating,
+            comment: comment || null,
+            vin: row.vin,
+            carMake: row.car_make,
+            carModel: row.car_model,
+            legalEntityName: row.legal_entity_name,
+            organizationLogin,
+          },
+          fastify.log,
+        ).catch((err) => {
+          fastify.log.error({ err, requestId: id }, 'client rating notify email failed');
+        });
+      }
+
+      const data = await fetchRequestById(fastify.pool, id);
       return reply.send(
         toCustomsRequestDto(fastify, request, data.row, data.files, detailDtoOptions),
       );

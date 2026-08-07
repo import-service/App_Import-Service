@@ -383,6 +383,75 @@ final class CarsRepositoryImpl implements CarsRepository {
     }
   }
 
+  @override
+  Future<Either<Failure, CarListItem>> submitRequestRating({
+    required String requestId,
+    required int rating,
+    String? comment,
+  }) async {
+    if (requestId.isEmpty) {
+      return const Left(CacheFailure('Пустой идентификатор заявки'));
+    }
+    if (rating < 1 || rating > 5) {
+      return const Left(CacheFailure('Оценка должна быть от 1 до 5'));
+    }
+    try {
+      if (_session.isDemo) {
+        await Future<void>.delayed(_networkLatency);
+        CarListItem? current;
+        for (final e in _carInventory.items) {
+          if (e.id == requestId) {
+            current = e;
+            break;
+          }
+        }
+        if (current == null) {
+          return const Left(CacheFailure('Заявка не найдена'));
+        }
+        if (current.clientRating != null) {
+          return const Left(ServerFailure('Оценка по этой заявке уже оставлена'));
+        }
+        final status = current.status;
+        if (status != RequestStatus.delivered && status != RequestStatus.closed) {
+          return const Left(
+            ServerFailure('Оценка доступна только для доставлено или закрыто'),
+          );
+        }
+        final trimmed = (comment ?? '').trim();
+        final updated = current.copyWith(
+          clientRating: rating,
+          clientRatingComment: rating <= 3 && trimmed.isNotEmpty ? trimmed : null,
+          clientRatedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+        await _carInventory.upsertItem(updated);
+        return Right(updated);
+      }
+
+      final updated = _patchMissingLegalInn(
+        await _remoteDataSource.submitRequestRating(
+          requestId: requestId,
+          rating: rating,
+          comment: comment,
+        ),
+      );
+      await _carInventory.upsertItem(updated);
+      return Right(updated);
+    } on ConflictException catch (e) {
+      return Left(ServerFailure(e.message));
+    } on ServerException catch (e) {
+      AppLog.error('submitRequestRating', error: e, tag: 'CarsRepo');
+      return Left(ServerFailure(e.message));
+    } catch (e, st) {
+      AppLog.error(
+        'submitRequestRating',
+        error: e,
+        stackTrace: st,
+        tag: 'CarsRepo',
+      );
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
   CarListItem _patchMissingLegalInn(CarListItem item) {
     if (item.legalInn?.trim().isNotEmpty == true) return item;
     final sessionInn = _session.inn?.trim() ?? '';

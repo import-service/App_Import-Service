@@ -198,6 +198,11 @@ final class JsonStringsService {
       text('requestDetailStatusSince').replaceAll('{date}', date);
 
   String get requestCardGoToChat => text('requestCardGoToChat');
+  String get requestRatingLeavePrompt => text('requestRatingLeavePrompt');
+  String get requestRatingYourRating => text('requestRatingYourRating');
+  String get requestRatingWishesHint => text('requestRatingWishesHint');
+  String get requestRatingSubmit => text('requestRatingSubmit');
+  String get requestRatingThanks => text('requestRatingThanks');
   String get chatPageTitle => text('chatPageTitle');
   String get chatInputPlaceholder => text('chatInputPlaceholder');
   String get chatDemoAutoReply => text('chatDemoAutoReply');

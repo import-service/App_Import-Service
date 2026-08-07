@@ -235,6 +235,8 @@ class _CarsTabViewState extends State<CarsTabView> {
             requestStatus: c.status,
             managerFullName: c.managerFullName,
             external1cId: c.external1cId,
+            clientRating: c.clientRating,
+            clientRatingComment: c.clientRatingComment,
             hasUnreadChat: unreadState.has(c.id),
             hasStatusUpdate: attention.hasStatusUpdate(c.id),
             hasDocsAction: attention.hasDocsAction(c.id),

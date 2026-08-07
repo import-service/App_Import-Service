@@ -26,6 +26,9 @@ final class CarListItem extends Equatable {
     this.importedLast12Months,
     this.ownsOtherCars,
     this.commentText,
+    this.clientRating,
+    this.clientRatingComment,
+    this.clientRatedAt,
     this.engineSpec,
     this.engineVolume,
     this.statusSubTypeDateTime,
@@ -64,6 +67,11 @@ final class CarListItem extends Equatable {
   final bool? importedLast12Months;
   final bool? ownsOtherCars;
   final String? commentText;
+
+  /// Оценка клиента 1–5; `null` — ещё не оставлял.
+  final int? clientRating;
+  final String? clientRatingComment;
+  final String? clientRatedAt;
 
   final String? engineSpec;
   final String? engineVolume;
@@ -144,6 +152,13 @@ final class CarListItem extends Equatable {
       importedLast12Months: _readBool(json, 'importedLast12Months', 'imported_last_12_months'),
       ownsOtherCars: _readBool(json, 'ownsOtherCars', 'owns_other_cars'),
       commentText: json['commentText'] as String? ?? json['comment_text'] as String?,
+      clientRating: _readClientRating(json),
+      clientRatingComment: _readTrimmedString(
+        json,
+        'clientRatingComment',
+        'client_rating_comment',
+      ),
+      clientRatedAt: _readTrimmedString(json, 'clientRatedAt', 'client_rated_at'),
       engineSpec: json['engineSpec'] as String? ?? json['engine_spec'] as String?,
       engineVolume: json['engineVolume'] as String? ?? json['engine_volume'] as String?,
       statusSubTypeDateTime: _readTrimmedString(
@@ -163,6 +178,14 @@ final class CarListItem extends Equatable {
       updatedAt: json['updatedAt'] as String? ?? json['updated_at'] as String?,
       files: fileList,
     );
+  }
+
+  static int? _readClientRating(Map<String, dynamic> json) {
+    final raw = json['clientRating'] ?? json['client_rating'];
+    if (raw == null) return null;
+    final n = raw is int ? raw : int.tryParse(raw.toString());
+    if (n == null || n < 1 || n > 5) return null;
+    return n;
   }
 
   static String? _readAmountString(Map<String, dynamic> j, String camel, String snake) {
@@ -262,6 +285,9 @@ final class CarListItem extends Equatable {
     bool? importedLast12Months,
     bool? ownsOtherCars,
     String? commentText,
+    int? clientRating,
+    String? clientRatingComment,
+    String? clientRatedAt,
     String? engineSpec,
     String? engineVolume,
     String? statusSubTypeDateTime,
@@ -299,6 +325,9 @@ final class CarListItem extends Equatable {
       importedLast12Months: importedLast12Months ?? this.importedLast12Months,
       ownsOtherCars: ownsOtherCars ?? this.ownsOtherCars,
       commentText: commentText ?? this.commentText,
+      clientRating: clientRating ?? this.clientRating,
+      clientRatingComment: clientRatingComment ?? this.clientRatingComment,
+      clientRatedAt: clientRatedAt ?? this.clientRatedAt,
       engineSpec: engineSpec ?? this.engineSpec,
       engineVolume: engineVolume ?? this.engineVolume,
       statusSubTypeDateTime: statusSubTypeDateTime ?? this.statusSubTypeDateTime,
@@ -338,6 +367,9 @@ final class CarListItem extends Equatable {
         if (importedLast12Months != null) 'importedLast12Months': importedLast12Months,
         if (ownsOtherCars != null) 'ownsOtherCars': ownsOtherCars,
         if (commentText != null) 'commentText': commentText,
+        if (clientRating != null) 'clientRating': clientRating,
+        if (clientRatingComment != null) 'clientRatingComment': clientRatingComment,
+        if (clientRatedAt != null) 'clientRatedAt': clientRatedAt,
         'engineSpec': engineSpec,
         'engineVolume': engineVolume,
         if (statusSubTypeDateTime != null) 'statusSubTypeDateTime': statusSubTypeDateTime,
@@ -377,6 +409,9 @@ final class CarListItem extends Equatable {
         importedLast12Months,
         ownsOtherCars,
         commentText,
+        clientRating,
+        clientRatingComment,
+        clientRatedAt,
         engineSpec,
         engineVolume,
         statusSubTypeDateTime,

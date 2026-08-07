@@ -45,4 +45,11 @@ abstract class CarsRepository {
     required String docType,
     required String localFilePath,
   });
+
+  /// Оценка заявки 1–5 (только `delivered`/`closed`, один раз).
+  Future<Either<Failure, CarListItem>> submitRequestRating({
+    required String requestId,
+    required int rating,
+    String? comment,
+  });
 }

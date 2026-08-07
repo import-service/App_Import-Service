@@ -587,6 +587,10 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
       const Gap(20),
       RequestLabeledValue(label: 'Клиент', value: item.ownerFullName),
       const Gap(14),
+      if (item.clientRating != null) ...[
+        _ClientRatingSection(item: item),
+        const Gap(14),
+      ],
       RequestLabeledValue(label: 'Организация', value: item.organizationLine),
       const Gap(14),
       RequestLabeledValue(label: 'Email', value: item.legalEmail),
@@ -960,6 +964,67 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
     final http = err['httpStatus'];
     if (http != null) parts.add('HTTP $http');
     return parts.isEmpty ? err.toString() : parts.join(' · ');
+  }
+}
+
+class _ClientRatingSection extends StatelessWidget {
+  const _ClientRatingSection({required this.item});
+
+  final CustomsRequest item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final rating = item.clientRating!;
+    final comment = item.clientRatingComment?.trim() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Оценка клиента',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const Gap(6),
+        Row(
+          children: [
+            for (var i = 1; i <= 5; i++)
+              Icon(
+                i <= rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                size: 22,
+                color: i <= rating
+                    ? const Color(0xFFE6A800)
+                    : AppTheme.textSecondary,
+              ),
+            const Gap(8),
+            Text(
+              '$rating / 5',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        if (comment.isNotEmpty) ...[
+          const Gap(8),
+          Text(
+            comment,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+          ),
+        ],
+        if (item.clientRatedAt != null &&
+            item.clientRatedAt!.trim().isNotEmpty) ...[
+          const Gap(4),
+          Text(
+            item.clientRatedAt!.trim(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
 

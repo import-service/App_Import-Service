@@ -8,6 +8,7 @@ const CUSTOMS_REQUEST_SELECT = `
   owner_full_name,
   car_make, car_model, vin,
   has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars, comment_text, is_test,
+  client_rating, client_rating_comment, client_rated_at,
   status,
   engine_spec, engine_volume, status_sub_type,
   status_sub_type_datetime, deal_type,
@@ -217,6 +218,15 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
     importedLast12Months: Boolean(row.imported_last_12_months),
     ownsOtherCars: Boolean(row.owns_other_cars),
     commentText: row.comment_text != null ? String(row.comment_text) : null,
+    clientRating:
+      row.client_rating != null && Number(row.client_rating) >= 1
+        ? Number(row.client_rating)
+        : null,
+    clientRatingComment:
+      row.client_rating_comment != null && String(row.client_rating_comment).trim() !== ''
+        ? String(row.client_rating_comment).trim()
+        : null,
+    clientRatedAt: row.client_rated_at != null ? toIso(row.client_rated_at) : null,
     isTest: row.is_test === undefined ? false : Number(row.is_test) === 1,
     external1cId: row.external_1c_id != null ? String(row.external_1c_id) : null,
     managerExternal1cId:

@@ -13,6 +13,7 @@ class AdminShellPage extends StatelessWidget {
   static const _destinations = <({IconData icon, String label})>[
     (icon: Icons.dashboard_outlined, label: 'Дашборд'),
     (icon: Icons.assignment_outlined, label: 'Заявки'),
+    (icon: Icons.star_outline_rounded, label: 'Оценки'),
     (icon: Icons.business_outlined, label: 'Организации'),
     (icon: Icons.admin_panel_settings_outlined, label: 'Админы'),
     (icon: Icons.sd_storage_outlined, label: 'Хранилище'),

@@ -6,6 +6,7 @@ import 'package:import_service_admin/presentation/pages/admins_page.dart';
 import 'package:import_service_admin/presentation/pages/dashboard_page.dart';
 import 'package:import_service_admin/presentation/pages/login_page.dart';
 import 'package:import_service_admin/presentation/pages/organizations_page.dart';
+import 'package:import_service_admin/presentation/pages/ratings_page.dart';
 import 'package:import_service_admin/presentation/pages/request_detail_page.dart';
 import 'package:import_service_admin/presentation/pages/requests_page.dart';
 import 'package:import_service_admin/presentation/pages/settings_one_c_page.dart';
@@ -63,6 +64,14 @@ final GoRouter appRouter = GoRouter(
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/ratings',
+              builder: (context, state) => const RatingsPage(),
             ),
           ],
         ),

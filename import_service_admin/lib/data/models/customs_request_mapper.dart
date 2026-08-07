@@ -29,6 +29,9 @@ abstract final class CustomsRequestMapper {
       importedLast12Months: json['importedLast12Months'] == true,
       ownsOtherCars: json['ownsOtherCars'] == true,
       commentText: json['commentText'] as String?,
+      clientRating: _readClientRating(json['clientRating']),
+      clientRatingComment: json['clientRatingComment'] as String?,
+      clientRatedAt: json['clientRatedAt'] as String?,
       managerFullName: json['managerFullName'] as String?,
       managerExternal1cId: json['managerExternal1cId'] as String?,
       external1cId: json['external1cId'] as String?,
@@ -56,6 +59,13 @@ abstract final class CustomsRequestMapper {
       deliveredDocuments: _deliveredDocs(json['deliveredDocuments']),
       files: _files(json['files']),
     );
+  }
+
+  static int? _readClientRating(dynamic raw) {
+    if (raw == null) return null;
+    final n = raw is int ? raw : int.tryParse('$raw');
+    if (n == null || n < 1 || n > 5) return null;
+    return n;
   }
 
   static List<CustomsRequestFinanceItem> _financeItems(dynamic raw) {

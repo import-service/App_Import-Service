@@ -119,6 +119,22 @@ class RequestListCard extends StatelessWidget {
                               RequestStatusPill(
                                 label: requestStatusLabel(item.status),
                               ),
+                              if (item.clientRating != null)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (var i = 1; i <= 5; i++)
+                                      Icon(
+                                        i <= item.clientRating!
+                                            ? Icons.star_rounded
+                                            : Icons.star_outline_rounded,
+                                        size: 18,
+                                        color: i <= item.clientRating!
+                                            ? const Color(0xFFE6A800)
+                                            : AppTheme.textSecondary,
+                                      ),
+                                  ],
+                                ),
                               if (hasSub)
                                 Text(
                                   subLabel,
@@ -129,6 +145,20 @@ class RequestListCard extends StatelessWidget {
                                 ),
                             ],
                           ),
+                          if (item.clientRating != null &&
+                              (item.clientRatingComment?.trim().isNotEmpty ??
+                                  false)) ...[
+                            const Gap(6),
+                            Text(
+                              item.clientRatingComment!.trim(),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondary,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
                           if (needsCreate) ...[
                             const Gap(6),
                             Text(

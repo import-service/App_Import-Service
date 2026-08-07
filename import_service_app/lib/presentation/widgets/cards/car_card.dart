@@ -7,6 +7,7 @@ import 'package:import_service_app/core/themes/request_status_list_style.dart';
 import 'package:import_service_app/core/util/vin_display.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/presentation/models/demo_car.dart';
+import 'package:import_service_app/presentation/widgets/cards/request_rating_block.dart';
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 
 /// Карточка заявки. Нажатие по основному блоку (кроме «Перейти в чат») — [onOpenDetails].
@@ -55,7 +56,7 @@ class CarCard extends StatelessWidget {
                   16,
                   16,
                   16,
-                  _showGoToChat ? 0 : 16,
+                  (_showGoToChat || car.showRatingBlock) ? 0 : 16,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -185,6 +186,22 @@ class CarCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (car.showRatingBlock) ...[
+              const Gap(10),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  0,
+                  16,
+                  _showGoToChat ? 0 : 16,
+                ),
+                child: RequestRatingBlock(
+                  requestId: car.id,
+                  existingRating: car.clientRating,
+                  existingComment: car.clientRatingComment,
+                ),
+              ),
+            ],
             if (_showGoToChat) ...[
               const Gap(10),
               Padding(

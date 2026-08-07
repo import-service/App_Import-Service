@@ -284,12 +284,76 @@ async function notifyClientCustomsRequestAccepted(
   );
 }
 
+const CLIENT_RATING_SUBJECT = 'Оценка клиента в приложении Импорт Сервис';
+
+/** Письмо руководству: клиент поставил оценку заявке. */
+async function notifyClientRequestRating(
+  smtpConfig,
+  {
+    requestId,
+    rating,
+    comment,
+    vin,
+    carMake,
+    carModel,
+    legalEntityName,
+    organizationLogin,
+  },
+  log,
+) {
+  const appName = smtpConfig.appName || 'Импорт Сервис';
+  const to = normalize(smtpConfig.customsRequestMailTo) || normalize(smtpConfig.to);
+  if (!to) {
+    return { success: false, error: 'No rating recipients' };
+  }
+  const stars = '★'.repeat(Number(rating) || 0) + '☆'.repeat(Math.max(0, 5 - (Number(rating) || 0)));
+  const carLine = [normalize(carMake), normalize(carModel)].filter(Boolean).join(' ') || '—';
+  const commentLine = normalize(comment) || '—';
+  const orgLine = normalize(legalEntityName) || normalize(organizationLogin) || '—';
+
+  const text = [
+    `Оценка клиента в приложении «${appName}»`,
+    '',
+    `Заявка: #${requestId}`,
+    `Оценка: ${rating} / 5 (${stars})`,
+    `Авто: ${carLine}`,
+    `VIN: ${normalize(vin) || '—'}`,
+    `Организация: ${orgLine}`,
+    `Комментарий: ${commentLine}`,
+  ].join('\n');
+
+  const html = `
+    <h2>Оценка клиента — ${escapeHtml(appName)}</h2>
+    <table cellpadding="6" cellspacing="0" border="0">
+      <tr><td><b>Заявка</b></td><td>#${escapeHtml(String(requestId))}</td></tr>
+      <tr><td><b>Оценка</b></td><td>${escapeHtml(String(rating))} / 5 &nbsp; ${escapeHtml(stars)}</td></tr>
+      <tr><td><b>Авто</b></td><td>${escapeHtml(carLine)}</td></tr>
+      <tr><td><b>VIN</b></td><td>${escapeHtml(normalize(vin) || '—')}</td></tr>
+      <tr><td><b>Организация</b></td><td>${escapeHtml(orgLine)}</td></tr>
+      <tr><td><b>Комментарий</b></td><td>${escapeHtml(commentLine)}</td></tr>
+    </table>
+  `;
+
+  return sendPlainEmail(
+    smtpConfig,
+    {
+      to,
+      subject: `${CLIENT_RATING_SUBJECT}: ${rating}/5 · #${requestId}`,
+      html,
+      text,
+    },
+    log,
+  );
+}
+
 module.exports = {
   NEW_CUSTOMS_REQUEST_SUBJECT,
   CLIENT_REQUEST_ACCEPTED_SUBJECT,
+  CLIENT_RATING_SUBJECT,
   sendPlainEmail,
   notifyNewCustomsRequest,
   notifyClientRegistrationAccepted,
   notifyClientCustomsRequestAccepted,
+  notifyClientRequestRating,
   escapeHtml,
 };

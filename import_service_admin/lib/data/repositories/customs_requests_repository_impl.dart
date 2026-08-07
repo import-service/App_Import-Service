@@ -19,11 +19,33 @@ class CustomsRequestsRepositoryImpl implements CustomsRequestsRepository {
     int limit = 100,
     int offset = 0,
     String? status,
+    bool? hasRating,
+    int? ratingMax,
   }) async {
     if (AppConfig.useMockApi) {
-      final items = await _mock.listRequests();
+      var items = await _mock.listRequests();
+      if (hasRating == true) {
+        items = items.where((e) => e.clientRating != null).toList();
+      }
+      if (ratingMax != null) {
+        items = items
+            .where(
+              (e) => e.clientRating != null && e.clientRating! <= ratingMax,
+            )
+            .toList();
+      }
+      if (status != null && status.isNotEmpty) {
+        items = items.where((e) => e.status == status).toList();
+      }
       final sorted = [...items]
         ..sort((a, b) {
+          if (hasRating == true) {
+            final at = a.clientRatedAt ?? '';
+            final bt = b.clientRatedAt ?? '';
+            final cmp = bt.compareTo(at);
+            if (cmp != 0) return cmp;
+            return b.id.compareTo(a.id);
+          }
           if (a.status == 'new' && b.status != 'new') return -1;
           if (a.status != 'new' && b.status == 'new') return 1;
           if (a.oneCUpdatePending && !b.oneCUpdatePending) return -1;
@@ -32,7 +54,13 @@ class CustomsRequestsRepositoryImpl implements CustomsRequestsRepository {
         });
       return (items: sorted, total: sorted.length);
     }
-    return _remote.listRequests(limit: limit, offset: offset, status: status);
+    return _remote.listRequests(
+      limit: limit,
+      offset: offset,
+      status: status,
+      hasRating: hasRating,
+      ratingMax: ratingMax,
+    );
   }
 
   @override

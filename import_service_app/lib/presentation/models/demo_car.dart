@@ -12,6 +12,8 @@ class DemoCar {
     required this.requestStatus,
     this.managerFullName,
     this.external1cId,
+    this.clientRating,
+    this.clientRatingComment,
     this.hasUnreadChat = false,
     this.hasStatusUpdate = false,
     this.hasDocsAction = false,
@@ -28,6 +30,8 @@ class DemoCar {
   final RequestStatus requestStatus;
   final String? managerFullName;
   final String? external1cId;
+  final int? clientRating;
+  final String? clientRatingComment;
   final bool hasUnreadChat;
   final bool hasStatusUpdate;
   final bool hasDocsAction;
@@ -37,6 +41,10 @@ class DemoCar {
   final List<String> pendingActionHints;
 
   bool get hasPendingActions => pendingActionHints.isNotEmpty;
+
+  bool get showRatingBlock =>
+      requestStatus == RequestStatus.delivered ||
+      requestStatus == RequestStatus.closed;
 
   String get displayCarLine {
     final a = carMake.trim();

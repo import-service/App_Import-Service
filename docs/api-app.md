@@ -163,6 +163,27 @@ Query:
 
 Обновить поля анкеты (без полей 1С и без смены статуса). Поддерживается **`legalInn`** / **`inn`** (10 или 12 цифр).
 
+### POST /api/customs-requests/:id/rating
+
+Оценка клиента по заявке (вкладка «Доставлено» в МП).
+
+Тело:
+
+```json
+{
+  "rating": 4,
+  "comment": "опционально, до 500 символов; имеет смысл при rating ≤ 3"
+}
+```
+
+Правила:
+
+- доступно только при статусе **`delivered`** или **`closed`**
+- один раз на заявку; повтор → `409 ALREADY_RATED`
+- при `rating` > 3 комментарий на сервере игнорируется
+- письмо на `CUSTOMS_REQUEST_MAIL_TO` (по умолчанию `info@import-service.ru`); в 1С **не** уходит
+- в DTO заявки: `clientRating`, `clientRatingComment`, `clientRatedAt`
+
 ### DELETE /api/customs-requests/:id
 
 **Отключено для МП** — ответ `403 FORBIDDEN`. Удаление заявки и файлов с диска — только из **админки** (`DELETE /api/admin/customs-requests/:id`).
@@ -458,15 +479,15 @@ Query:
 
 Список заявок для админки. Сортировка: сначала **`new`**, затем с **`oneCUpdatePending: true`**, затем по убыванию `id`.
 
+Query: `limit` (1–200, по умолчанию 50), `offset`, `status`, **`hasRating=1`**, **`ratingMax=3`** (оценки ≤ N). При фильтре по оценке сортировка: `clientRatedAt DESC`.
+
+Успех: `{ "items": [...], "total", "limit", "offset" }` — элементы в том же camelCase-контракте, что и `GET /api/customs-requests` (включая `clientRating` / `clientRatingComment` / `clientRatedAt`).
+
 ### GET /api/admin/customs-requests/:id
 
-Деталка заявки для админки (полный camelCase-контракт, включая `files[]`).
+Деталка заявки для админки (полный camelCase-контракт, включая `files[]`, `clientRating` / `clientRatingComment` / `clientRatedAt`).
 
 В каждом элементе: **`oneCUpdatePending`** (boolean) — последний исходящий update в 1С не доставлен (нужна кнопка повтора).
-
-Query: `limit` (1–200, по умолчанию 50), `offset`, `status`.
-
-Успех: `{ "items": [...], "total", "limit", "offset" }` — элементы в том же camelCase-контракте, что и `GET /api/customs-requests`.
 
 ### POST /api/admin/customs-requests/:id/resend-to-1c
 

@@ -17,10 +17,16 @@ class CustomsRequestsRemoteDataSource {
     int limit = 100,
     int offset = 0,
     String? status,
+    bool? hasRating,
+    int? ratingMax,
   }) async {
     try {
       final q = <String, dynamic>{'limit': limit, 'offset': offset};
       if (status != null && status.isNotEmpty) q['status'] = status;
+      if (hasRating == true) q['hasRating'] = '1';
+      if (ratingMax != null && ratingMax >= 1 && ratingMax <= 5) {
+        q['ratingMax'] = ratingMax;
+      }
 
       final response = await _dio.get<dynamic>(
         'admin/customs-requests',

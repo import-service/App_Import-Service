@@ -393,6 +393,10 @@ module.exports = async function adminRoutes(fastify) {
       const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
       const offset = Math.max(Number(request.query.offset) || 0, 0);
       const status = String(request.query.status || '').trim();
+      const hasRatingRaw = String(request.query.hasRating || '').trim().toLowerCase();
+      const hasRating =
+        hasRatingRaw === '1' || hasRatingRaw === 'true' || hasRatingRaw === 'yes';
+      const ratingMax = Number(request.query.ratingMax);
 
       const where = ['deleted_at IS NULL'];
       const args = [];
@@ -400,8 +404,18 @@ module.exports = async function adminRoutes(fastify) {
         where.push('status = ?');
         args.push(status);
       }
+      if (hasRating) {
+        where.push('client_rating IS NOT NULL');
+      }
+      if (Number.isFinite(ratingMax) && ratingMax >= 1 && ratingMax <= 5) {
+        where.push('client_rating IS NOT NULL AND client_rating <= ?');
+        args.push(Math.floor(ratingMax));
+      }
 
       const whereSql = where.join(' AND ');
+      const orderSql = hasRating || (Number.isFinite(ratingMax) && ratingMax >= 1)
+        ? 'client_rated_at DESC, id DESC'
+        : `(status = 'new') DESC, one_c_create_pending DESC, one_c_update_pending DESC, id DESC`;
 
       const [countRows] = await fastify.pool.query(
         `SELECT COUNT(*) AS total FROM customs_requests WHERE ${whereSql}`,
@@ -413,7 +427,7 @@ module.exports = async function adminRoutes(fastify) {
         `SELECT ${CUSTOMS_REQUEST_SELECT}
          FROM customs_requests
          WHERE ${whereSql}
-         ORDER BY (status = 'new') DESC, one_c_create_pending DESC, one_c_update_pending DESC, id DESC
+         ORDER BY ${orderSql}
          LIMIT ? OFFSET ?`,
         [...args, limit, offset],
       );

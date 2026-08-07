@@ -243,6 +243,13 @@
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
         <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/:id/rating</code><span class="desc">Оценка клиента 1–5 (один раз; delivered/closed).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+  "rating": 3,
+  "comment": "Пожелания к работе (опционально, до 500 символов; при rating &gt; 3 игнорируется)"
+}</pre><p><b>Правила:</b> только статусы <code>delivered</code> / <code>closed</code>; повтор — <code>409 ALREADY_RATED</code>. Письмо на <code>CUSTOMS_REQUEST_MAIL_TO</code> (по умолчанию <code>info@import-service.ru</code>). В 1С не уходит. В DTO: <code>clientRating</code>, <code>clientRatingComment</code>, <code>clientRatedAt</code>.</p><p><b>Success:</b> тело заявки (как GET <code>/api/customs-requests/:id</code>).</p><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 ALREADY_RATED</code> / <code>409 RATING_NOT_ALLOWED</code></li></ul></div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id</code><span class="desc">Удаление заявки из МП отключено.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Response:</b> <code>403 FORBIDDEN</code> — удаление только через админку.</p></div>
         </details>
@@ -1246,6 +1253,15 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
 
       <section class="group">
         <h2>Настройки и заявки</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/customs-requests</code><span class="desc">Список заявок; фильтры status / hasRating / ratingMax.</span></summary>
+          <div class="body"><p><b>Auth:</b> admin JWT</p><p><b>Query:</b> <code>limit</code>, <code>offset</code>, <code>status</code>, <code>hasRating=1</code>, <code>ratingMax=3</code>. При фильтре по оценке — сортировка <code>clientRatedAt DESC</code>.</p><p><b>Success:</b></p><pre>{
+  "items": [ { "id": "123", "clientRating": 3, "clientRatingComment": "…", "clientRatedAt": "2026-08-07T04:00:00.000Z" } ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}</pre></div>
+        </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/settings/one-c-request-create</code><span class="desc">URL создания и обновления файлов в 1С.</span></summary>
           <div class="body"><p><b>Success:</b></p><pre>{
