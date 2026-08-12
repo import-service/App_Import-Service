@@ -311,6 +311,9 @@ Multipart `file` (JPEG/PNG/WebP/GIF/PDF, до 25 МБ). Auth: JWT пользов
 
 Скачать вложение чата (JWT или integration Bearer).
 
+В истории/WSS/`message_created` поле **`attachments[].fileUrl`** — **полный HTTPS URL**
+(`PUBLIC_BASE_URL` + `/api/chat-attachments/…`), не относительный путь.
+
 ### POST /api/customs-requests/:id/messages/read
 
 Прочитанность входящих сообщений 1С у пользователя.

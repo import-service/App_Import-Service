@@ -397,10 +397,14 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
 
 История переписки: `?external1cId=…` → `{ requestId, external1cId, items }`.
 
+В `items[].attachments[].fileUrl` — **полный HTTPS URL**
+(`https://157-22-173-7.sslip.io/api/chat-attachments/…`), не относительный путь.
+Скачивание: `GET` этого URL + `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`.
+
 ## POST /api/integration/customs-request-messages/attachments
 
 Загрузить файл вложения на сервер (multipart `file`, query `external1cId`).  
-Ответ: `{ fileUrl, fileName, mimeType, fileSizeBytes }` — затем в `attachments` сообщения (HTTP или WSS `send`).
+Ответ: `{ fileUrl, fileName, mimeType, fileSizeBytes }` — `fileUrl` уже **абсолютный**; затем в `attachments` сообщения (HTTP или WSS `send`).
 
 Допустимо: изображения и PDF, до 25 МБ.
 
@@ -411,6 +415,7 @@ wss://157-22-173-7.sslip.io/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER
 ```
 
 - `history` / `send` / события `message_created`|`message_incoming` — см. `api-app.md` § Realtime.
+- Во вложениях сообщений клиента `fileUrl` — **полный HTTPS**, не путь от WSS.
 - Исходящий push сервера → 1С на `…/customs-request-chat` при сообщении из МП **сохраняется**.
 
 ## Правила интеграции организаций

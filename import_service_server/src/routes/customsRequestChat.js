@@ -10,6 +10,7 @@ const {
   resolveChatPartyNames,
   findRequestByExternal1cId,
   normalize,
+  publicBaseFromFastify,
 } = require('../services/chatMessageOps');
 const {
   ensureChatUploadDir,
@@ -80,7 +81,8 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       );
 
       const parties = await resolveChatPartyNames(fastify.pool, id);
-      const items = rows.map((r) => messageDto(r, ar.row.external_1c_id, parties));
+      const base = publicBaseFromFastify(fastify, request);
+      const items = rows.map((r) => messageDto(r, ar.row.external_1c_id, parties, base));
 
       return reply.send({ items, limit, beforeId: beforeId || null });
     },
@@ -222,7 +224,12 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
       const requestId = reqRow.id;
-      const items = await listMessageDtos(fastify.pool, requestId, external1cId);
+      const items = await listMessageDtos(
+        fastify.pool,
+        requestId,
+        external1cId,
+        publicBaseFromFastify(fastify, request),
+      );
       return reply.send({
         items,
         requestId,

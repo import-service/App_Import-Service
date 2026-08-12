@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const { notifyMessageFrom1C } = require('./pushNotifications');
 const { sendUserMessageTo1C } = require('./oneCChatOut');
 const { handleDemoUserChatMessage, isDemoExternal1cId } = require('./demoFlow');
+const { getPublicBaseUrl, toAbsoluteUrl } = require('../util/customsRequestDto');
 
 const MAX_TEXT = 2000;
 
@@ -13,6 +14,21 @@ function clipText(text) {
   const s = String(text ?? '');
   if (s.length <= MAX_TEXT) return s;
   return s.slice(0, MAX_TEXT);
+}
+
+/** Полный HTTPS URL для вложений чата (1С и МП). */
+function absolutizeAttachments(attachments, publicBaseUrl) {
+  if (!Array.isArray(attachments)) return [];
+  const base = String(publicBaseUrl || '').replace(/\/$/, '');
+  return attachments.map((a) => {
+    if (!a || typeof a !== 'object') return a;
+    const fileUrl = a.fileUrl != null ? toAbsoluteUrl(a.fileUrl, base) : a.fileUrl;
+    return { ...a, fileUrl };
+  });
+}
+
+function publicBaseFromFastify(fastify, request = null) {
+  return getPublicBaseUrl(fastify, request);
 }
 
 function jsonAttachmentsOrNull(attachments) {
@@ -92,8 +108,9 @@ const MESSAGE_SELECT = `id, request_id, author_type, user_id, direction, client_
  * @param {object} row
  * @param {string|null} external1cId
  * @param {{ clientName?: string, managerName?: string }|null} parties
+ * @param {string} [publicBaseUrl] — для абсолютных fileUrl во вложениях
  */
-function messageDto(row, external1cId, parties = null) {
+function messageDto(row, external1cId, parties = null, publicBaseUrl = '') {
   const parsed = parseRowAttachments(row.attachments_json);
   const { attachments, meta } = splitAttachmentsPayload(parsed);
   const authorType = row.author_type;
@@ -123,7 +140,7 @@ function messageDto(row, external1cId, parties = null) {
     clientMessageId: row.client_message_id,
     message1cId: row.message_1c_id,
     text: row.text_content,
-    attachments,
+    attachments: absolutizeAttachments(attachments, publicBaseUrl),
     sender1cId,
     senderName,
     recipientName,
@@ -137,10 +154,10 @@ function messageDto(row, external1cId, parties = null) {
   };
 }
 
-async function listMessageDtos(pool, requestId, external1cId) {
+async function listMessageDtos(pool, requestId, external1cId, publicBaseUrl = '') {
   const parties = await resolveChatPartyNames(pool, requestId);
   const rows = await listMessagesAsc(pool, requestId);
-  return rows.map((r) => messageDto(r, external1cId, parties));
+  return rows.map((r) => messageDto(r, external1cId, parties, publicBaseUrl));
 }
 
 async function findRequestByExternal1cId(pool, external1cId) {
@@ -225,6 +242,8 @@ async function createMessageFrom1c(fastify, {
   }
   const requestId = reqRow.id;
   const parties = await resolveChatPartyNames(fastify.pool, requestId);
+  const base = publicBaseFromFastify(fastify);
+  const attsAbs = absolutizeAttachments(atts, base);
 
   const [ex] = await fastify.pool.query(
     `SELECT id FROM customs_request_messages WHERE message_1c_id=? AND deleted_at IS NULL LIMIT 1`,
@@ -238,7 +257,7 @@ async function createMessageFrom1c(fastify, {
       id: ex[0].id,
       requestId,
       external1cId: extId,
-      message: existingRow ? messageDto(existingRow, extId, parties) : null,
+      message: existingRow ? messageDto(existingRow, extId, parties, base) : null,
     };
   }
 
@@ -256,13 +275,13 @@ async function createMessageFrom1c(fastify, {
       requestId,
       msgId,
       bodyText,
-      jsonAttachmentsOrNull({ attachments: atts, meta }),
+      jsonAttachmentsOrNull({ attachments: attsAbs, meta }),
     ],
   );
 
   const newId = ins.insertId;
   const messageRow = await loadMessageRow(fastify.pool, newId);
-  const dto = messageDto(messageRow, extId, parties);
+  const dto = messageDto(messageRow, extId, parties, base);
 
   if (fastify.chatWss) {
     try {
@@ -321,7 +340,11 @@ async function createMessageFromUser(fastify, {
   }
 
   const bodyText = clipText(text || '');
-  const atts = Array.isArray(attachments) ? attachments : [];
+  const base = publicBaseFromFastify(fastify);
+  const atts = absolutizeAttachments(
+    Array.isArray(attachments) ? attachments : [],
+    base,
+  );
   if (!bodyText && !atts.length) {
     const e = new Error('VALIDATION_ERROR');
     e.code = 'VALIDATION_ERROR';
@@ -353,7 +376,7 @@ async function createMessageFromUser(fastify, {
       dedup: true,
       id: r.id,
       requestId: id,
-      message: messageDto(r, reqRow.external_1c_id, parties),
+      message: messageDto(r, reqRow.external_1c_id, parties, base),
       oneC: { status: 200, via: 'dedup' },
     };
   }
@@ -455,7 +478,7 @@ async function createMessageFromUser(fastify, {
     }
   }
 
-  const dto = messageDto(messageRow, reqRow.external_1c_id, parties);
+  const dto = messageDto(messageRow, reqRow.external_1c_id, parties, base);
   let wssBroadcast = null;
   if (fastify.chatWss) {
     try {
@@ -515,7 +538,7 @@ async function createMessageFromUser(fastify, {
     dedup: false,
     id: messageId,
     requestId: id,
-    message: messageDto(messageRow, reqRow.external_1c_id, parties),
+    message: messageDto(messageRow, reqRow.external_1c_id, parties, base),
     oneC,
   };
 }
@@ -594,6 +617,8 @@ module.exports = {
   MAX_TEXT,
   normalize,
   clipText,
+  absolutizeAttachments,
+  publicBaseFromFastify,
   jsonAttachmentsOrNull,
   parseRowAttachments,
   splitAttachmentsPayload,

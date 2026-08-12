@@ -15,8 +15,9 @@ Subagent/Task — на усмотрение исполнителя.
 
 | Файл | Назначение |
 |------|------------|
+| `approve-before-any-action.mdc` | **Сначала** разъяснить → план → утверждение → только потом тулы/код |
 | `import-platform-workspace.mdc` | Структура монорепо, порядок end-to-end |
-| `feature-delivery-workflow.mdc` | План → утверждение → код |
+| `feature-delivery-workflow.mdc` | План → утверждение → код (фичи) |
 | `agent-invariants-never-break.mdc` | commit/push/релиз только по просьбе |
 | `agent-does-setup-never-user-chores.mdc` | Агент сам: analyze, деплой, setup |
 | `mandatory-verify-after-code-changes.mdc` | analyze перед «готово» |

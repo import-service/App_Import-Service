@@ -12,6 +12,7 @@ const {
   markReadBy1c,
   messageDto,
   normalize,
+  publicBaseFromFastify,
 } = require('./chatMessageOps');
 
 /**
@@ -91,7 +92,12 @@ function startChatWss(fastify) {
     const authKind = ws.__authKind;
 
     if (type === 'history') {
-      const items = await listMessageDtos(fastify.pool, requestId, external1cId || null);
+      const items = await listMessageDtos(
+        fastify.pool,
+        requestId,
+        external1cId || null,
+        publicBaseFromFastify(fastify),
+      );
       sendJson(ws, {
         type: 'history',
         requestId,

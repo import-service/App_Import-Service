@@ -341,6 +341,10 @@
             <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
         </details>
         <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/chat-attachments/:storedName</code><span class="desc">Скачать вложение чата.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken или <code>INTEGRATION_BEARER_TOKEN</code></p><p>В WSS/истории <code>attachments[].fileUrl</code> — <b>полный HTTPS</b> (<code>{{BASE_URL}}/api/chat-attachments/…</code>), не относительный путь. Скачивать по HTTPS GET, не через WSS.</p></div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/push/tokens</code><span class="desc">Зарегистрировать FCM-токен устройства для push.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
   "token": "fcm_device_token",
