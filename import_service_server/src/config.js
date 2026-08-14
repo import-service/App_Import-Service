@@ -77,7 +77,7 @@ module.exports = {
     to: required('MAIL_TO'),
     /** Почта при подаче заявки (POST /customs-requests). */
     customsRequestMailTo: String(
-      process.env.CUSTOMS_REQUEST_MAIL_TO || 'info@import-service.ru',
+      process.env.CUSTOMS_REQUEST_MAIL_TO || 'info@import-service.su',
     ).trim(),
     appName: process.env.APP_NAME || 'Импорт Сервис',
   },

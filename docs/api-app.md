@@ -181,7 +181,7 @@ Query:
 - доступно только при статусе **`delivered`** или **`closed`**
 - один раз на заявку; повтор → `409 ALREADY_RATED`
 - при `rating` > 3 комментарий на сервере игнорируется
-- письмо на `CUSTOMS_REQUEST_MAIL_TO` (по умолчанию `info@import-service.ru`); в 1С **не** уходит
+- письмо на `CUSTOMS_REQUEST_MAIL_TO` (по умолчанию `info@import-service.su`); в 1С **не** уходит
 - в DTO заявки: `clientRating`, `clientRatingComment`, `clientRatedAt`
 
 ### DELETE /api/customs-requests/:id
@@ -305,14 +305,13 @@ Query:
 
 Multipart `file` (JPEG/PNG/WebP/GIF/PDF, до 25 МБ). Auth: JWT пользователя.
 
-Успех: `{ "fileUrl", "fileName", "mimeType", "fileSizeBytes" }` — затем передать в `attachments` при отправке сообщения.
+Успех: `{ "ok": true, "file": { "fileUrl", "fileName", "mimeType", "fileSizeBytes" } }` — затем передать `file.fileUrl` в `attachments` при отправке сообщения.
 
-### GET /api/chat-attachments/:storedName
+### GET /api/customs-requests/files/:storedName
 
-Скачать вложение чата (JWT или integration Bearer).
+Скачать файл заявки или вложение чата (JWT или integration Bearer). Legacy: `GET /api/chat-attachments/:storedName`.
 
-В истории/WSS/`message_created` поле **`attachments[].fileUrl`** — **полный HTTPS URL**
-(`PUBLIC_BASE_URL` + `/api/chat-attachments/…`), не относительный путь.
+В истории/WSS `attachments[].fileUrl` — relative `/api/customs-requests/files/…`.
 
 ### POST /api/customs-requests/:id/messages/read
 

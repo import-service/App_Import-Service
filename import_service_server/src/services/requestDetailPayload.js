@@ -1,25 +1,15 @@
-const { toCustomsRequestDto, toAbsoluteUrl } = require('../util/customsRequestDto');
+const { toCustomsRequestDto } = require('../util/customsRequestDto');
 const { toIntegrationFileRef, isClientUploadedDocType } = require('../util/integrationFiles');
+const { normalizeIntegrationFileUrl } = require('../util/integrationFileUrl');
 const { CUSTOMS_REQUEST_FILE_SELECT } = require('../util/requestFileStorage');
 
-function apiBaseFromFastify(fastify, requestLike) {
-  const proto = String(requestLike?.headers?.['x-forwarded-proto'] || '')
-    .split(',')[0]
-    .trim() || 'https';
-  const host = String(requestLike?.headers?.['x-forwarded-host'] || requestLike?.headers?.host || '')
-    .split(',')[0]
-    .trim() || 'localhost';
-  return `${proto}://${host}/api`;
-}
-
-function mapFilesForOneC(fastify, requestLike, files) {
-  const base = apiBaseFromFastify(fastify, requestLike);
+function mapFilesForOneC(files) {
   return (files || [])
     .map((f) => toIntegrationFileRef(f))
     .filter((f) => f?.docType && f.fileUrl)
     .map((f) => ({
       ...f,
-      fileUrl: toAbsoluteUrl(f.fileUrl, base) || f.fileUrl,
+      fileUrl: normalizeIntegrationFileUrl(f.fileUrl),
     }));
 }
 
@@ -58,7 +48,7 @@ async function buildOneCFilesUpdatePayload(fastify, requestId, files, requestLik
   return {
     requestId: Number(requestId),
     external1cId: dto.external1cId || null,
-    files: mapFilesForOneC(fastify, requestLike, files),
+    files: mapFilesForOneC(files),
   };
 }
 
@@ -80,7 +70,7 @@ async function buildOneCFilesUpdatePayloadForResend(fastify, requestId) {
   return {
     requestId: Number(requestId),
     external1cId: dto.external1cId || null,
-    files: mapFilesForOneC(fastify, { headers: {} }, clientFiles),
+    files: mapFilesForOneC(clientFiles),
   };
 }
 

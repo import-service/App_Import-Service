@@ -50,6 +50,19 @@ function collectChatStoredNamesFromJson(value) {
       item.storedName || item.stored_name || item.fileUrl || item.file_url || '',
     ).trim();
     if (!raw) continue;
+    const fromFiles = /(?:\/api)?\/customs-requests\/files\/([^/?#]+)/i.exec(raw);
+    if (fromFiles) {
+      const name = decodeURIComponent(fromFiles[1]);
+      if (/^r\d+_[\w.-]+$/i.test(name)) {
+        names.push(name);
+        continue;
+      }
+    }
+    const fromPathFiles = /(?:\/api)?\/customs-requests\/files\/([^/?#]+)/i.exec(raw);
+    if (fromPathFiles) {
+      names.push(decodeURIComponent(fromPathFiles[1]));
+      continue;
+    }
     const fromPath = /(?:\/api)?\/chat-attachments\/([^/?#]+)/i.exec(raw);
     if (fromPath) {
       names.push(decodeURIComponent(fromPath[1]));

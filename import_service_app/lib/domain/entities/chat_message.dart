@@ -200,10 +200,12 @@ final class ChatAttachment extends Equatable {
   final String? mimeType;
 
   factory ChatAttachment.fromJson(Map<String, dynamic> json) {
+    final nested = json['file'];
+    final src = nested is Map<String, dynamic> ? nested : json;
     return ChatAttachment(
-      fileUrl: (json['fileUrl'] as String? ?? json['file_url'] as String?)?.trim() ?? '',
-      fileName: json['fileName'] as String? ?? json['file_name'] as String?,
-      mimeType: json['mimeType'] as String? ?? json['mime_type'] as String?,
+      fileUrl: (src['fileUrl'] as String? ?? src['file_url'] as String?)?.trim() ?? '',
+      fileName: src['fileName'] as String? ?? src['file_name'] as String?,
+      mimeType: src['mimeType'] as String? ?? src['mime_type'] as String?,
     );
   }
 

@@ -1,20 +1,12 @@
 const { getAppSettings } = require('./appSettings');
 const { ensureDisplayFileName } = require('../util/displayFileName');
+const { normalizeIntegrationFileUrl } = require('../util/integrationFileUrl');
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_ONE_C_BODY_CHARS = 4000;
 
 function normalize(v) {
   return String(v ?? '').trim();
-}
-
-function absoluteFileUrl(fastify, fileUrl) {
-  const raw = normalize(fileUrl);
-  if (!raw) return raw;
-  if (/^https?:\/\//i.test(raw)) return raw;
-  const base = String(fastify.config.publicBaseUrl || '').trim().replace(/\/$/, '');
-  if (!base) return raw;
-  return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
 }
 
 function buildCreatePayloadFromBody(requestId, body) {
@@ -205,7 +197,7 @@ async function submitCustomsRequestTo1C(fastify, requestId, payloadBuilder) {
   const payload = payloadBuilder();
   payload.files = payload.files.map((f) => ({
     ...f,
-    fileUrl: absoluteFileUrl(fastify, f.fileUrl),
+    fileUrl: normalizeIntegrationFileUrl(f.fileUrl),
   }));
 
   try {

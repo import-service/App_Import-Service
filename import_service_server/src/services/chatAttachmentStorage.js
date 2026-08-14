@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { resolveFileKind } = require('../util/fileKindDetect');
 const { assertFileSizeAllowed, LIMIT_PHOTO_DOC_BYTES } = require('../constants/uploadLimits');
 const { ensureDisplayFileName } = require('../util/displayFileName');
+const { buildIntegrationFileUrl } = require('../util/integrationFileUrl');
 
 const CHAT_UPLOAD_ROOT = path.join(process.cwd(), 'uploads', 'chat-attachments');
 const MAX_CHAT_ATTACHMENT_BYTES = LIMIT_PHOTO_DOC_BYTES;
@@ -17,14 +18,7 @@ async function ensureChatUploadDir() {
 }
 
 function buildChatFileUrl(storedName) {
-  return `/api/chat-attachments/${storedName}`;
-}
-
-function absoluteChatFileUrl(fastify, storedName) {
-  const rel = buildChatFileUrl(storedName);
-  const base = String(fastify?.config?.publicBaseUrl || '').replace(/\/$/, '');
-  if (!base) return rel;
-  return `${base}${rel}`;
+  return buildIntegrationFileUrl(storedName);
 }
 
 function isAllowedChatMime(mimeType) {
@@ -34,9 +28,9 @@ function isAllowedChatMime(mimeType) {
 
 /**
  * Сохранить вложение чата на диск.
- * @returns {{ storedName, fileName, mimeType, fileSizeBytes, fileUrl, absoluteFileUrl }}
+ * @returns {{ storedName, fileName, mimeType, fileSizeBytes, fileUrl }}
  */
-async function saveChatAttachment(fastify, { requestId, buffer, clientFileName, mimeType }) {
+async function saveChatAttachment(_fastify, { requestId, buffer, clientFileName, mimeType }) {
   await ensureChatUploadDir();
   const kind = resolveFileKind({
     buffer,
@@ -72,7 +66,6 @@ async function saveChatAttachment(fastify, { requestId, buffer, clientFileName, 
     mimeType: resolvedMime,
     fileSizeBytes: buffer.length,
     fileUrl,
-    absoluteFileUrl: absoluteChatFileUrl(fastify, storedName),
   };
 }
 
@@ -95,6 +88,5 @@ module.exports = {
   chatAttachmentDiskPath,
   requestIdFromChatStoredName,
   buildChatFileUrl,
-  absoluteChatFileUrl,
   isAllowedChatMime,
 };

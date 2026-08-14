@@ -18,8 +18,31 @@ async function verifyIntegrationBearer(request, reply) {
   }
 }
 
+function authenticateUserOrIntegrationBearer(fastify) {
+  return async function authenticateUserOrIntegration(request, reply) {
+    const header = request.headers.authorization || '';
+    const match = /^Bearer\s+(.+)$/i.exec(header);
+    const token = match ? match[1].trim() : '';
+    const expected = String(fastify.config.integrationBearerToken || '').trim();
+    if (expected && token && timingSafeEqualString(token, expected)) {
+      return;
+    }
+    try {
+      const decoded = await request.jwtVerify();
+      if (decoded?.aud === 'admin') {
+        await fastify.authenticateAdmin(request, reply);
+        return;
+      }
+    } catch {
+      // fall through to authenticate (user JWT)
+    }
+    await fastify.authenticate(request, reply);
+  };
+}
+
 module.exports = {
   verifyIntegrationBearer,
   isIntegrationBearerRequest,
   integrationBearerTokenFromRequest,
+  authenticateUserOrIntegrationBearer,
 };

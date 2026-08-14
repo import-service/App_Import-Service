@@ -1,6 +1,7 @@
-const fs = require('fs');
-const { verifyIntegrationBearer, isIntegrationBearerRequest } = require('../util/integrationAuth');
+const { verifyIntegrationBearer, authenticateUserOrIntegrationBearer } = require('../util/integrationAuth');
 const { mpOrganizationId } = require('../util/requestOrganizationAccess');
+const { integrationFileUploadPayload } = require('../util/integrationFileUrl');
+const { serveRequestOrChatFile, serveChatFileLegacyAlias, UPLOAD_ROOT } = require('../services/requestFileDownload');
 const {
   createMessageFrom1c,
   createMessageFromUser,
@@ -10,13 +11,10 @@ const {
   resolveChatPartyNames,
   findRequestByExternal1cId,
   normalize,
-  publicBaseFromFastify,
 } = require('../services/chatMessageOps');
 const {
   ensureChatUploadDir,
   saveChatAttachment,
-  chatAttachmentDiskPath,
-  requestIdFromChatStoredName,
 } = require('../services/chatAttachmentStorage');
 const { parseChatAttachmentJsonBody } = require('../util/uploadBase64');
 
@@ -81,8 +79,7 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       );
 
       const parties = await resolveChatPartyNames(fastify.pool, id);
-      const base = publicBaseFromFastify(fastify, request);
-      const items = rows.map((r) => messageDto(r, ar.row.external_1c_id, parties, base));
+      const items = rows.map((r) => messageDto(r, ar.row.external_1c_id, parties));
 
       return reply.send({ items, limit, beforeId: beforeId || null });
     },
@@ -228,7 +225,6 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         fastify.pool,
         requestId,
         external1cId,
-        publicBaseFromFastify(fastify, request),
       );
       return reply.send({
         items,
@@ -343,12 +339,7 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         clientFileName,
         mimeType,
       });
-      return reply.send({
-        fileUrl: saved.absoluteFileUrl || saved.fileUrl,
-        fileName: saved.fileName,
-        mimeType: saved.mimeType,
-        fileSizeBytes: saved.fileSizeBytes,
-      });
+      return reply.code(201).send(integrationFileUploadPayload(saved));
     } catch (e) {
       return reply.code(400).send({
         error: 'VALIDATION_ERROR',
@@ -421,43 +412,9 @@ module.exports = async function customsRequestChatRoutes(fastify) {
 
   fastify.get(
     '/chat-attachments/:storedName',
-    {
-      onRequest: [
-        async function authChatFile(request, reply) {
-          if (isIntegrationBearerRequest(request)) return;
-          try {
-            await request.jwtVerify();
-          } catch {
-            return reply.code(401).send({ error: 'UNAUTHORIZED' });
-          }
-        },
-      ],
-    },
+    { onRequest: [authenticateUserOrIntegrationBearer(fastify)] },
     async (request, reply) => {
-      const storedName = normalize(request.params.storedName);
-      const diskPath = chatAttachmentDiskPath(storedName);
-      if (!diskPath || !fs.existsSync(diskPath)) {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
-      }
-      const requestId = requestIdFromChatStoredName(storedName);
-      if (!isIntegrationBearerRequest(request)) {
-        const orgId = mpOrganizationId(request);
-        if (requestId > 0 && orgId != null) {
-          const ar = await assertRequestChatAvailable(fastify.pool, requestId, orgId);
-          if (!ar.ok) {
-            return reply.code(404).send({ error: 'NOT_FOUND' });
-          }
-        }
-      }
-      const stream = fs.createReadStream(diskPath);
-      const ext = storedName.toLowerCase();
-      let contentType = 'application/octet-stream';
-      if (ext.endsWith('.pdf')) contentType = 'application/pdf';
-      else if (ext.endsWith('.png')) contentType = 'image/png';
-      else if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) contentType = 'image/jpeg';
-      else if (ext.endsWith('.webp')) contentType = 'image/webp';
-      else if (ext.endsWith('.gif')) contentType = 'image/gif';
-      return reply.type(contentType).send(stream);
+      return serveChatFileLegacyAlias(fastify, request, reply, UPLOAD_ROOT);
     },
   );
 };

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/push/chat_screen_presence.dart';
@@ -561,7 +562,11 @@ class _ChatBubble extends StatelessWidget {
                               padding: const EdgeInsets.only(bottom: 4),
                               child: InkWell(
                                 onTap: () async {
-                                  final uri = Uri.tryParse(a.fileUrl.trim());
+                                  final resolved = _resolveChatAttachmentUrl(
+                                    a.fileUrl.trim(),
+                                  );
+                                  if (resolved == null) return;
+                                  final uri = Uri.tryParse(resolved);
                                   if (uri == null) return;
                                   await launchUrl(
                                     uri,
@@ -640,4 +645,16 @@ class _ChatBubble extends StatelessWidget {
       return DateFormat('HH:mm').format(d.toLocal());
     }
   }
+}
+
+String? _resolveChatAttachmentUrl(String rawUrl) {
+  final value = rawUrl.trim();
+  if (value.isEmpty) return null;
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  final base = ApiConfig.baseUrl.trim();
+  final normalized = base.endsWith('/') ? base : '$base/';
+  final apiUri = Uri.parse(normalized);
+  return apiUri
+      .resolve(value.startsWith('/') ? value.substring(1) : value)
+      .toString();
 }

@@ -1,4 +1,4 @@
-const { maxBytesForUpload, formatLimitMb } = require('../constants/uploadLimits');
+const { maxBytesForUpload, formatLimitMb, LIMIT_PHOTO_DOC_BYTES } = require('../constants/uploadLimits');
 const { resolveFileKind } = require('./fileKindDetect');
 
 /** Поля base64, которые может прислать 1С (HTTPЗапрос + JSON). */
@@ -62,7 +62,15 @@ function decodeBase64Payload(raw) {
   return { buffer, mimeType: null };
 }
 
-function parseOneCUploadJsonBody(body) {
+/**
+ * Общий парсер JSON + base64 для 1С (заявка и чат).
+ * @param {object} body
+ * @param {{ requireDocType?: boolean, requireUploadBatch?: boolean }} options
+ */
+function parseIntegrationFileBase64Body(body, options = {}) {
+  const requireDocType = Boolean(options.requireDocType);
+  const requireUploadBatch = Boolean(options.requireUploadBatch);
+
   const external1cId = normalize(body?.external1cId);
   const docType = normalize(body?.docType);
   const uploadIndex = Number(body?.uploadIndex);
@@ -73,7 +81,7 @@ function parseOneCUploadJsonBody(body) {
   if (!external1cId) {
     throw new Error('VALIDATION_ERROR: external1cId обязателен');
   }
-  if (!docType) {
+  if (requireDocType && !docType) {
     throw new Error('VALIDATION_ERROR: docType обязателен');
   }
 
@@ -86,56 +94,58 @@ function parseOneCUploadJsonBody(body) {
     mimeType: declaredMime || 'application/octet-stream',
   });
   const finalMime = kind.mimeType;
-  const maxBytes = maxBytesForUpload(docType, finalMime);
+  const maxBytes = requireDocType
+    ? maxBytesForUpload(docType, finalMime)
+    : LIMIT_PHOTO_DOC_BYTES;
   if (buffer.length > maxBytes) {
     throw new Error(`VALIDATION_ERROR: файл больше ${formatLimitMb(maxBytes)}`);
   }
 
-  return {
-    external1cId,
-    docType,
-    uploadIndex,
-    uploadTotal,
-    fileName,
-    mimeType: finalMime,
-    sourceMimeType: declaredMime || null,
-    buffer,
-  };
-}
-
-/**
- * JSON + base64 для вложения чата (1С). Без docType / uploadIndex.
- */
-function parseChatAttachmentJsonBody(body) {
-  const external1cId = normalize(body?.external1cId);
-  const fileName = normalize(body?.fileName || body?.file_name || body?.name);
-  const mimeType = normalize(body?.mimeType || body?.mime_type || body?.contentType);
-
-  if (!external1cId) {
-    throw new Error('VALIDATION_ERROR: external1cId обязателен');
-  }
-
-  const { buffer, mimeType: mimeFromDataUrl } = decodeBase64Payload(extractBase64FromBody(body));
-  const declaredMime = mimeType || mimeFromDataUrl || '';
-  const kind = resolveFileKind({
-    buffer,
-    clientFileName: fileName,
-    mimeType: declaredMime || 'application/octet-stream',
-  });
-  const finalMime = kind.mimeType;
-  // Чат: только фото/PDF, лимит как у документов (проверяется в saveChatAttachment).
-  return {
+  const result = {
     external1cId,
     fileName: fileName || undefined,
     mimeType: finalMime,
     sourceMimeType: declaredMime || null,
     buffer,
   };
+
+  if (requireDocType) {
+    result.docType = docType;
+    result.uploadIndex = uploadIndex;
+    result.uploadTotal = uploadTotal;
+  }
+
+  if (requireUploadBatch && requireDocType) {
+    if (!Number.isFinite(uploadIndex) || uploadIndex < 1) {
+      throw new Error('VALIDATION_ERROR: uploadIndex обязателен');
+    }
+    if (!Number.isFinite(uploadTotal) || uploadTotal < 1) {
+      throw new Error('VALIDATION_ERROR: uploadTotal обязателен');
+    }
+  }
+
+  return result;
+}
+
+function parseOneCUploadJsonBody(body) {
+  return parseIntegrationFileBase64Body(body, {
+    requireDocType: true,
+    requireUploadBatch: false,
+  });
+}
+
+/** JSON + base64 для вложения чата (1С). Без docType / uploadIndex. */
+function parseChatAttachmentJsonBody(body) {
+  return parseIntegrationFileBase64Body(body, {
+    requireDocType: false,
+    requireUploadBatch: false,
+  });
 }
 
 module.exports = {
   parseOneCUploadJsonBody,
   parseChatAttachmentJsonBody,
+  parseIntegrationFileBase64Body,
   extractBase64FromBody,
   decodeBase64Payload,
 };

@@ -1,8 +1,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { randomUUID } = require('crypto');
-const { verifyIntegrationBearer, isIntegrationBearerRequest } = require('../util/integrationAuth');
-const { timingSafeEqualString } = require('../util/security');
+const { verifyIntegrationBearer, isIntegrationBearerRequest, authenticateUserOrIntegrationBearer } = require('../util/integrationAuth');
 const {
   CUSTOMS_REQUEST_SELECT,
   toCustomsRequestDto,
@@ -27,6 +26,7 @@ const {
 const { assertFileSizeAllowed } = require('../constants/uploadLimits');
 const { recordUploadAndMaybeSync } = require('../services/uploadBatchSync');
 const { parseOneCUploadJsonBody } = require('../util/uploadBase64');
+const { integrationFileUploadPayload } = require('../util/integrationFileUrl');
 const { unlinkIfExists } = require('../util/imagePreview');
 const {
   notifyNewCustomsRequest,
@@ -38,6 +38,7 @@ const {
   isMpJwtRequest,
   denyUnlessOwnsRequest,
 } = require('../util/requestOrganizationAccess');
+const { serveRequestOrChatFile } = require('../services/requestFileDownload');
 
 const RATING_ALLOWED_STATUSES = new Set(['delivered', 'closed']);
 const RATING_COMMENT_MAX = 500;
@@ -89,29 +90,6 @@ function multipartFieldValue(fields, name) {
   const f = fields?.[name];
   if (!f) return '';
   return String(f.value ?? '').trim();
-}
-
-function authenticateUserOrIntegrationBearer(fastify) {
-  return async function authenticateUserOrIntegration(request, reply) {
-    const header = request.headers.authorization || '';
-    const match = /^Bearer\s+(.+)$/i.exec(header);
-    const token = match ? match[1].trim() : '';
-    const expected = String(fastify.config.integrationBearerToken || '').trim();
-    if (expected && token && timingSafeEqualString(token, expected)) {
-      return;
-    }
-    // Admin JWT (aud: admin) → admin_sessions; иначе JWT МП → user_sessions.
-    try {
-      const decoded = await request.jwtVerify();
-      if (decoded?.aud === 'admin') {
-        await fastify.authenticateAdmin(request, reply);
-        return;
-      }
-    } catch {
-      // fall through to authenticate (user JWT)
-    }
-    await fastify.authenticate(request, reply);
-  };
 }
 
 function normalize(v) {
@@ -298,19 +276,20 @@ async function finalizeCustomsUpload(fastify, request, reply, {
     });
   }
 
-  return reply.code(201).send({
-    ok: true,
-    batchComplete: batchInfo.batchComplete,
-    file: {
-      docType: saved.docType,
-      fileName: saved.fileName,
-      mimeType: saved.mimeType,
-      fileSizeBytes: saved.fileSizeBytes,
-      fileUrl: saved.fileUrl,
-      previewUrl: saved.previewUrl || null,
-      replaced: saved.replaced,
-    },
-  });
+  return reply.code(201).send(
+    integrationFileUploadPayload(
+      {
+        docType: saved.docType,
+        fileName: saved.fileName,
+        mimeType: saved.mimeType,
+        fileSizeBytes: saved.fileSizeBytes,
+        fileUrl: saved.fileUrl,
+        previewUrl: saved.previewUrl || null,
+        replaced: saved.replaced,
+      },
+      { batchComplete: batchInfo.batchComplete },
+    ),
+  );
 }
 
 module.exports = async function customsRequestsRoutes(fastify) {
@@ -1110,50 +1089,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
     '/customs-requests/files/:storedName',
     { onRequest: [authenticateUserOrIntegrationBearer(fastify)] },
     async (request, reply) => {
-      const storedName = sanitizeFileName(request.params.storedName);
-      const filePath = path.join(UPLOAD_ROOT, storedName);
-
-      try {
-        const [rows] = await fastify.pool.query(
-          `SELECT f.mime_type, f.stored_name, f.preview_stored_name, r.organization_id
-           FROM customs_request_files f
-           INNER JOIN customs_requests r ON r.id = f.request_id AND r.deleted_at IS NULL
-           WHERE f.deleted_at IS NULL
-             AND (f.stored_name = ? OR f.preview_stored_name = ?)
-           LIMIT 1`,
-          [storedName, storedName],
-        );
-        if (!rows.length) {
-          return reply.code(404).send({ error: 'NOT_FOUND' });
-        }
-
-        if (isMpJwtRequest(request)) {
-          const orgId = mpOrganizationId(request);
-          if (!orgId || Number(rows[0].organization_id) !== orgId) {
-            return reply.code(404).send({ error: 'NOT_FOUND' });
-          }
-        }
-
-        const isPreview =
-          rows[0].preview_stored_name &&
-          String(rows[0].preview_stored_name) === storedName;
-        const mimeType = isPreview
-          ? 'image/jpeg'
-          : rows[0].mime_type || 'application/octet-stream';
-
-        const stat = await fs.stat(filePath);
-        if (!stat.isFile()) {
-          return reply.code(404).send({ error: 'NOT_FOUND' });
-        }
-
-        return reply.type(mimeType).send(await fs.readFile(filePath));
-      } catch (e) {
-        if (e.code === 'ENOENT') {
-          return reply.code(404).send({ error: 'NOT_FOUND' });
-        }
-        fastify.log.error(e);
-        return reply.code(500).send({ error: 'INTERNAL_ERROR' });
-      }
+      return serveRequestOrChatFile(fastify, request, reply, UPLOAD_ROOT);
     },
   );
 };

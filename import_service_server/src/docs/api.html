@@ -247,7 +247,7 @@
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
   "rating": 3,
   "comment": "Пожелания к работе (опционально, до 500 символов; при rating &gt; 3 игнорируется)"
-}</pre><p><b>Правила:</b> только статусы <code>delivered</code> / <code>closed</code>; повтор — <code>409 ALREADY_RATED</code>. Письмо на <code>CUSTOMS_REQUEST_MAIL_TO</code> (по умолчанию <code>info@import-service.ru</code>). В 1С не уходит. В DTO: <code>clientRating</code>, <code>clientRatingComment</code>, <code>clientRatedAt</code>.</p><p><b>Success:</b> тело заявки (как GET <code>/api/customs-requests/:id</code>).</p><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 ALREADY_RATED</code> / <code>409 RATING_NOT_ALLOWED</code></li></ul></div>
+}</pre><p><b>Правила:</b> только статусы <code>delivered</code> / <code>closed</code>; повтор — <code>409 ALREADY_RATED</code>. Письмо на <code>CUSTOMS_REQUEST_MAIL_TO</code> (по умолчанию <code>info@import-service.su</code>). В 1С не уходит. В DTO: <code>clientRating</code>, <code>clientRatingComment</code>, <code>clientRatedAt</code>.</p><p><b>Success:</b> тело заявки (как GET <code>/api/customs-requests/:id</code>).</p><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 ALREADY_RATED</code> / <code>409 RATING_NOT_ALLOWED</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id</code><span class="desc">Удаление заявки из МП отключено.</span></summary>
@@ -259,7 +259,16 @@
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/files/:storedName</code><span class="desc">Скачать файл по сохраненной ссылке.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken or Bearer INTEGRATION_BEARER_TOKEN</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>binary</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken or Bearer INTEGRATION_BEARER_TOKEN</p><p>Один endpoint для <b>всех</b> файлов: документы заявки и вложения чата. В ответах API поле <code>fileUrl</code> — всегда relative path: <code>/api/customs-requests/files/{storedName}</code>. В 1С: хост в <code>HTTPСоединение</code>, в <code>HTTPЗапрос</code> — только этот path (не целый URL).</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>binary</pre><p><b>Errors (404 JSON, не binary):</b></p><pre>{
+  "error": "FILE_NOT_ON_DISK",
+  "message": "Вложение чата: файл отсутствует на диске сервера",
+  "storedName": "r18_abc….jpg",
+  "requestedStoredName": "r18_abc….jpg",
+  "fileUrl": "/api/customs-requests/files/r18_abc….jpg",
+  "absoluteFileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/r18_abc….jpg",
+  "fileKind": "chat",
+  "details": "chat_attachment_missing_on_disk"
+}</pre><p>Коды <code>error</code>:</p><ul><li><code>FILE_NOT_ON_DISK</code> — записи/имени достаточно, но бинарника на диске нет</li><li><code>FILE_NOT_FOUND</code> — общий «не найден»</li><li><code>INVALID_STORED_NAME</code> — имя не распознано</li><li><code>FILE_ACCESS_DENIED</code> / <code>CHAT_FILE_ACCESS_DENIED</code> — нет доступа (JWT МП)</li></ul><p>Для 1С с <code>INTEGRATION_BEARER_TOKEN</code> доступ обычно открыт; 404 почти всегда = файла нет на диске или неверное имя.</p><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>404</code> + JSON выше</li><li><code>500 INTERNAL_ERROR</code></li></ul></div>
         </details>
       </section>
 
@@ -332,17 +341,20 @@
             <p><b>Content-Type:</b> <code>multipart/form-data</code>, поле <code>file</code>.</p>
             <p><b>Лимиты:</b> изображения и PDF, до 25 МБ.</p>
             <p><b>Success:</b></p><pre>{
-  "fileUrl": "{{BASE_URL}}/api/chat-attachments/chat_123_….pdf",
-  "fileName": "scan.pdf",
-  "mimeType": "application/pdf",
-  "fileSizeBytes": 102400
+  "ok": true,
+  "file": {
+    "fileUrl": "/api/customs-requests/files/r123_….pdf",
+    "fileName": "scan.pdf",
+    "mimeType": "application/pdf",
+    "fileSizeBytes": 102400
+  }
 }</pre>
             <p>Дальше передать объект в <code>attachments[]</code> при <code>POST …/messages</code>.</p>
             <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method get">GET</span><code class="path">/api/chat-attachments/:storedName</code><span class="desc">Скачать вложение чата.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken или <code>INTEGRATION_BEARER_TOKEN</code></p><p>В WSS/истории <code>attachments[].fileUrl</code> — <b>полный HTTPS</b> (<code>{{BASE_URL}}/api/chat-attachments/…</code>), не относительный путь. Скачивать по HTTPS GET, не через WSS.</p></div>
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/chat-attachments/:storedName</code><span class="desc">Legacy: то же, что GET /api/customs-requests/files/:storedName.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken или <code>INTEGRATION_BEARER_TOKEN</code></p><p>Алиас для старых ссылок. Используйте <code>/api/customs-requests/files/:storedName</code>. В WSS/истории <code>attachments[].fileUrl</code> — relative <code>/api/customs-requests/files/r123_….jpg</code>.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/push/tokens</code><span class="desc">Зарегистрировать FCM-токен устройства для push.</span></summary>
@@ -453,7 +465,7 @@
       "docType": "contract_sign",
       "fileName": "contract_sign.pdf",
       "mimeType": "application/pdf",
-      "fileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/uuid.pdf"
+      "fileUrl": "/api/customs-requests/files/uuid.pdf"
     }
   ]
 }</pre>
@@ -484,7 +496,7 @@
   "text": "Добрый день, подскажите по сроку выпуска",
   "attachments": [
     {
-      "fileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/uuid.pdf",
+      "fileUrl": "/api/customs-requests/files/uuid.pdf",
       "fileName": "question.pdf",
       "mimeType": "application/pdf"
     }
@@ -640,7 +652,7 @@
     <section id="panel-integration" class="panel">
       <div class="panel-intro">
         <strong>Направление: 1С → сервер.</strong> Эндпоинты на <code>{{BASE_URL}}</code> с интеграционным Bearer.
-        <p><b>Файлы 1С → МП:</b> <code>POST /api/customs-requests/upload</code> — для 1С <b>JSON + base64</b> (см. карточку upload). Метаданные — <code>state</code>. <b>Файлы МП → 1С</b> — отдельный роут на стороне 1С (вкладка <a href="/docs/onec">API 1С (внешний HTTP)</a>). Коды: <a href="/docs/catalogs">Справочники</a>.</p>
+        <p><b>Файлы (заявка и чат):</b> upload — JSON + <code>fileBase64</code>; в ответе <code>file.fileUrl</code> = <code>/api/customs-requests/files/…</code>. Скачивание — один GET с тем же path и Bearer <code>INTEGRATION_BEARER_TOKEN</code>. Метаданные заявки — <code>state</code> (без файлов). <b>Файлы МП → 1С</b> — роут на стороне 1С (вкладка <a href="/docs/onec">API 1С (внешний HTTP)</a>).</p>
       </div>
 
       <section class="group">
@@ -660,6 +672,13 @@
               <li>Сразу push в МП</li>
             </ol>
             <p><b>3. Суммы и менеджер</b> — <code>state</code>: <code>advancePayment</code>, <code>actualPayment</code> (строка, руб.), <code>managerExternal1cId</code>, …</p>
+            <p><b>4. Вложение чата (1С → сервер)</b></p>
+            <ol>
+              <li><code>POST /api/integration/customs-request-messages/attachments?external1cId=…</code> — JSON + <code>fileBase64</code> (как upload заявки, без docType)</li>
+              <li>Ответ: <code>{ "ok": true, "file": { "fileUrl": "/api/customs-requests/files/r123_….pdf", … } }</code></li>
+              <li>Передать <code>fileUrl</code> в <code>attachments[]</code> сообщения (HTTP или WSS <code>send</code>)</li>
+            </ol>
+            <p><b>5. Скачивание любого файла</b> — <code>GET /api/customs-requests/files/:storedName</code>, Bearer integration. В <code>HTTPЗапрос</code> кладите только path из <code>fileUrl</code>, хост — в соединение.</p>
           </div>
         </details>
       </section>
@@ -687,7 +706,7 @@
       "docType": "contract_sign",
       "fileName": "contract_sign.pdf",
       "mimeType": "application/pdf",
-      "fileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/GUID__contract_sign.pdf"
+      "fileUrl": "/api/customs-requests/files/GUID__contract_sign.pdf"
     }
   ]
 }</pre>
@@ -880,7 +899,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
     "files": [
       {
         "docType": "contract",
-        "fileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/GUID__contract.pdf"
+        "fileUrl": "/api/customs-requests/files/GUID__contract.pdf"
       }
     ]
   }
@@ -999,10 +1018,13 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
             <p><b>Лимиты:</b> изображения и PDF, до 25 МБ.</p>
             <p><b>Пример URL:</b></p><pre>{{BASE_URL}}/api/integration/customs-request-messages/attachments?external1cId=GUID-REQUEST-1C</pre>
             <p><b>Success:</b></p><pre>{
-  "fileUrl": "{{BASE_URL}}/api/chat-attachments/chat_123_….pdf",
-  "fileName": "scan.pdf",
-  "mimeType": "application/pdf",
-  "fileSizeBytes": 102400
+  "ok": true,
+  "file": {
+    "fileUrl": "/api/customs-requests/files/r123_….pdf",
+    "fileName": "scan.pdf",
+    "mimeType": "application/pdf",
+    "fileSizeBytes": 102400
+  }
 }</pre>
             <p>Дальше передать объект в <code>attachments[]</code> при HTTP <code>POST …/customs-request-messages</code> или в WSS <code>send</code> (вкладка <a href="/docs/wss1c">WSS для 1С</a>).</p>
             <p>Если у 1С уже есть публичный <code>fileUrl</code> — upload на наш сервер не обязателен.</p>
@@ -1118,7 +1140,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   "recipientName": "Иванов",
   "attachments": [
     {
-      "fileUrl": "{{BASE_URL}}/api/chat-attachments/r123_….pdf",
+      "fileUrl": "/api/customs-requests/files/r123_….pdf",
       "fileName": "question.pdf",
       "mimeType": "application/pdf"
     }
@@ -1152,11 +1174,14 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
             </table>
             <p><b>Multipart (опционально):</b> query <code>external1cId</code>, поле <code>file</code>.</p>
             <p><b>Лимиты:</b> изображения и PDF, до 25 МБ.</p>
-            <p><b>Success:</b></p><pre>{
-  "fileUrl": "{{BASE_URL}}/api/chat-attachments/r123_….pdf",
-  "fileName": "scan.pdf",
-  "mimeType": "application/pdf",
-  "fileSizeBytes": 102400
+            <p><b>Success (201):</b></p><pre>{
+  "ok": true,
+  "file": {
+    "fileUrl": "/api/customs-requests/files/r123_….pdf",
+    "fileName": "scan.pdf",
+    "mimeType": "application/pdf",
+    "fileSizeBytes": 102400
+  }
 }</pre>
             <p>Дальше объект в <code>attachments[]</code> при WSS <code>{ "type": "send", … }</code>, HTTP POST сообщений или в теле исходящего <code>customs-request-chat</code> (сервер сам кладёт ссылки из МП).</p>
             <p>Если у 1С уже есть публичный <code>fileUrl</code> — upload на наш сервер не обязателен.</p>
