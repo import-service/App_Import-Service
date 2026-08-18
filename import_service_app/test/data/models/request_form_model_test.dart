@@ -18,8 +18,6 @@ void main() {
       vin: 'VIN12345678901234',
       hasSunroof: false,
       hasAllWheelDrive: false,
-      wasInRussiaLast12Months: false,
-      hasOtherCars: false,
       comment: '',
     );
 

@@ -125,11 +125,17 @@
   "individualSnils": "123-456-789 00",
   "carMake": "Toyota",
   "carModel": "Crown",
-  "vin": "VIN12345678901234"
+  "vin": "VIN12345678901234",
+  "hasSunroof": false,
+  "hasAllWheelDrive": false,
+  "previousImportDates": ["2025-11-02"],
+  "ownedVehicles": [{ "name": "Toyota Camry", "year": 2018 }]
 }
 ```
 
 МП может отправить **`legalInn`** и/или **`inn`** с одним значением (10 или 12 цифр). Это **поле анкеты**, не путать с `docType: "inn"` — скан ИНН в `files[]` при upload.
+
+**Ввоз за 12 мес. / другие авто:** не галочки. Списки `previousImportDates` (`YYYY-MM-DD`) и `ownedVehicles` (`name` + `year`). Пустой список = нет. Сервер выставляет `importedLast12Months` / `ownsOtherCars` сам.
 
 Далее N× `upload` (см. ниже). Обязательные `docType` — при upload, не в теле create:
 
@@ -219,6 +225,8 @@ Multipart: `requestId`, `docType`, `file`, `uploadIndex`, `uploadTotal`.
 
 Push `request_files_update` — после upload от 1С; в `data.changedDocTypes` — список docType.
 
+Если в батче есть оригиналы пакета на подпись (`contract`, `kuts`, …), сервер добавляет в чат одно служебное сообщение: `authorType: "system"`, `isSystem: true`. В МП оно показывается отдельно от пузырей менеджера. Архив/квитанции в чат не пишутся.
+
 ## Push-уведомления (FCM)
 
 Регистрация токена: `POST /api/push/register` (см. код `src/routes/push.js`).
@@ -278,6 +286,14 @@ Push `request_files_update` — после upload от 1С; в `data.changedDocT
 ## Чат по заявке
 
 Чат доступен только после появления `external1cId`.
+
+### GET /api/customs-requests/chats
+
+Список чатов организации (МП, вкладка «Чаты»). Auth: JWT пользователя.
+
+Успех: `{ items: [{ requestId, carMake, carModel, vin, managerFullName, external1cId, lastText, lastAt, unread, unreadCount }] }`.
+
+Непрочитанное: входящие `from_1c` с `read_by_user_at IS NULL`. Сбрасывается `POST …/messages/read` при открытии чата.
 
 Ограничения:
 

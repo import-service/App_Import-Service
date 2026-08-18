@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Заявка из МП → 1С: какие поля брать</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f3f4f6; color: #111827; line-height: 1.45; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 48px; }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    h2 { margin: 28px 0 10px; font-size: 18px; }
+    .sub { color: #4b5563; margin: 0 0 18px; }
+    .note { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; margin: 0 0 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 14px; background: #fff; }
+    th, td { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; white-space: nowrap; }
+    code { font-family: Consolas, "Courier New", monospace; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+    pre { background: #111827; color: #f9fafb; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.4; }
+    .muted { color: #6b7280; font-size: 13px; }
+    ol.q { padding-left: 22px; }
+    @media print {
+      body { background: #fff; }
+      .wrap { max-width: none; padding: 0; }
+      pre { white-space: pre-wrap; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Заявка из приложения → 1С: какие поля брать</h1>
+    <p class="sub">Import Service. Источник данных: тело <b>создания заявки</b> (HTTP POST на URL create из админки). Не из файлов и не из <code>state</code>.</p>
+    <div class="note">
+      Сервер шлёт в 1С JSON после того, как клиент создал заявку и загрузил файлы.
+      Ответ 1С на create: <code>requestId</code>, <code>external1cId</code>.
+      Документация: <a href="https://157-22-173-7.sslip.io/docs/onec">https://157-22-173-7.sslip.io/docs/onec</a>
+    </div>
+
+    <h2>1. Юрлицо (от кого пришла заявка)</h2>
+    <p>Брать из анкеты create, не из сканов.</p>
+    <table>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>legalEntityName</code></td><td>ООО Вектор</td><td>Наименование ЮЛ / ИП / физлица-заявителя</td></tr>
+      <tr><td><code>legalInn</code></td><td>7707083893</td><td>ИНН, 10 или 12 цифр</td></tr>
+      <tr><td><code>inn</code></td><td>7707083893</td><td>Алиас, то же значение, что <code>legalInn</code></td></tr>
+      <tr><td><code>legalEmail</code></td><td>mail@example.com</td><td>Email организации</td></tr>
+      <tr><td><code>legalPhone</code></td><td>+79990000000</td><td>Телефон организации</td></tr>
+    </table>
+    <p>Физлицо (владелец авто / на кого заявка) — отдельные поля:</p>
+    <table>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>individualFullName</code></td><td>Иванов Иван Иванович</td><td>ФИО</td></tr>
+      <tr><td><code>individualPhone</code></td><td>+79991112233</td><td>Телефон</td></tr>
+      <tr><td><code>individualSnils</code></td><td>123-456-789 00</td><td>СНИЛС</td></tr>
+    </table>
+    <p class="muted">Если в карточке 1С юрлицо пустое — эти поля с create не разобраны.</p>
+
+    <h2>2. Оповещение, что пришла новая заявка</h2>
+    <p>Отдельного поля «уведоми менеджера» нет. Заявка уже приходит create’ом. Колокольчик / задача / почта менеджеру — логика 1С после успешного приёма create.</p>
+
+    <h2>3. Марка и модель автомобиля</h2>
+    <table>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>carMake</code></td><td>Toyota</td><td>Марка</td></tr>
+      <tr><td><code>carModel</code></td><td>Crown</td><td>Модель</td></tr>
+      <tr><td><code>vin</code></td><td>VIN12345678901234</td><td>VIN</td></tr>
+    </table>
+    <p class="muted">Тоже из create, не из файлов. Если в 1С пусто — поля не смаплены.</p>
+
+    <h2>4. Ввоз авто за 12 месяцев и даты ввоза</h2>
+    <p>В приложении галочки нет. Есть список дат. Пустой массив = не ввозили.</p>
+    <table>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>previousImportDates</code></td><td>["2025-11-02", "2026-03-15"]</td><td>Даты ввоза, формат <code>YYYY-MM-DD</code></td></tr>
+      <tr><td><code>importedLast12Months</code></td><td>true</td><td>Сервер считает сам: true, если массив дат не пустой</td></tr>
+    </table>
+    <p>Для пояснения в 1С использовать <b>даты</b> из <code>previousImportDates</code>, не только boolean.</p>
+
+    <h2>5. Авто в собственности (название и год → в пояснение)</h2>
+    <p>Галочки нет. Есть список. Пустой массив = других авто нет.</p>
+    <table>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>ownedVehicles</code></td><td>см. JSON ниже</td><td>Массив объектов: наименование + год выпуска</td></tr>
+      <tr><td><code>ownedVehicles[].name</code></td><td>Toyota Camry</td><td>Марка и модель</td></tr>
+      <tr><td><code>ownedVehicles[].year</code></td><td>2018</td><td>Год выпуска, число</td></tr>
+      <tr><td><code>ownsOtherCars</code></td><td>true</td><td>Сервер считает сам: true, если список не пустой</td></tr>
+    </table>
+<pre>{
+  "ownedVehicles": [
+    { "name": "Toyota Camry", "year": 2018 },
+    { "name": "Hyundai Solaris", "year": 2020 }
+  ]
+}</pre>
+    <p>В пояснение: по каждой строке <code>name</code> и <code>year</code>.</p>
+
+    <h2>6. Клиент прикрепил не тот документ или плохое качество</h2>
+    <p>Отдельного поля «брак паспорта» нет.</p>
+    <table>
+      <tr><th>Что сделать в 1С</th><th>Как клиент видит / что делает</th></tr>
+      <tr><td>Написать в чат заявки</td><td>Сообщение в приложении</td></tr>
+      <tr><td>Или <code>POST /api/integration/customs-requests/state</code> с <code>statusSubType</code> = <code>signature_revision_required</code></td><td>Подсказка в МП (типично для брака подписи)</td></tr>
+      <tr><td>Клиент снова upload с тем же <code>docType</code> (например <code>passport_front</code>, <code>inn</code>)</td><td>Файл на сервере перезаписывается, сервер отдаёт 1С update файлов</td></tr>
+    </table>
+
+    <h2>7. Готовые документы на подпись обратно в приложение</h2>
+    <p>Недостаточно прикрепить файл только в карточке 1С. Нужен <b>upload на сервер Import Service</b>.</p>
+    <table>
+      <tr><th>Шаг</th><th>Кто</th><th>Что</th></tr>
+      <tr><td>1</td><td>1С</td><td><code>POST /api/customs-requests/upload</code> — оригинал, <code>docType</code> без суффикса (например <code>contract</code>, <code>kuts</code>, <code>explanatory_note</code>)</td></tr>
+      <tr><td>2</td><td>Сервер</td><td>Кладёт файл в заявку, пуш в МП</td></tr>
+      <tr><td>3</td><td>Клиент в МП</td><td>Скачивает оригинал, подписывает</td></tr>
+      <tr><td>4</td><td>Клиент в МП</td><td>Upload с <code>docType</code> + <code>_sign</code>: <code>contract_sign</code>, <code>kuts_sign</code> и т.д.</td></tr>
+    </table>
+    <p><code>state</code> файлов не содержит — только статус, менеджер, суммы. Файлы только через upload.</p>
+
+    <h2>Прочие поля анкеты (тоже с create)</h2>
+    <table>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>requestId</code></td><td>123</td><td>Id заявки на сервере</td></tr>
+      <tr><td><code>hasSunroof</code></td><td>false</td><td>Люк / панорамная крыша</td></tr>
+      <tr><td><code>hasAllWheelDrive</code></td><td>false</td><td>Полный привод</td></tr>
+      <tr><td><code>commentText</code></td><td>null или текст</td><td>Комментарий клиента</td></tr>
+      <tr><td><code>files[]</code></td><td>см. ниже</td><td>Документы при подаче: <code>docType</code>, <code>fileName</code>, <code>mimeType</code>, <code>fileUrl</code></td></tr>
+    </table>
+
+    <h2>Пример тела create целиком</h2>
+<pre>{
+  "requestId": 123,
+  "legalEntityName": "ООО Вектор",
+  "legalInn": "7707083893",
+  "inn": "7707083893",
+  "legalEmail": "mail@example.com",
+  "legalPhone": "+79990000000",
+  "individualFullName": "Иванов Иван Иванович",
+  "individualPhone": "+79991112233",
+  "individualSnils": "123-456-789 00",
+  "carMake": "Toyota",
+  "carModel": "Crown",
+  "vin": "VIN12345678901234",
+  "hasSunroof": false,
+  "hasAllWheelDrive": false,
+  "importedLast12Months": true,
+  "ownsOtherCars": true,
+  "previousImportDates": ["2025-11-02"],
+  "ownedVehicles": [
+    { "name": "Toyota Camry", "year": 2018 }
+  ],
+  "commentText": null,
+  "files": [
+    {
+      "docType": "passport_front",
+      "fileName": "passport-front.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "/api/customs-requests/files/GUID__passport_front.jpg"
+    }
+  ]
+}</pre>
+  </div>
+</body>
+</html>

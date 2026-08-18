@@ -5,6 +5,7 @@ const { submitCustomsRequestTo1CFromDb } = require('./oneCRequestCreate');
 const { pushCustomsRequestCreateTo1C } = require('./oneCCreateSync');
 const { pushCustomsRequestUpdateTo1C } = require('./oneCUpdateSync');
 const { notifyFilesChangedFrom1C } = require('./pushNotifications');
+const { createSystemFilesUpdatedMessage } = require('./chatMessageOps');
 const { isDemoApplicantName, completeDemoCreateFromMpUpload, isDemoExternal1cId, tryAdvanceDemoFlow } = require('./demoFlow');
 
 const UPLOAD_ROOT = require('path').join(process.cwd(), 'uploads', 'customs-requests');
@@ -126,6 +127,9 @@ async function syncAfterBatchComplete(fastify, requestId, source, changedDocType
       changedDocTypes,
     }).catch((e) => {
       fastify.log.warn({ requestId, err: e.message }, 'push files changed failed');
+    });
+    await createSystemFilesUpdatedMessage(fastify, { requestId, changedDocTypes }).catch((e) => {
+      fastify.log.warn({ requestId, err: e.message }, 'system chat files_updated failed');
     });
     return { ok: true, action: 'push_mp' };
   }

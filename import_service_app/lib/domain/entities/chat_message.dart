@@ -7,6 +7,7 @@ final class ChatMessage extends Equatable {
     this.clientMessageId,
     required this.text,
     required this.isFrom1c,
+    this.isSystem = false,
     required this.createdAt,
     this.readByUser = false,
     this.readBy1c = false,
@@ -21,6 +22,8 @@ final class ChatMessage extends Equatable {
   final String? clientMessageId;
   final String text;
   final bool isFrom1c;
+  /// Служебное (сервер), не менеджер и не клиент.
+  final bool isSystem;
   final DateTime createdAt;
   /// Входящее от 1С прочитано пользователем МП.
   final bool readByUser;
@@ -44,6 +47,7 @@ final class ChatMessage extends Equatable {
     String? clientMessageId,
     String? text,
     bool? isFrom1c,
+    bool? isSystem,
     DateTime? createdAt,
     bool? readByUser,
     bool? readBy1c,
@@ -58,6 +62,7 @@ final class ChatMessage extends Equatable {
       clientMessageId: clientMessageId ?? this.clientMessageId,
       text: text ?? this.text,
       isFrom1c: isFrom1c ?? this.isFrom1c,
+      isSystem: isSystem ?? this.isSystem,
       createdAt: createdAt ?? this.createdAt,
       readByUser: readByUser ?? this.readByUser,
       readBy1c: readBy1c ?? this.readBy1c,
@@ -87,6 +92,7 @@ final class ChatMessage extends Equatable {
   }
 
   static bool _from1cFromJson(Map<String, dynamic> json) {
+    if (_systemFromJson(json)) return false;
     final a = json['from1c'] ?? json['from_1c'];
     if (a is bool) return a;
     final direction = (json['direction']?.toString().trim().toLowerCase() ?? '');
@@ -97,6 +103,15 @@ final class ChatMessage extends Equatable {
         .toLowerCase();
     if (authorType == 'manager_1c') return true;
     return false;
+  }
+
+  static bool _systemFromJson(Map<String, dynamic> json) {
+    if (json['isSystem'] == true) return true;
+    final authorType = (json['authorType'] ?? json['author_type'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    return authorType == 'system';
   }
 
   static String? _optionalString(Map<String, dynamic> json, List<String> keys) {
@@ -133,6 +148,7 @@ final class ChatMessage extends Equatable {
           json['clientMessageId'] as String? ?? json['client_message_id'] as String?,
       text: text,
       isFrom1c: isFrom1c,
+      isSystem: _systemFromJson(json),
       createdAt: _parseTime(json['createdAt'] ?? json['created_at'] ?? json['ts']) ??
           DateTime.now().toUtc(),
       readByUser: _hasTimestamp(json, ['readByUserAt', 'read_by_user_at']) ||
@@ -176,6 +192,7 @@ final class ChatMessage extends Equatable {
         clientMessageId,
         text,
         isFrom1c,
+        isSystem,
         createdAt,
         readByUser,
         readBy1c,

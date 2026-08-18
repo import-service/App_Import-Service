@@ -1,9 +1,12 @@
 import 'package:dartz/dartz.dart';
 import 'package:import_service_app/core/error/failures.dart';
+import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 
 /// Чат по заявке: REST + при необходимости WSS (см. [RequestChatCubit]).
 abstract class RequestChatRepository {
+  Future<Either<Failure, List<ChatListItem>>> listChats();
+
   Future<Either<Failure, List<ChatMessage>>> loadMessages(
     String requestId, {
     int limit = 50,

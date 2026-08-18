@@ -5,14 +5,18 @@ class HomeBottomNavBar extends StatelessWidget {
   const HomeBottomNavBar({
     super.key,
     required this.currentIndex,
-    required this.profileLabel,
     required this.carsLabel,
+    required this.chatsLabel,
+    required this.profileLabel,
+    required this.hasChatsUnread,
     required this.onTap,
   });
 
   final int currentIndex;
-  final String profileLabel;
   final String carsLabel;
+  final String chatsLabel;
+  final String profileLabel;
+  final bool hasChatsUnread;
   final ValueChanged<int> onTap;
 
   @override
@@ -46,14 +50,29 @@ class HomeBottomNavBar extends StatelessWidget {
         indicatorColor: AppTheme.primaryBlue,
         destinations: [
           NavigationDestination(
-            icon: const Icon(Icons.person_outline),
-            selectedIcon: const Icon(Icons.person),
-            label: profileLabel,
-          ),
-          NavigationDestination(
             icon: const Icon(Icons.directions_car_outlined),
             selectedIcon: const Icon(Icons.directions_car),
             label: carsLabel,
+          ),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: hasChatsUnread,
+              smallSize: 8,
+              backgroundColor: AppTheme.accentRed,
+              child: const Icon(Icons.chat_bubble_outline),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: hasChatsUnread,
+              smallSize: 8,
+              backgroundColor: AppTheme.accentRed,
+              child: const Icon(Icons.chat_bubble),
+            ),
+            label: chatsLabel,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline),
+            selectedIcon: const Icon(Icons.person),
+            label: profileLabel,
           ),
         ],
       ),

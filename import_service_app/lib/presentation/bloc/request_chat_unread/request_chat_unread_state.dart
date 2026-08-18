@@ -9,6 +9,8 @@ final class RequestChatUnreadState extends Equatable {
 
   bool has(String requestId) => requestIds.contains(requestId.trim());
 
+  bool get hasAny => requestIds.isNotEmpty;
+
   @override
   List<Object?> get props => [requestIds];
 }

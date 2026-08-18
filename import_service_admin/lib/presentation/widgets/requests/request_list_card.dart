@@ -6,6 +6,7 @@ import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/core/util/file_url_resolver.dart';
 import 'package:import_service_admin/domain/entities/customs_request.dart';
+import 'package:import_service_admin/presentation/helpers/one_c_error_format.dart';
 import 'package:import_service_admin/presentation/widgets/requests/request_status_pill.dart';
 
 class RequestListCard extends StatelessWidget {
@@ -162,28 +163,68 @@ class RequestListCard extends StatelessWidget {
                           if (needsCreate) ...[
                             const Gap(6),
                             Text(
-                              item.oneCCreateHoursPending != null
-                                  ? 'Create в 1С не отправлен · ${item.oneCCreateHoursPending} ч'
-                                  : 'Create в 1С не отправлен',
+                              formatOneCOutboundHint(
+                                isCreate: true,
+                                lastError: item.oneCCreateLastError,
+                                hoursPending: item.oneCCreateHoursPending,
+                              ),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: AppTheme.accentRed,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (shouldShowOneCDeveloperHint(
+                              item.oneCCreateLastError,
+                            )) ...[
+                              const Gap(2),
+                              Text(
+                                oneCDeveloperContactHint,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: AppTheme.accentRed,
+                                ),
+                              ),
+                            ],
                           ],
                           if (needsUpdate) ...[
                             const Gap(6),
                             Text(
-                              item.oneCUpdateHoursPending != null
-                                  ? 'Update в 1С не доставлен · ${item.oneCUpdateHoursPending} ч'
-                                  : 'Изменения не доставлены в 1С',
+                              formatOneCOutboundHint(
+                                isCreate: false,
+                                lastError: item.oneCUpdateLastError,
+                                hoursPending: item.oneCUpdateHoursPending,
+                              ),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: AppTheme.accentRed,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (shouldShowOneCDeveloperHint(
+                              item.oneCUpdateLastError,
+                            )) ...[
+                              const Gap(2),
+                              Text(
+                                oneCDeveloperContactHint,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: AppTheme.accentRed,
+                                ),
+                              ),
+                            ],
                           ],
-                          if (item.oneCOutboundStaleOver24h) ...[
+                          if (item.oneCOutboundStaleOver24h &&
+                              !shouldShowOneCDeveloperHint(
+                                item.oneCCreateLastError,
+                              ) &&
+                              !shouldShowOneCDeveloperHint(
+                                item.oneCUpdateLastError,
+                              )) ...[
+                            const Gap(4),
+                            Text(
+                              'Более суток не удаётся отправить в 1С. $oneCDeveloperContactHint',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: AppTheme.accentRed,
+                              ),
+                            ),
+                          ] else if (item.oneCOutboundStaleOver24h) ...[
                             const Gap(4),
                             Text(
                               'Более суток не удаётся отправить в 1С',

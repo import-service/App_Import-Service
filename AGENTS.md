@@ -1,5 +1,13 @@
 # Import Service — монорепо (один агент Cursor)
 
+## ПРАВИЛО №1 (важнее всего)
+
+**`.cursor/rules/approve-before-any-action.mdc`**
+
+Пока пользователь не утвердил план («делай» / «ок» / «да») — **запрещены любые tool calls** (SSH, логи, код, деплой, «быстро проверить»). Сначала: разъяснить → план → «Утверждаешь?» → ждать. Вопрос («почему?», «что ответить?») = только текст.
+
+---
+
 ## Как открыть проект
 
 **`import_servis.code-workspace`** в корне репозитория — или папка `D:\Projects\import_servis`.
@@ -9,17 +17,17 @@
 ## Один агент
 
 Пользователь общается с **одним агентом** на app + server + admin + docs.  
-Subagent/Task — на усмотрение исполнителя.
+Subagent/Task — только после утверждённого плана в этом чате.
 
 ## Корневые правила (alwaysApply)
 
 | Файл | Назначение |
 |------|------------|
-| `approve-before-any-action.mdc` | **Сначала** разъяснить → план → утверждение → только потом тулы/код |
+| `approve-before-any-action.mdc` | **№1** — план + утверждение **до** любых тулов |
 | `import-platform-workspace.mdc` | Структура монорепо, порядок end-to-end |
 | `feature-delivery-workflow.mdc` | План → утверждение → код (фичи) |
 | `agent-invariants-never-break.mdc` | commit/push/релиз только по просьбе |
-| `agent-does-setup-never-user-chores.mdc` | Агент сам: analyze, деплой, setup |
+| `agent-does-setup-never-user-chores.mdc` | Агент сам: analyze, деплой, setup (**после** утверждения задачи) |
 | `mandatory-verify-after-code-changes.mdc` | analyze перед «готово» |
 | `project-concept.mdc` | МП ↔ сервер ↔ 1С |
 | `monorepo-scope.mdc` | Границы по задаче, не по «трём агентам» |

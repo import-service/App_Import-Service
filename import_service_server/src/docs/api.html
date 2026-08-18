@@ -151,8 +151,12 @@
   "individualSnils": "123-456-789 00",
   "carMake": "Toyota",
   "carModel": "Crown",
-  "vin": "VIN12345678901234"
-}</pre><p><code>legalInn</code> / <code>inn</code> — ИНН в анкете (10/12 цифр). <code>docType: inn</code> — отдельный файл при upload.</p><p><b>Дальше (МП):</b> N× <code>POST /api/customs-requests/upload</code> с <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code>. На последнем файле сервер создаёт заявку в 1С.</p><p><b>Success:</b></p><pre>{
+  "vin": "VIN12345678901234",
+  "previousImportDates": ["2025-11-02"],
+  "ownedVehicles": [{ "name": "Toyota Camry", "year": 2018 }]
+}</pre><p><code>legalInn</code> / <code>inn</code> — ИНН в анкете (10/12 цифр). <code>docType: inn</code> — отдельный файл при upload.</p>
+<p><b>Ввоз за 12 мес. и другие авто:</b> не галочки. Массивы <code>previousImportDates</code> (<code>YYYY-MM-DD</code>) и <code>ownedVehicles</code> (<code>name</code>, <code>year</code>). Пустой массив = нет. Сервер выставляет <code>importedLast12Months</code> / <code>ownsOtherCars</code> сам.</p>
+<p><b>Дальше (МП):</b> N× <code>POST /api/customs-requests/upload</code> с <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code>. На последнем файле сервер создаёт заявку в 1С.</p><p><b>Success:</b></p><pre>{
   "id": "1",
   "status": "new",
   "legalInn": "7707083893",
@@ -275,6 +279,28 @@
       <section class="group">
         <h2>Чат по заявке</h2>
         <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/chats</code><span class="desc">Список чатов организации (МП, вкладка «Чаты»).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p>
+            <p>Заявки с <code>external1cId</code> (чат доступен). Непрочитанное: входящие <code>direction=from_1c</code> с <code>read_by_user_at IS NULL</code> — точка в МП живёт до открытия чата (там <code>POST …/messages/read</code>).</p>
+            <p><b>Success:</b></p><pre>{
+  "items": [
+    {
+      "requestId": 123,
+      "carMake": "Toyota",
+      "carModel": "Crown",
+      "vin": "VIN12345678901234",
+      "managerFullName": "Иванов И.И.",
+      "external1cId": "onec-req-12345",
+      "lastText": "Принято, проверяем документы",
+      "lastAt": "2026-04-27T09:11:00.000Z",
+      "unread": true,
+      "unreadCount": 2
+    }
+  ]
+}</pre>
+            <p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li></ul></div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/:id/messages</code><span class="desc">История сообщений.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
   "query": {
@@ -308,7 +334,7 @@
   ],
   "limit": 50,
   "beforeId": null
-}</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
+}</pre><p>После батча upload от 1С с оригиналами <b>на подпись</b> сервер пишет в чат служебное сообщение <code>authorType: "system"</code>, <code>isSystem: true</code> (не менеджер). Текст: список документов. Пуш файлов — отдельно <code>request_files_update</code>.</p><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 CHAT_NOT_AVAILABLE</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/:id/messages</code><span class="desc">Отправить сообщение пользователем.</span></summary>
@@ -385,6 +411,10 @@
     <section id="panel-onec" class="panel">
       <div class="panel-intro">
         <strong>Направление: сервер → 1С.</strong> Описаны внешние HTTP-методы, реализуемые на стороне 1С. URL и Bearer задаются в админке (<code>PUT /api/admin/settings/one-c-request-create</code>). Входящие вызовы 1С к серверу описаны во вкладке <a href="/docs/integration">API для 1С</a>.
+        <br><br>
+        <b>Памятка для 1С (какие поля брать с create, по вопросам заказчика):</b>
+        <a href="/docs/1c-create-fields">открыть отдельной страницей</a>
+        — можно скинуть ссылкой или сохранить в PDF (Печать → Сохранить как PDF).
       </div>
 
       <section class="group">
@@ -397,6 +427,8 @@
               <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
               <tr><td><code>requestId</code></td><td>да</td><td>Id заявки на сервере после <code>POST /api/customs-requests</code>.</td></tr>
               <tr><td><code>legalEntityName</code>, контакты, ФЛ, авто, <code>vin</code></td><td>да*</td><td>Данные заявки из МП (*как в API приложения).</td></tr>
+              <tr><td><code>previousImportDates</code></td><td>нет</td><td>Массив дат <code>YYYY-MM-DD</code> предыдущего ввоза. Пусто = не ввозили. <code>importedLast12Months</code> = длина &gt; 0.</td></tr>
+              <tr><td><code>ownedVehicles</code></td><td>нет</td><td>Массив <code>{ name, year }</code> авто в собственности (для пояснения). Пусто = нет. <code>ownsOtherCars</code> = длина &gt; 0.</td></tr>
               <tr><td><code>files[]</code></td><td>да</td><td>Документы при создании: паспорт, ИНН, инвойс, фото авто и т.д. (<code>docType</code> без <code>_sign</code>).</td></tr>
             </table>
             <p><b>Ответ 1С:</b> <code>requestId</code>, <code>external1cId</code> (GUID заявки в 1С).</p>
@@ -415,8 +447,12 @@
   "vin": "VIN12345678901234",
   "hasSunroof": false,
   "hasAllWheelDrive": false,
-  "importedLast12Months": false,
-  "ownsOtherCars": false,
+  "importedLast12Months": true,
+  "ownsOtherCars": true,
+  "previousImportDates": ["2025-11-02"],
+  "ownedVehicles": [
+    { "name": "Toyota Camry", "year": 2018 }
+  ],
   "commentText": null,
   "files": [
     {

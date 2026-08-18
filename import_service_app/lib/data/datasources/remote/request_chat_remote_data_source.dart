@@ -2,10 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:import_service_app/core/error/error_handler.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
+import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 import 'package:uuid/uuid.dart';
 
-/// REST по чату: [api-app.md] `GET/POST` `/customs-requests/:id/messages`, `read`.
+/// REST по чату: список `GET /customs-requests/chats`, история/отправка `…/:id/messages`.
 final class RequestChatRemoteDataSource {
   RequestChatRemoteDataSource(this._dio);
 
@@ -26,6 +27,28 @@ final class RequestChatRemoteDataSource {
       }
     }
     return <Map<String, dynamic>>[];
+  }
+
+  Future<List<ChatListItem>> getChats() async {
+    const path = 'customs-requests/chats';
+    try {
+      final response = await _dio.get<dynamic>(path);
+      final data = response.data;
+      final raw = _messageItemsFromResponse(data);
+      return raw
+          .map(ChatListItem.fromJson)
+          .where((e) => e.requestId.isNotEmpty)
+          .toList();
+    } on DioException catch (e, st) {
+      final mapped = ErrorHandler.handle(e);
+      AppLog.error('Chat list: $path', tag: 'RequestChatRemote', error: e, stackTrace: st);
+      throw mapped;
+    } on ServerException {
+      rethrow;
+    } catch (e, st) {
+      AppLog.error('Chat list', tag: 'RequestChatRemote', error: e, stackTrace: st);
+      throw const UnknownServerException('Не удалось загрузить чаты');
+    }
   }
 
   /// Последние сверху — превращаем в список для сортировки `createdAt` ↓/↑.

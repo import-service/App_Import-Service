@@ -28,6 +28,8 @@ abstract final class CustomsRequestMapper {
       hasAllWheelDrive: json['hasAllWheelDrive'] == true,
       importedLast12Months: json['importedLast12Months'] == true,
       ownsOtherCars: json['ownsOtherCars'] == true,
+      previousImportDates: _stringList(json['previousImportDates']),
+      ownedVehicles: _ownedVehicles(json['ownedVehicles']),
       commentText: json['commentText'] as String?,
       clientRating: _readClientRating(json['clientRating']),
       clientRatingComment: json['clientRatingComment'] as String?,
@@ -88,6 +90,14 @@ abstract final class CustomsRequestMapper {
   static List<String> _stringList(dynamic raw) {
     if (raw is! List) return const [];
     return raw.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+  }
+
+  static List<Map<String, dynamic>> _ownedVehicles(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList(growable: false);
   }
 
   static List<CustomsRequestDeliveredDocument> _deliveredDocs(dynamic raw) {

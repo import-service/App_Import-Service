@@ -168,7 +168,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
     if (_session.isDemo) return;
     var maxId = 0;
     for (final m in list) {
-      if (m.isFrom1c) {
+      if (m.isFrom1c || m.isSystem) {
         final n = m.id;
         if (n != null && n > maxId) maxId = n;
       }

@@ -1,5 +1,6 @@
 const { hoursSince } = require('./time');
 const { ensureDisplayFileName } = require('./displayFileName');
+const { questionnaireFromRow } = require('./customsRequestQuestionnaire');
 
 const CUSTOMS_REQUEST_SELECT = `
   id, organization_id, external_1c_id, manager_external_1c_id, manager_full_name,
@@ -7,7 +8,8 @@ const CUSTOMS_REQUEST_SELECT = `
   individual_full_name, individual_phone, individual_snils,
   owner_full_name,
   car_make, car_model, vin,
-  has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars, comment_text, is_test,
+  has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars,
+  previous_import_dates, owned_vehicles, comment_text, is_test,
   client_rating, client_rating_comment, client_rated_at,
   status,
   engine_spec, engine_volume, status_sub_type,
@@ -146,6 +148,7 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
   const advancePayment = parseMoneyAmountJson(row.advance_payment_json);
   const actualPayment = parseMoneyAmountJson(row.actual_payment_json);
   const refundAmount = computeRefundAmount(advancePayment, actualPayment);
+  const questionnaire = questionnaireFromRow(row);
 
   const dto = {
     id: String(row.id),
@@ -215,8 +218,10 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
     individualSnils: String(row.individual_snils),
     hasSunroof: Boolean(row.has_sunroof),
     hasAllWheelDrive: Boolean(row.has_all_wheel_drive),
-    importedLast12Months: Boolean(row.imported_last_12_months),
-    ownsOtherCars: Boolean(row.owns_other_cars),
+    importedLast12Months: questionnaire.importedLast12Months,
+    ownsOtherCars: questionnaire.ownsOtherCars,
+    previousImportDates: questionnaire.previousImportDates,
+    ownedVehicles: questionnaire.ownedVehicles,
     commentText: row.comment_text != null ? String(row.comment_text) : null,
     clientRating:
       row.client_rating != null && Number(row.client_rating) >= 1

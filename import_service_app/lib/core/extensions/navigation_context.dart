@@ -9,7 +9,8 @@ extension AppNavigationX on BuildContext {
 
   void pushRequestDetail(String id) => push('/request/$id');
 
-  void pushRequestChat(String id) => push('/request/$id/chat');
+  Future<T?> pushRequestChat<T extends Object?>(String id) =>
+      push<T>('/request/$id/chat');
 
   /// Пример: после добавления маршрута `/login`
   // void goToLogin() => go('/login');

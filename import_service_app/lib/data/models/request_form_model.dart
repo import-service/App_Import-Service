@@ -1,8 +1,31 @@
 import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/core/util/single_file_path_list.dart';
 
+final class OwnedVehicleItem {
+  const OwnedVehicleItem({required this.name, this.year});
+
+  final String name;
+  final int? year;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'name': name,
+        if (year != null) 'year': year,
+      };
+
+  factory OwnedVehicleItem.fromJson(Map<String, dynamic> json) {
+    final yearRaw = json['year'];
+    final year = yearRaw is int
+        ? yearRaw
+        : int.tryParse(yearRaw?.toString().replaceAll(RegExp(r'\D'), '') ?? '');
+    return OwnedVehicleItem(
+      name: (json['name'] as String?)?.trim() ?? '',
+      year: year,
+    );
+  }
+}
+
 final class RequestFormModel {
-  static const int trackedFieldCount = 24;
+  static const int trackedFieldCount = 22;
 
   const RequestFormModel({
     this.organizationType = OrganizationType.ooo,
@@ -18,8 +41,8 @@ final class RequestFormModel {
     required this.vin,
     required this.hasSunroof,
     required this.hasAllWheelDrive,
-    required this.wasInRussiaLast12Months,
-    required this.hasOtherCars,
+    this.previousImportDates = const [],
+    this.ownedVehicles = const [],
     required this.comment,
     this.passportFrontPaths = const [],
     this.passportAddressPaths = const [],
@@ -49,9 +72,17 @@ final class RequestFormModel {
   final String vin;
   final bool hasSunroof;
   final bool hasAllWheelDrive;
-  final bool wasInRussiaLast12Months;
-  final bool hasOtherCars;
+  final List<String> previousImportDates;
+  final List<OwnedVehicleItem> ownedVehicles;
   final String comment;
+
+  bool get wasInRussiaLast12Months => previousImportDates.isNotEmpty;
+  bool get hasOtherCars =>
+      ownedVehicles.any((e) => e.name.trim().isNotEmpty && e.year != null);
+
+  List<OwnedVehicleItem> get ownedVehiclesForApi => ownedVehicles
+      .where((e) => e.name.trim().isNotEmpty && e.year != null)
+      .toList(growable: false);
 
   final List<String> passportFrontPaths;
   final List<String> passportAddressPaths;
@@ -69,7 +100,7 @@ final class RequestFormModel {
 
   static int countFilledFields(RequestFormModel m) {
     var n = 0;
-    // Прогресс черновика считаем только по обязательным полям (max = trackedFieldCount = 24).
+    // Прогресс черновика считаем только по обязательным полям (max = trackedFieldCount).
     if (m.companyName.trim().isNotEmpty) n++;
     if (m.companyInn.trim().isNotEmpty) n++;
     if (m.companyEmail.trim().isNotEmpty) n++;
@@ -80,7 +111,7 @@ final class RequestFormModel {
     if (m.carBrand.trim().isNotEmpty) n++;
     if (m.carModel.trim().isNotEmpty) n++;
     if (m.vin.trim().isNotEmpty) n++;
-    n += 4;
+    n += 2;
     if (m.passportFrontPaths.isNotEmpty) n++;
     if (m.passportAddressPaths.isNotEmpty) n++;
     if (m.innPaths.isNotEmpty) n++;
@@ -99,6 +130,8 @@ final class RequestFormModel {
     List<String> readList(String key) => singleFilePathList(
           (json[key] as List<dynamic>? ?? []).map((e) => e.toString()),
         );
+    final datesRaw = json['previousImportDates'] as List<dynamic>? ?? const [];
+    final carsRaw = json['ownedVehicles'] as List<dynamic>? ?? const [];
     return RequestFormModel(
       organizationType: OrganizationTypeInn.tryParse(
             json['organizationType'] as String?,
@@ -116,9 +149,11 @@ final class RequestFormModel {
       vin: (json['vin'] as String?) ?? '',
       hasSunroof: (json['hasSunroof'] as bool?) ?? false,
       hasAllWheelDrive: (json['hasAllWheelDrive'] as bool?) ?? false,
-      wasInRussiaLast12Months:
-          (json['wasInRussiaLast12Months'] as bool?) ?? false,
-      hasOtherCars: (json['hasOtherCars'] as bool?) ?? false,
+      previousImportDates: datesRaw.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList(),
+      ownedVehicles: carsRaw
+          .whereType<Map>()
+          .map((e) => OwnedVehicleItem.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
       comment: (json['comment'] as String?) ?? '',
       passportFrontPaths: readList('passportFrontPaths'),
       passportAddressPaths: readList('passportAddressPaths'),
@@ -154,8 +189,8 @@ final class RequestFormModel {
         'vin': vin,
         'hasSunroof': hasSunroof,
         'hasAllWheelDrive': hasAllWheelDrive,
-        'wasInRussiaLast12Months': wasInRussiaLast12Months,
-        'hasOtherCars': hasOtherCars,
+        'previousImportDates': previousImportDates,
+        'ownedVehicles': ownedVehicles.map((e) => e.toJson()).toList(),
         'comment': comment,
         'passportFrontPaths': passportFrontPaths,
         'passportAddressPaths': passportAddressPaths,

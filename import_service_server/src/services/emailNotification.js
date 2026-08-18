@@ -62,6 +62,25 @@ function formatYesNo(value) {
   return value ? 'Да' : 'Нет';
 }
 
+function formatImportDates(body) {
+  const dates = Array.isArray(body.previousImportDates) ? body.previousImportDates : [];
+  if (!dates.length) return formatYesNo(Boolean(body.importedLast12Months));
+  return dates.map((d) => String(d)).join(', ');
+}
+
+function formatOwnedVehicles(body) {
+  const cars = Array.isArray(body.ownedVehicles) ? body.ownedVehicles : [];
+  if (!cars.length) return formatYesNo(Boolean(body.ownsOtherCars));
+  return cars
+    .map((c) => {
+      const name = String(c?.name ?? '').trim();
+      const year = c?.year != null ? String(c.year) : '';
+      return [name, year].filter(Boolean).join(', ');
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
 function normalize(value) {
   return String(value ?? '').trim();
 }
@@ -74,24 +93,58 @@ async function sendPlainEmail(smtpConfig, { to, subject, html, text, replyTo = n
   const recipients = (Array.isArray(to) ? to : [to])
     .map((x) => normalize(x))
     .filter(Boolean);
+  const subjectNorm = normalize(subject) || smtpConfig.appName || 'Импорт Сервис';
+  const replyToNorm = replyTo ? normalize(replyTo) : null;
+  const fromHeader = resolveFromHeader(smtpConfig);
   if (!recipients.length) {
+    if (log?.warn) {
+      log.warn(
+        { subject: subjectNorm, from: fromHeader },
+        '[email] skip: No recipients',
+      );
+    }
     return { success: false, error: 'No recipients' };
   }
 
   try {
     const transporter = getTransporter(smtpConfig);
     const info = await transporter.sendMail({
-      from: resolveFromHeader(smtpConfig),
+      from: fromHeader,
       to: recipients.join(', '),
-      replyTo: replyTo || undefined,
-      subject: normalize(subject) || smtpConfig.appName || 'Импорт Сервис',
+      replyTo: replyToNorm || undefined,
+      subject: subjectNorm,
       html,
       text,
     });
+    if (log?.info) {
+      log.info(
+        {
+          to: recipients,
+          replyTo: replyToNorm,
+          subject: subjectNorm,
+          from: fromHeader,
+          messageId: info.messageId || null,
+          accepted: info.accepted || null,
+          rejected: info.rejected || null,
+        },
+        '[email] sent',
+      );
+    }
     return { success: true, messageId: info.messageId };
   } catch (err) {
     if (log?.error) {
-      log.error({ err, code: err.code }, '[email] sendPlainEmail failed');
+      log.error(
+        {
+          err,
+          code: err.code,
+          responseCode: err.responseCode,
+          to: recipients,
+          replyTo: replyToNorm,
+          subject: subjectNorm,
+          from: fromHeader,
+        },
+        '[email] sendPlainEmail failed',
+      );
     }
     return { success: false, error: err.message, code: err.code };
   }
@@ -127,8 +180,8 @@ function buildNewCustomsRequestEmail({ requestId, body, legalInn, appName }) {
     'Дополнительно:',
     `  Люк / панорама: ${formatYesNo(Boolean(body.hasSunroof))}`,
     `  Полный привод: ${formatYesNo(Boolean(body.hasAllWheelDrive))}`,
-    `  Ввоз за 12 мес.: ${formatYesNo(Boolean(body.importedLast12Months))}`,
-    `  Другие авто в собственности: ${formatYesNo(Boolean(body.ownsOtherCars))}`,
+    `  Ввоз за 12 мес.: ${formatImportDates(body)}`,
+    `  Другие авто в собственности: ${formatOwnedVehicles(body)}`,
   ];
 
   if (commentText) {
@@ -158,8 +211,8 @@ function buildNewCustomsRequestEmail({ requestId, body, legalInn, appName }) {
     <h3>Дополнительно</h3>
     <p><b>Люк / панорама:</b> ${formatYesNo(Boolean(body.hasSunroof))}</p>
     <p><b>Полный привод:</b> ${formatYesNo(Boolean(body.hasAllWheelDrive))}</p>
-    <p><b>Ввоз за 12 мес.:</b> ${formatYesNo(Boolean(body.importedLast12Months))}</p>
-    <p><b>Другие авто в собственности:</b> ${formatYesNo(Boolean(body.ownsOtherCars))}</p>
+    <p><b>Ввоз за 12 мес.:</b> ${escapeHtml(formatImportDates(body))}</p>
+    <p><b>Другие авто в собственности:</b> ${escapeHtml(formatOwnedVehicles(body))}</p>
     ${
       commentText
         ? `<h3>Комментарий</h3><p style="white-space: pre-wrap;">${escapeHtml(commentText)}</p>`

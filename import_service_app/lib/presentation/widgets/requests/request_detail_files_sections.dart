@@ -57,6 +57,16 @@ class RequestDetailFilesSections extends StatelessWidget {
     return highlightedDocTypes.contains(code);
   }
 
+  String? _signingBadge({
+    required bool needsSignature,
+    required bool highlight,
+    required JsonStringsService s,
+  }) {
+    if (highlight) return s.requestFileUpdated;
+    if (needsSignature) return s.requestFileNeedsSignature;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final grouped = groupedFilesForItem(item);
@@ -120,7 +130,11 @@ class RequestDetailFilesSections extends StatelessWidget {
                 pair.original!,
                 highlight: false,
                 embedded: true,
-                badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
+                badge: _signingBadge(
+                  needsSignature: pair.needsSignature,
+                  highlight: _isHighlighted(pair.original!),
+                  s: s,
+                ),
               ),
               buildFileRow(
                 pair.signed!,
@@ -144,7 +158,11 @@ class RequestDetailFilesSections extends StatelessWidget {
                 pair.original!,
                 highlight: false,
                 embedded: true,
-                badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
+                badge: _signingBadge(
+                  needsSignature: pair.needsSignature,
+                  highlight: _isHighlighted(pair.original!),
+                  s: s,
+                ),
               ),
               buildFileRow(
                 pair.signed!,
@@ -169,7 +187,11 @@ class RequestDetailFilesSections extends StatelessWidget {
                 pair.original!,
                 highlight: false,
                 embedded: true,
-                badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
+                badge: _signingBadge(
+                  needsSignature: pair.needsSignature,
+                  highlight: _isHighlighted(pair.original!),
+                  s: s,
+                ),
               ),
             ],
           ),
@@ -222,7 +244,11 @@ class RequestDetailFilesSections extends StatelessWidget {
             pair.original!,
             highlight: pair.highlightSignature || _isHighlighted(pair.original!),
             embedded: false,
-            badge: pair.needsSignature ? s.requestFileNeedsSignature : null,
+            badge: _signingBadge(
+              needsSignature: pair.needsSignature,
+              highlight: pair.highlightSignature || _isHighlighted(pair.original!),
+              s: s,
+            ),
           ),
         );
       }

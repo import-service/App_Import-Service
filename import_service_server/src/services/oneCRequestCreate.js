@@ -1,6 +1,7 @@
 const { getAppSettings } = require('./appSettings');
 const { ensureDisplayFileName } = require('../util/displayFileName');
 const { normalizeIntegrationFileUrl } = require('../util/integrationFileUrl');
+const { questionnaireFromBody, questionnaireFromRow } = require('../util/customsRequestQuestionnaire');
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_ONE_C_BODY_CHARS = 4000;
@@ -12,6 +13,7 @@ function normalize(v) {
 function buildCreatePayloadFromBody(requestId, body) {
   const files = Array.isArray(body.files) ? body.files : [];
   const legalInn = normalize(String(body.legalInn ?? body.inn ?? '').replace(/\D/g, ''));
+  const q = questionnaireFromBody(body);
   return {
     requestId,
     legalEntityName: normalize(body.legalEntityName),
@@ -27,8 +29,10 @@ function buildCreatePayloadFromBody(requestId, body) {
     vin: normalize(body.vin),
     hasSunroof: Boolean(body.hasSunroof),
     hasAllWheelDrive: Boolean(body.hasAllWheelDrive),
-    importedLast12Months: Boolean(body.importedLast12Months),
-    ownsOtherCars: Boolean(body.ownsOtherCars),
+    importedLast12Months: q.importedLast12Months,
+    ownsOtherCars: q.ownsOtherCars,
+    previousImportDates: q.previousImportDates,
+    ownedVehicles: q.ownedVehicles,
     commentText: normalize(body.commentText) || null,
     isTest: Boolean(body.isTest),
     files: files.map((f) => ({
@@ -42,6 +46,7 @@ function buildCreatePayloadFromBody(requestId, body) {
 
 function buildCreatePayloadFromRow(requestId, row, fileRows) {
   const legalInn = normalize(String(row.legal_inn ?? '').replace(/\D/g, ''));
+  const q = questionnaireFromRow(row);
   return {
     requestId,
     legalEntityName: normalize(row.legal_entity_name),
@@ -57,8 +62,10 @@ function buildCreatePayloadFromRow(requestId, row, fileRows) {
     vin: normalize(row.vin),
     hasSunroof: Boolean(row.has_sunroof),
     hasAllWheelDrive: Boolean(row.has_all_wheel_drive),
-    importedLast12Months: Boolean(row.imported_last_12_months),
-    ownsOtherCars: Boolean(row.owns_other_cars),
+    importedLast12Months: q.importedLast12Months,
+    ownsOtherCars: q.ownsOtherCars,
+    previousImportDates: q.previousImportDates,
+    ownedVehicles: q.ownedVehicles,
     commentText: normalize(row.comment_text) || null,
     isTest: Boolean(row.is_test),
     files: fileRows.map((f) => ({

@@ -18,6 +18,7 @@ import 'package:import_service_admin/domain/entities/customs_request.dart';
 import 'package:import_service_admin/domain/entities/customs_request_file.dart';
 import 'package:import_service_admin/data/datasources/remote/storage_remote_data_source.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
+import 'package:import_service_admin/presentation/helpers/one_c_error_format.dart';
 import 'package:import_service_admin/presentation/widgets/auth_network_image.dart';
 import 'package:import_service_admin/presentation/widgets/requests/request_detail_file_row.dart';
 import 'package:import_service_admin/presentation/widgets/requests/request_detail_files_sections.dart';
@@ -619,12 +620,23 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
       const Gap(14),
       RequestLabeledValue(
         label: 'Ввоз за 12 мес.',
-        value: yesNoLabel(item.importedLast12Months),
+        value: item.previousImportDates.isEmpty
+            ? yesNoLabel(item.importedLast12Months)
+            : item.previousImportDates.join(', '),
       ),
       const Gap(14),
       RequestLabeledValue(
         label: 'Другие авто',
-        value: yesNoLabel(item.ownsOtherCars),
+        value: item.ownedVehicles.isEmpty
+            ? yesNoLabel(item.ownsOtherCars)
+            : item.ownedVehicles
+                .map((e) {
+                  final name = '${e['name'] ?? ''}'.trim();
+                  final year = e['year'];
+                  return [name, if (year != null) '$year'].join(', ');
+                })
+                .where((s) => s.isNotEmpty)
+                .join('; '),
       ),
     ];
 
@@ -773,9 +785,19 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
                 ),
                 const Gap(4),
                 SelectableText(
-                  _formatOneCError(item.oneCCreateLastError!),
+                  formatOneCErrorDetail(item.oneCCreateLastError!),
                   style: theme.textTheme.bodySmall,
                 ),
+                if (shouldShowOneCDeveloperHint(item.oneCCreateLastError)) ...[
+                  const Gap(6),
+                  Text(
+                    oneCDeveloperContactHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.accentRed,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ],
               if (item.oneCUpdateLastError != null) ...[
                 const Gap(14),
@@ -788,9 +810,19 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
                 ),
                 const Gap(4),
                 SelectableText(
-                  _formatOneCError(item.oneCUpdateLastError!),
+                  formatOneCErrorDetail(item.oneCUpdateLastError!),
                   style: theme.textTheme.bodySmall,
                 ),
+                if (shouldShowOneCDeveloperHint(item.oneCUpdateLastError)) ...[
+                  const Gap(6),
+                  Text(
+                    oneCDeveloperContactHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.accentRed,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
@@ -953,17 +985,6 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
         },
       ),
     );
-  }
-
-  static String _formatOneCError(Map<String, dynamic> err) {
-    final parts = <String>[];
-    final code = err['code'];
-    if (code != null) parts.add('$code');
-    final msg = err['oneCMessage'] ?? err['message'];
-    if (msg != null && '$msg'.trim().isNotEmpty) parts.add('$msg');
-    final http = err['httpStatus'];
-    if (http != null) parts.add('HTTP $http');
-    return parts.isEmpty ? err.toString() : parts.join(' · ');
   }
 }
 

@@ -24,6 +24,12 @@ module.exports = async function docsRoutes(fastify) {
     reply.header('Cache-Control', 'public, max-age=86400').type('image/png').send(buf);
   });
 
+  const CREATE_FIELDS_HTML_PATH = path.join(__dirname, '..', 'docs', '1c-create-fields.html');
+  fastify.get('/docs/1c-create-fields', async (_request, reply) => {
+    const html = await fs.readFile(CREATE_FIELDS_HTML_PATH, 'utf8');
+    reply.type('text/html; charset=utf-8').send(html);
+  });
+
   async function sendDocsHtml(request, reply) {
     const proto = String(request.headers['x-forwarded-proto'] || '')
       .split(',')[0]

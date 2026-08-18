@@ -20,6 +20,7 @@ import 'package:import_service_app/data/datasources/remote/customs_requests_remo
 import 'package:import_service_app/data/datasources/remote/request_chat_remote_data_source.dart';
 import 'package:import_service_app/data/repositories/request_chat_repository_impl.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
+import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.dart';
 import 'package:import_service_app/data/datasources/remote/registration_request_remote_data_source.dart';
 import 'package:import_service_app/data/local/car_inventory_state_holder.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
@@ -116,6 +117,14 @@ Future<void> initDependencies() async {
     () => RequestChatRepositoryImpl(
       remote: sl<RequestChatRemoteDataSource>(),
       session: sl<AuthSessionController>(),
+    ),
+  );
+  sl.registerLazySingleton<ChatListCubit>(
+    () => ChatListCubit(
+      repository: sl<RequestChatRepository>(),
+      session: sl<AuthSessionController>(),
+      inventory: sl<CarInventoryCubit>(),
+      unread: sl<RequestChatUnreadCubit>(),
     ),
   );
 

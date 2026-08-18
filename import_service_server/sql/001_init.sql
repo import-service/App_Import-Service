@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS customs_requests (
   has_all_wheel_drive TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Наличие системы полного привода',
   imported_last_12_months TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Ввозили ли авто в Россию за последние 12 мес',
   owns_other_cars TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Наличие в собственности других авто',
+  previous_import_dates JSON NULL DEFAULT NULL COMMENT 'Даты ввоза авто за 12 мес. JSON-массив YYYY-MM-DD',
+  owned_vehicles JSON NULL DEFAULT NULL COMMENT 'Авто в собственности: JSON [{name, year}]',
   comment_text TEXT NULL DEFAULT NULL COMMENT 'Комментарий к заявке',
   is_test TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = тестовая заявка (с приложения, для сноса)',
   status ENUM('new', 'in_progress', 'in_transit', 'delivered') NOT NULL DEFAULT 'new',
@@ -125,7 +127,7 @@ CREATE TABLE IF NOT EXISTS customs_request_files (
 CREATE TABLE IF NOT EXISTS customs_request_messages (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   request_id BIGINT UNSIGNED NOT NULL,
-  author_type ENUM('app_user', 'manager_1c') NOT NULL,
+  author_type ENUM('app_user', 'manager_1c', 'system') NOT NULL,
   user_id BIGINT UNSIGNED NULL DEFAULT NULL COMMENT 'organizations.id для сообщений от приложения',
   direction ENUM('to_1c', 'from_1c') NOT NULL,
   client_message_id CHAR(36) NULL DEFAULT NULL COMMENT 'UUID исходящего сообщения (идемпотентность)',

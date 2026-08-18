@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
 
-/// Навигация на главной после push: нижний таб «Мои авто» + чип статуса.
+/// Навигация на главной после push: нижний таб «Мои авто» (индекс 0) + чип статуса.
 final class HomeCarsNavigationController extends ChangeNotifier {
   bool _focusCarsTab = false;
   int? _statusFilterIndex;

@@ -94,7 +94,10 @@
 | `legalEntityName`, `legalEmail`, `legalPhone`, `legalInn` | данные организации из анкеты |
 | `individualFullName`, `individualPhone`, `individualSnils` | … |
 | `carMake`, `carModel`, `vin` | … |
-| `hasSunroof`, `hasAllWheelDrive`, `importedLast12Months`, `ownsOtherCars` | boolean |
+| `hasSunroof`, `hasAllWheelDrive` | boolean |
+| `importedLast12Months`, `ownsOtherCars` | boolean, **выводятся из списков**: есть даты → ввоз был; есть авто → есть другие авто |
+| `previousImportDates` | `string[]` дат `YYYY-MM-DD` — даты ввоза предыдущих авто (пусто = не ввозили) |
+| `ownedVehicles` | `{ name: string, year: number }[]` — авто в собственности (для пояснения); пусто = нет |
 | `commentText` | string \| null |
 | `isTest` | boolean |
 | `files[]` | `docType`, `fileName`, `mimeType`, `fileUrl` — `fileUrl` при необходимости с `PUBLIC_BASE_URL` (в карточке МП также `previewUrl` для превью) |
@@ -211,7 +214,7 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
 
 | Источник | Действие сервера |
 |----------|------------------|
-| 1С | Push в МП (`request_files_update`, `changedDocTypes`) |
+| 1С | Push в МП (`request_files_update`, `changedDocTypes`); если в батче оригиналы на подпись — одно системное сообщение в чат (`authorType: system`) |
 | МП, заявка `new` | Create в 1С → `external1cId` → переименование файлов |
 | МП, есть `external1cId` | Update в 1С с изменёнными `docType` |
 

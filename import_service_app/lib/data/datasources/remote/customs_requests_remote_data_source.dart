@@ -257,6 +257,8 @@ final class CustomsRequestsRemoteDataSource {
       'hasAllWheelDrive': form.hasAllWheelDrive,
       'importedLast12Months': form.wasInRussiaLast12Months,
       'ownsOtherCars': form.hasOtherCars,
+      'previousImportDates': form.previousImportDates,
+      'ownedVehicles': form.ownedVehiclesForApi.map((e) => e.toJson()).toList(),
       'commentText': form.comment.trim(),
     };
   }

@@ -487,6 +487,9 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (message.isSystem) {
+      return _SystemChatNotice(message: message, loc: loc);
+    }
     final t = Theme.of(context);
     final isOut = !message.isFrom1c;
     final align = isOut ? Alignment.centerRight : Alignment.centerLeft;
@@ -644,6 +647,50 @@ class _ChatBubble extends StatelessWidget {
     } catch (_) {
       return DateFormat('HH:mm').format(d.toLocal());
     }
+  }
+}
+
+class _SystemChatNotice extends StatelessWidget {
+  const _SystemChatNotice({
+    required this.message,
+    required this.loc,
+  });
+
+  final ChatMessage message;
+  final String loc;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    String time;
+    try {
+      time = DateFormat('HH:mm', loc).format(message.createdAt.toLocal());
+    } catch (_) {
+      time = DateFormat('HH:mm').format(message.createdAt.toLocal());
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      child: Column(
+        children: [
+          Text(
+            message.text.trim(),
+            textAlign: TextAlign.center,
+            style: t.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            time,
+            style: t.textTheme.labelSmall?.copyWith(
+              color: AppTheme.textSecondary,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

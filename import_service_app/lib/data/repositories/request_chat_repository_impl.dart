@@ -3,6 +3,7 @@ import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/error/failures.dart';
 import 'package:import_service_app/data/datasources/remote/request_chat_remote_data_source.dart';
+import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
 
@@ -15,6 +16,21 @@ final class RequestChatRepositoryImpl implements RequestChatRepository {
 
   final RequestChatRemoteDataSource _remote;
   final AuthSessionController _session;
+
+  @override
+  Future<Either<Failure, List<ChatListItem>>> listChats() async {
+    if (_session.isDemo) {
+      return const Right(<ChatListItem>[]);
+    }
+    try {
+      final list = await _remote.getChats();
+      return Right(list);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
 
   @override
   Future<Either<Failure, List<ChatMessage>>> loadMessages(

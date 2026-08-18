@@ -21,6 +21,8 @@ class CustomsRequest extends Equatable {
     required this.hasAllWheelDrive,
     required this.importedLast12Months,
     required this.ownsOtherCars,
+    this.previousImportDates = const [],
+    this.ownedVehicles = const [],
     this.statusSinceDateLabel,
     this.statusSubType,
     this.statusSubTypeDateTime,
@@ -73,6 +75,8 @@ class CustomsRequest extends Equatable {
   final bool hasAllWheelDrive;
   final bool importedLast12Months;
   final bool ownsOtherCars;
+  final List<String> previousImportDates;
+  final List<Map<String, dynamic>> ownedVehicles;
   final String? commentText;
   final int? clientRating;
   final String? clientRatingComment;

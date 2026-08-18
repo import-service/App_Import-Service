@@ -9,6 +9,10 @@ const {
   MONEY_AMOUNT_SCHEMA,
   resolveLegalInnFromBody,
 } = require('../util/customsRequestDto');
+const {
+  questionnaireFromBody,
+  questionnaireToDbValues,
+} = require('../util/customsRequestQuestionnaire');
 const { isDemoApplicantName } = require('../services/demoFlow');
 const {
   DEAL_TYPES,
@@ -39,6 +43,7 @@ const {
   denyUnlessOwnsRequest,
 } = require('../util/requestOrganizationAccess');
 const { serveRequestOrChatFile } = require('../services/requestFileDownload');
+const { listChatsForOrganization } = require('../services/chatMessageOps');
 
 const RATING_ALLOWED_STATUSES = new Set(['delivered', 'closed']);
 const RATING_COMMENT_MAX = 500;
@@ -432,6 +437,20 @@ module.exports = async function customsRequestsRoutes(fastify) {
             hasAllWheelDrive: { type: 'boolean' },
             importedLast12Months: { type: 'boolean' },
             ownsOtherCars: { type: 'boolean' },
+            previousImportDates: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+            ownedVehicles: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', maxLength: 255 },
+                  year: { type: ['integer', 'string', 'number'] },
+                },
+              },
+            },
             commentText: { type: 'string', maxLength: 5000 },
           },
         },
@@ -445,6 +464,8 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const legalInn = resolveLegalInnFromBody(request.body, { required: true });
+      const questionnaire = questionnaireFromBody(request.body);
+      const questionnaireDb = questionnaireToDbValues(questionnaire);
       const orgId = mpOrganizationId(request);
       if (!orgId) {
         return reply.code(401).send({ error: 'UNAUTHORIZED' });
@@ -461,8 +482,9 @@ module.exports = async function customsRequestsRoutes(fastify) {
           `INSERT INTO customs_requests
              (organization_id, external_1c_id, manager_external_1c_id, legal_entity_name, legal_email, legal_phone, legal_inn,
               individual_full_name, individual_phone, individual_snils, car_make, car_model, vin,
-              has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars, comment_text, is_test, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars,
+              previous_import_dates, owned_vehicles, comment_text, is_test, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             orgId,
             null,
@@ -479,8 +501,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
             normalize(request.body.vin),
             toFlag(request.body.hasSunroof),
             toFlag(request.body.hasAllWheelDrive),
-            toFlag(request.body.importedLast12Months),
-            toFlag(request.body.ownsOtherCars),
+            questionnaireDb.importedLast12Months,
+            questionnaireDb.ownsOtherCars,
+            questionnaireDb.previousImportDatesJson,
+            questionnaireDb.ownedVehiclesJson,
             normalize(request.body.commentText) || null,
             isTestRequest ? 1 : 0,
             'new',
@@ -494,7 +518,11 @@ module.exports = async function customsRequestsRoutes(fastify) {
         if (!isTestRequest) {
           notifyNewCustomsRequest(
             fastify.config.smtp,
-            { requestId, body: request.body, legalInn },
+            {
+              requestId,
+              body: { ...request.body, ...questionnaire },
+              legalInn,
+            },
             fastify.log,
           ).catch((err) => {
             fastify.log.error({ err, requestId }, 'customs request notify email failed');
@@ -561,6 +589,19 @@ module.exports = async function customsRequestsRoutes(fastify) {
         toCustomsRequestDto(fastify, request, row, [], listDtoOptions),
       );
       return reply.send({ items, limit, offset });
+    },
+  );
+
+  fastify.get(
+    '/customs-requests/chats',
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const orgId = mpOrganizationId(request);
+      if (!orgId) {
+        return reply.code(401).send({ error: 'UNAUTHORIZED' });
+      }
+      const items = await listChatsForOrganization(fastify.pool, orgId);
+      return reply.send({ items });
     },
   );
 
@@ -734,6 +775,20 @@ module.exports = async function customsRequestsRoutes(fastify) {
             hasAllWheelDrive: { type: 'boolean' },
             importedLast12Months: { type: 'boolean' },
             ownsOtherCars: { type: 'boolean' },
+            previousImportDates: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+            ownedVehicles: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', maxLength: 255 },
+                  year: { type: ['integer', 'string', 'number'] },
+                },
+              },
+            },
             commentText: { type: 'string', maxLength: 5000 },
           },
           minProperties: 1,
@@ -802,13 +857,26 @@ module.exports = async function customsRequestsRoutes(fastify) {
         fields.push('has_all_wheel_drive = ?');
         values.push(toFlag(request.body.hasAllWheelDrive));
       }
-      if (request.body.importedLast12Months !== undefined) {
-        fields.push('imported_last_12_months = ?');
-        values.push(toFlag(request.body.importedLast12Months));
-      }
-      if (request.body.ownsOtherCars !== undefined) {
-        fields.push('owns_other_cars = ?');
-        values.push(toFlag(request.body.ownsOtherCars));
+      if (
+        request.body.previousImportDates !== undefined ||
+        request.body.ownedVehicles !== undefined ||
+        request.body.importedLast12Months !== undefined ||
+        request.body.ownsOtherCars !== undefined
+      ) {
+        const q = questionnaireFromBody(request.body);
+        const qDb = questionnaireToDbValues(q);
+        if (request.body.previousImportDates !== undefined || request.body.importedLast12Months !== undefined) {
+          fields.push('previous_import_dates = ?');
+          values.push(qDb.previousImportDatesJson);
+          fields.push('imported_last_12_months = ?');
+          values.push(qDb.importedLast12Months);
+        }
+        if (request.body.ownedVehicles !== undefined || request.body.ownsOtherCars !== undefined) {
+          fields.push('owned_vehicles = ?');
+          values.push(qDb.ownedVehiclesJson);
+          fields.push('owns_other_cars = ?');
+          values.push(qDb.ownsOtherCars);
+        }
       }
 
       if (!fields.length) {

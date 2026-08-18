@@ -16,4 +16,19 @@ final class RequestChatUnreadCubit extends Cubit<RequestChatUnreadState> {
     final next = {...state.requestIds}..remove(id);
     emit(RequestChatUnreadState(requestIds: next));
   }
+
+  /// Источник правды с сервера (`GET /customs-requests/chats`).
+  void replaceFromServer(Set<String> requestIds) {
+    final next = requestIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    if (next.length == state.requestIds.length &&
+        next.containsAll(state.requestIds)) {
+      return;
+    }
+    emit(RequestChatUnreadState(requestIds: next));
+  }
+
+  void clearAll() {
+    if (state.requestIds.isEmpty) return;
+    emit(const RequestChatUnreadState(requestIds: {}));
+  }
 }

@@ -3,6 +3,7 @@ const { notifyMessageFrom1C } = require('./pushNotifications');
 const { sendUserMessageTo1C } = require('./oneCChatOut');
 const { handleDemoUserChatMessage, isDemoExternal1cId } = require('./demoFlow');
 const { mapAttachmentsIntegrationFileUrls } = require('../util/integrationFileUrl');
+const { docTypeLabel, signingOriginalDocTypes } = require('../constants/customsCatalog');
 
 const MAX_TEXT = 2000;
 
@@ -103,18 +104,19 @@ function messageDto(row, external1cId, parties = null) {
   const parsed = parseRowAttachments(row.attachments_json);
   const { attachments, meta } = splitAttachmentsPayload(parsed);
   const authorType = row.author_type;
-  const isFrom1c = authorType === 'manager_1c' || row.direction === 'from_1c';
+  const isSystem = authorType === 'system';
+  const isFrom1c = !isSystem && (authorType === 'manager_1c' || row.direction === 'from_1c');
 
   let senderName = normalize(meta.senderName) || null;
   let sender1cId = normalize(meta.sender1cId) || null;
   let recipientName = normalize(meta.recipientName) || null;
 
-  if (!senderName) {
+  if (!senderName && !isSystem) {
     senderName = isFrom1c
       ? (normalize(parties?.managerName) || 'Менеджер')
       : (normalize(parties?.clientName) || 'Клиент');
   }
-  if (!recipientName) {
+  if (!recipientName && !isSystem) {
     recipientName = isFrom1c
       ? (normalize(parties?.clientName) || 'Клиент')
       : (normalize(parties?.managerName) || 'Менеджер');
@@ -125,6 +127,7 @@ function messageDto(row, external1cId, parties = null) {
     requestId: row.request_id,
     external1cId: external1cId || null,
     authorType: row.author_type,
+    isSystem,
     direction: row.direction,
     clientMessageId: row.client_message_id,
     message1cId: row.message_1c_id,
@@ -301,6 +304,68 @@ async function createMessageFrom1c(fastify, {
     external1cId: extId,
     message: dto,
   };
+}
+
+/**
+ * Служебное сообщение: 1С выложила/заменила оригиналы пакета на подпись.
+ * Не уходит в 1С исходящим чатом; в МП — через WSS + историю GET.
+ */
+async function createSystemFilesUpdatedMessage(fastify, { requestId, changedDocTypes }) {
+  const signing = signingOriginalDocTypes(changedDocTypes);
+  if (!signing.length) {
+    return { ok: true, skipped: true };
+  }
+
+  const id = Number(requestId);
+  const reqRow = await findRequestById(fastify.pool, id);
+  if (!reqRow) {
+    return { ok: false, error: 'NOT_FOUND' };
+  }
+
+  const names = signing.map((code) => docTypeLabel(code)).filter(Boolean);
+  const list = names.join(', ');
+  const bodyText = clipText(
+    names.length
+      ? `Обновлены документы на подпись: ${list}. Откройте заявку, чтобы скачать и подписать.`
+      : 'Обновлены документы на подпись. Откройте заявку, чтобы скачать и подписать.',
+  );
+
+  const cid = uuidv4();
+  const payloadJson = {
+    attachments: [],
+    meta: {
+      kind: 'files_updated',
+      changedDocTypes: signing,
+    },
+  };
+
+  const [ins] = await fastify.pool.query(
+    `INSERT INTO customs_request_messages
+      (request_id, author_type, user_id, direction, client_message_id, text_content, attachments_json, delivery_status)
+     VALUES
+      (?, 'system', NULL, 'from_1c', ?, ?, ?, NULL)`,
+    [id, cid, bodyText, jsonAttachmentsOrNull(payloadJson)],
+  );
+
+  const newId = ins.insertId;
+  const parties = await resolveChatPartyNames(fastify.pool, id);
+  const messageRow = await loadMessageRow(fastify.pool, newId);
+  const dto = messageDto(messageRow, reqRow.external_1c_id, parties);
+
+  if (fastify.chatWss) {
+    try {
+      await fastify.chatWss.broadcast(id, {
+        type: 'message_created',
+        requestId: id,
+        external1cId: reqRow.external_1c_id || null,
+        message: dto,
+      });
+    } catch (e) {
+      fastify.log.error(e, 'chat broadcast failed (system files_updated)');
+    }
+  }
+
+  return { ok: true, skipped: false, id: newId, message: dto };
 }
 
 /**
@@ -529,6 +594,97 @@ async function createMessageFromUser(fastify, {
   };
 }
 
+const CHAT_LIST_PREVIEW_MAX = 80;
+
+function toIsoDate(value) {
+  if (!value) return null;
+  try {
+    return new Date(value).toISOString();
+  } catch {
+    return null;
+  }
+}
+
+function clipPreview(text) {
+  const s = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  if (s.length <= CHAT_LIST_PREVIEW_MAX) return s;
+  return `${s.slice(0, CHAT_LIST_PREVIEW_MAX)}…`;
+}
+
+function lastMessagePreviewText(textContent, attachmentsJson) {
+  const fromText = clipPreview(textContent);
+  if (fromText) return fromText;
+  const parsed = parseRowAttachments(attachmentsJson);
+  const { attachments } = splitAttachmentsPayload(parsed);
+  if (!attachments.length) return '';
+  const name = normalize(attachments[0]?.fileName);
+  return name || '';
+}
+
+/**
+ * Список чатов организации для МП: заявки с external1cId, превью, непрочитанные from_1c.
+ * @param {import('mysql2/promise').Pool} pool
+ * @param {number} organizationId
+ */
+async function listChatsForOrganization(pool, organizationId) {
+  const orgId = Number(organizationId);
+  if (!Number.isFinite(orgId) || orgId <= 0) {
+    return [];
+  }
+  const [rows] = await pool.query(
+    `SELECT
+       r.id,
+       r.car_make,
+       r.car_model,
+       r.vin,
+       r.external_1c_id,
+       r.manager_full_name,
+       lm.id AS last_message_id,
+       lm.text_content AS last_text,
+       lm.created_at AS last_at,
+       lm.attachments_json AS last_attachments_json,
+       COALESCE(u.unread_count, 0) AS unread_count
+     FROM customs_requests r
+     LEFT JOIN customs_request_messages lm
+       ON lm.id = (
+         SELECT m.id FROM customs_request_messages m
+         WHERE m.request_id = r.id AND m.deleted_at IS NULL
+         ORDER BY m.id DESC
+         LIMIT 1
+       )
+     LEFT JOIN (
+       SELECT request_id, COUNT(*) AS unread_count
+       FROM customs_request_messages
+       WHERE deleted_at IS NULL
+         AND direction = 'from_1c'
+         AND read_by_user_at IS NULL
+       GROUP BY request_id
+     ) u ON u.request_id = r.id
+     WHERE r.organization_id = ?
+       AND r.deleted_at IS NULL
+       AND r.external_1c_id IS NOT NULL
+       AND r.external_1c_id <> ''
+     ORDER BY COALESCE(lm.id, 0) DESC, r.id DESC`,
+    [orgId],
+  );
+  return rows.map((row) => {
+    const unreadCount = Number(row.unread_count) || 0;
+    return {
+      requestId: Number(row.id),
+      carMake: row.car_make != null ? String(row.car_make) : '',
+      carModel: row.car_model != null ? String(row.car_model) : '',
+      vin: row.vin != null ? String(row.vin) : '',
+      managerFullName: normalize(row.manager_full_name) || null,
+      external1cId: row.external_1c_id != null ? String(row.external_1c_id) : null,
+      lastText: lastMessagePreviewText(row.last_text, row.last_attachments_json) || null,
+      lastAt: toIsoDate(row.last_at),
+      unread: unreadCount > 0,
+      unreadCount,
+    };
+  });
+}
+
 async function markReadByUser(fastify, { requestId, upToMessageId }) {
   const upTo = Number(upToMessageId);
   if (!Number.isFinite(upTo) || upTo <= 0) {
@@ -615,6 +771,8 @@ module.exports = {
   listMessagesAsc,
   createMessageFrom1c,
   createMessageFromUser,
+  createSystemFilesUpdatedMessage,
+  listChatsForOrganization,
   markReadByUser,
   markReadBy1c,
 };

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
@@ -7,7 +8,10 @@ import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
 import 'package:import_service_app/data/models/registration_request_model.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
+import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
+import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
+import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_state.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -22,6 +26,7 @@ import 'package:import_service_app/presentation/pages/request_create_page.dart';
 import 'package:import_service_app/presentation/widgets/navigation/home_bottom_nav_bar.dart';
 import 'package:import_service_app/presentation/pages/cars_filters_page.dart';
 import 'package:import_service_app/presentation/widgets/tabs/cars_tab_view.dart';
+import 'package:import_service_app/presentation/widgets/tabs/chats_tab_view.dart';
 import 'package:import_service_app/presentation/widgets/tabs/profile_tab_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,14 +38,21 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  /// Стартовый таб — «Мои авто» (индекс 1).
-  int _tabIndex = 1;
+  static const int _tabCars = 0;
+  static const int _tabChats = 1;
+  static const int _tabProfile = 2;
+
+  /// Стартовый таб — «Мои авто».
+  int _tabIndex = _tabCars;
 
   @override
   void initState() {
     super.initState();
     sl<HomeCarsNavigationController>().addListener(_onCarsNavigationIntent);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onCarsNavigationIntent());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onCarsNavigationIntent();
+      sl<ChatListCubit>().load();
+    });
   }
 
   @override
@@ -52,8 +64,8 @@ class _HomePageState extends State<HomePage> {
   void _onCarsNavigationIntent() {
     final nav = sl<HomeCarsNavigationController>();
     if (!nav.focusCarsTab || !mounted) return;
-    if (_tabIndex != 1) {
-      setState(() => _tabIndex = 1);
+    if (_tabIndex != _tabCars) {
+      setState(() => _tabIndex = _tabCars);
     }
   }
 
@@ -89,6 +101,8 @@ class _HomePageState extends State<HomePage> {
       await _clearPrefsKeepLanguage();
       await sl<RequestDraftCubit>().clearAll();
       await sl<CarInventoryCubit>().reloadFromDisk();
+      sl<RequestChatUnreadCubit>().clearAll();
+      sl<ChatListCubit>().reset();
       if (!context.mounted) return;
       context.go('/login');
     } on ServerException catch (e) {
@@ -135,10 +149,12 @@ class _HomePageState extends State<HomePage> {
                         : session.login?.trim()) ??
                     '—'));
 
-        final appBarTitle = _tabIndex == 0
-            ? strings.profileTabTitle
-            : strings.carsTabTitle;
-        final appBarActions = _tabIndex == 1
+        final appBarTitle = switch (_tabIndex) {
+          _tabChats => strings.chatsTabTitle,
+          _tabProfile => strings.profileTabTitle,
+          _ => strings.carsTabTitle,
+        };
+        final appBarActions = _tabIndex == _tabCars
             ? <Widget>[
                 IconButton(
                   onPressed: () async => _refreshCars(),
@@ -157,7 +173,15 @@ class _HomePageState extends State<HomePage> {
                   tooltip: strings.carsFilterTooltip,
                 ),
               ]
-            : <Widget>[SettingsAppBarAction(tooltip: strings.settingsTitle)];
+            : _tabIndex == _tabChats
+                ? <Widget>[
+                    IconButton(
+                      onPressed: () => sl<ChatListCubit>().load(),
+                      icon: const Icon(Icons.refresh_rounded),
+                      tooltip: strings.carsRefreshTooltip,
+                    ),
+                  ]
+                : <Widget>[SettingsAppBarAction(tooltip: strings.settingsTitle)];
 
         return Scaffold(
           appBar: BrandPrimaryAppBar(
@@ -167,6 +191,17 @@ class _HomePageState extends State<HomePage> {
           body: IndexedStack(
             index: _tabIndex,
             children: [
+              CarsTabView(
+                key: ValueKey<bool>(isDemo),
+                noDataText: strings.carsNoDataText,
+                searchHint: strings.carsSearchHint,
+                statuses: [
+                  strings.carStatusInWork,
+                  strings.carStatusOnWay,
+                  strings.carStatusDelivered,
+                ],
+              ),
+              const ChatsTabView(),
               ProfileTabView(
                 isDemo: isDemo,
                 headlineTitle: displayName,
@@ -184,19 +219,9 @@ class _HomePageState extends State<HomePage> {
                 email: session.email,
                 managerName: session.managerName,
               ),
-              CarsTabView(
-                key: ValueKey<bool>(isDemo),
-                noDataText: strings.carsNoDataText,
-                searchHint: strings.carsSearchHint,
-                statuses: [
-                  strings.carStatusInWork,
-                  strings.carStatusOnWay,
-                  strings.carStatusDelivered,
-                ],
-              ),
             ],
           ),
-          floatingActionButton: _tabIndex == 1
+          floatingActionButton: _tabIndex == _tabCars
               ? FloatingActionButton(
                   onPressed: () {
                     Navigator.of(context).push(
@@ -213,11 +238,23 @@ class _HomePageState extends State<HomePage> {
                 )
               : null,
           floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-          bottomNavigationBar: HomeBottomNavBar(
-            currentIndex: _tabIndex,
-            profileLabel: strings.profileTabTitle,
-            carsLabel: strings.carsTabTitle,
-            onTap: (value) => setState(() => _tabIndex = value),
+          bottomNavigationBar: BlocBuilder<RequestChatUnreadCubit, RequestChatUnreadState>(
+            bloc: sl<RequestChatUnreadCubit>(),
+            builder: (context, unreadState) {
+              return HomeBottomNavBar(
+                currentIndex: _tabIndex,
+                carsLabel: strings.carsTabTitle,
+                chatsLabel: strings.chatsTabTitle,
+                profileLabel: strings.profileTabTitle,
+                hasChatsUnread: unreadState.hasAny,
+                onTap: (value) {
+                  setState(() => _tabIndex = value);
+                  if (value == _tabChats) {
+                    sl<ChatListCubit>().load();
+                  }
+                },
+              );
+            },
           ),
         );
       },

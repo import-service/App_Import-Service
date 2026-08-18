@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dartz/dartz.dart' show Either;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/session_lost_handler.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
@@ -37,6 +38,7 @@ import 'package:import_service_app/presentation/widgets/forms/input_formatters/p
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/snils_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/vin_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/forms/request_labeled_input_field.dart';
+import 'package:import_service_app/presentation/widgets/forms/app_field_decoration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RequestCreatePage extends StatefulWidget {
@@ -75,8 +77,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
 
   bool _hasSunroof = false;
   bool _hasAllWheelDrive = false;
-  bool _wasInRussiaLast12Months = false;
-  bool _hasOtherCars = false;
+  final List<DateTime> _previousImportDates = <DateTime>[];
+  final List<_OwnedVehicleEditors> _ownedVehicles = <_OwnedVehicleEditors>[];
 
   RequestFilesPayload _files = const RequestFilesPayload(
     passportFrontPaths: [],
@@ -109,10 +111,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (f.carModel.trim().isNotEmpty) return true;
     if (f.vin.trim().isNotEmpty) return true;
     if (f.comment.trim().isNotEmpty) return true;
-    if (f.hasSunroof ||
-        f.hasAllWheelDrive ||
-        f.wasInRussiaLast12Months ||
-        f.hasOtherCars) {
+    if (f.hasSunroof || f.hasAllWheelDrive) {
+      return true;
+    }
+    if (f.previousImportDates.isNotEmpty || f.ownedVehicles.isNotEmpty) {
       return true;
     }
     return _files.hasAnyFiles;
@@ -132,8 +134,15 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         vin: _vinController.text.trim().toUpperCase(),
         hasSunroof: _hasSunroof,
         hasAllWheelDrive: _hasAllWheelDrive,
-        wasInRussiaLast12Months: _wasInRussiaLast12Months,
-        hasOtherCars: _hasOtherCars,
+        previousImportDates: _previousImportDates.map(_dateToApi).toList(),
+        ownedVehicles: _ownedVehicles
+            .map(
+              (e) => OwnedVehicleItem(
+                name: e.name.text.trim(),
+                year: int.tryParse(e.year.text.trim()),
+              ),
+            )
+            .toList(),
         comment: _commentController.text,
         passportFrontPaths: List<String>.from(_files.passportFrontPaths),
         passportAddressPaths: List<String>.from(_files.passportAddressPaths),
@@ -573,8 +582,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     _commentController.text = f.comment;
     _hasSunroof = f.hasSunroof;
     _hasAllWheelDrive = f.hasAllWheelDrive;
-    _wasInRussiaLast12Months = f.wasInRussiaLast12Months;
-    _hasOtherCars = f.hasOtherCars;
+    _replaceImportDates(f.previousImportDates);
+    _replaceOwnedVehicles(f.ownedVehicles);
     _files = RequestFilesPayload(
       passportFrontPaths: f.passportFrontPaths,
       passportAddressPaths: f.passportAddressPaths,
@@ -676,6 +685,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     _modelController.dispose();
     _vinController.dispose();
     _commentController.dispose();
+    _disposeOwnedVehicles();
     super.dispose();
   }
 
@@ -791,23 +801,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 },
               ),
               const SizedBox(height: 14),
-              _yesNoField(
-                label: s.text('requestImported12MonthsLabel'),
-                markRequired: true,
-                value: _wasInRussiaLast12Months,
-                onChanged: (v) {
-                  setState(() => _wasInRussiaLast12Months = v);
-                },
-              ),
+              _importDatesSection(s),
               const SizedBox(height: 14),
-              _yesNoField(
-                label: s.text('requestHasOtherCarsLabel'),
-                markRequired: true,
-                value: _hasOtherCars,
-                onChanged: (v) {
-                  setState(() => _hasOtherCars = v);
-                },
-              ),
+              _ownedVehiclesSection(s),
               const SizedBox(height: 14),
               RequestLabeledInputField(
                 label: s.text('requestCommentLabel'),
@@ -924,6 +920,190 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     setState(() => _files = result);
   }
 
+  String _dateToApi(DateTime d) {
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
+  }
+
+  String _dateToUi(DateTime d) {
+    final day = d.day.toString().padLeft(2, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    return '$day.$m.${d.year}';
+  }
+
+  DateTime? _parseApiDate(String raw) {
+    final p = raw.trim().split('-');
+    if (p.length != 3) return null;
+    final y = int.tryParse(p[0]);
+    final m = int.tryParse(p[1]);
+    final d = int.tryParse(p[2]);
+    if (y == null || m == null || d == null) return null;
+    return DateTime(y, m, d);
+  }
+
+  void _disposeOwnedVehicles() {
+    for (final row in _ownedVehicles) {
+      row.dispose();
+    }
+    _ownedVehicles.clear();
+  }
+
+  void _replaceImportDates(List<String> raw) {
+    _previousImportDates
+      ..clear()
+      ..addAll(raw.map(_parseApiDate).whereType<DateTime>());
+  }
+
+  void _replaceOwnedVehicles(List<OwnedVehicleItem> items) {
+    _disposeOwnedVehicles();
+    for (final item in items) {
+      final row = _OwnedVehicleEditors(
+        name: item.name,
+        year: item.year?.toString() ?? '',
+      );
+      row.name.addListener(_onAnyFieldChanged);
+      row.year.addListener(_onAnyFieldChanged);
+      _ownedVehicles.add(row);
+    }
+  }
+
+  Future<void> _addImportDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year - 15),
+      lastDate: now,
+    );
+    if (picked == null || !mounted) return;
+    final exists = _previousImportDates.any(
+      (d) => d.year == picked.year && d.month == picked.month && d.day == picked.day,
+    );
+    if (exists) return;
+    setState(() {
+      _previousImportDates.add(DateTime(picked.year, picked.month, picked.day));
+      _previousImportDates.sort();
+    });
+  }
+
+  void _addOwnedVehicle() {
+    final row = _OwnedVehicleEditors();
+    row.name.addListener(_onAnyFieldChanged);
+    row.year.addListener(_onAnyFieldChanged);
+    setState(() => _ownedVehicles.add(row));
+  }
+
+  Widget _sectionLabel(String text) {
+    return Text(
+      text,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: const Color(0xFF7C7C7C),
+            fontWeight: FontWeight.w500,
+          ),
+    );
+  }
+
+  Widget _importDatesSection(JsonStringsService s) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel(s.text('requestImported12MonthsLabel')),
+        const SizedBox(height: 8),
+        for (var i = 0; i < _previousImportDates.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _dateToUi(_previousImportDates[i]),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                IconButton(
+                  tooltip: s.text('requestRemoveRow'),
+                  onPressed: () {
+                    setState(() => _previousImportDates.removeAt(i));
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+        OutlinedButton.icon(
+          onPressed: _addImportDate,
+          icon: const Icon(Icons.add),
+          label: Text(s.text('requestAddImportDate')),
+        ),
+      ],
+    );
+  }
+
+  Widget _ownedVehiclesSection(JsonStringsService s) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel(s.text('requestHasOtherCarsLabel')),
+        const SizedBox(height: 8),
+        for (var i = 0; i < _ownedVehicles.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextFormField(
+                    controller: _ownedVehicles[i].name,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: buildAppOutlineInputDecoration(
+                      context,
+                      hintText: s.text('requestOwnedVehicleNameHint'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 92,
+                  child: TextFormField(
+                    controller: _ownedVehicles[i].year,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
+                    decoration: buildAppOutlineInputDecoration(
+                      context,
+                      hintText: s.text('requestOwnedVehicleYearHint'),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: s.text('requestRemoveRow'),
+                  onPressed: () {
+                    setState(() {
+                      final row = _ownedVehicles.removeAt(i);
+                      row.name.removeListener(_onAnyFieldChanged);
+                      row.year.removeListener(_onAnyFieldChanged);
+                      row.dispose();
+                    });
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+        OutlinedButton.icon(
+          onPressed: _addOwnedVehicle,
+          icon: const Icon(Icons.add),
+          label: Text(s.text('requestAddOwnedVehicle')),
+        ),
+      ],
+    );
+  }
+
   Widget _yesNoField({
     required String label,
     bool markRequired = true,
@@ -965,5 +1145,19 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         ),
       ],
     );
+  }
+}
+
+class _OwnedVehicleEditors {
+  _OwnedVehicleEditors({String name = '', String year = ''})
+      : name = TextEditingController(text: name),
+        year = TextEditingController(text: year);
+
+  final TextEditingController name;
+  final TextEditingController year;
+
+  void dispose() {
+    name.dispose();
+    year.dispose();
   }
 }

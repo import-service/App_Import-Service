@@ -104,6 +104,9 @@ final class JsonStringsService {
   String get profileUnknownError => text('profileUnknownError');
   String get profileTabTitle => text('profileTabTitle');
   String get carsTabTitle => text('carsTabTitle');
+  String get chatsTabTitle => text('chatsTabTitle');
+  String get chatsEmpty => text('chatsEmpty');
+  String get chatsNoPreview => text('chatsNoPreview');
   String get profileManagerLabel => text('profileManagerLabel');
   String get profilePhoneLabel => text('profilePhoneLabel');
   String get profileEmailLabel => text('profileEmailLabel');
@@ -128,6 +131,7 @@ final class JsonStringsService {
   String get requestFilesSectionOther => text('requestFilesSectionOther');
   String get requestDetailDocumentsTitle => text('requestDetailDocumentsTitle');
   String get requestFileNeedsSignature => text('requestFileNeedsSignature');
+  String get requestFileUpdated => text('requestFileUpdated');
   String get requestUploadSignedButton => text('requestUploadSignedButton');
   String get requestUploadSignedAgain => text('requestUploadSignedAgain');
   String get requestUploadDocAgain => text('requestUploadDocAgain');

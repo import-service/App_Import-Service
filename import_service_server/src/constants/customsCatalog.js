@@ -278,6 +278,21 @@ function docTypeLabel(code) {
   return c;
 }
 
+/** Оригиналы пакета на подпись (без *_sign) из списка changedDocTypes. */
+function signingOriginalDocTypes(changedDocTypes) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of changedDocTypes || []) {
+    const code = normalizeDocType(raw);
+    if (!code || code.endsWith('_sign')) continue;
+    if (docTypeCategory(code) !== 'signing') continue;
+    if (seen.has(code)) continue;
+    seen.add(code);
+    out.push(code);
+  }
+  return out;
+}
+
 function docTypeCategory(code) {
   const c = normalizeDocType(code);
   if (!c) return 'other';
@@ -314,6 +329,7 @@ module.exports = {
   statusSubTypeLabel,
   docTypeLabel,
   docTypeCategory,
+  signingOriginalDocTypes,
   signedDocType,
   satisfiesRequiredOnCreate,
 };
