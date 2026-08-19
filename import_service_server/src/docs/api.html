@@ -1121,6 +1121,44 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
             <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
         <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/broadcasts</code><span class="desc">Массовая рассылка во все организации: общий чат + email + push.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
+            <p>Получатели: все организации с <code>deleted_at IS NULL</code>. В каждую уходит сообщение в <b>общий чат</b> (клиент может ответить), push <code>new_org_message</code>, письмо на <code>organizations.login</code> (если это email).</p>
+            <p>JSON (для 1С). Файл — <code>fileBase64</code> или уже готовый <code>attachments[].fileUrl</code>.</p>
+<pre>{
+  "text": "Уважаемые клиенты, напоминаем о графике работы.",
+  "senderName": "Импорт Сервис",
+  "fileName": "grafik.pdf",
+  "mimeType": "application/pdf",
+  "fileBase64": "JVBERi0xLjQK..."
+}</pre>
+            <p><b>Success:</b></p><pre>{
+  "ok": true,
+  "batchId": "f14d9f58-f1c0-4f4d-b3ef-f92d0cc7077f",
+  "source": "integration",
+  "organizations": 42,
+  "chatOk": 42,
+  "chatFail": 0,
+  "emailOk": 40,
+  "emailSkip": 2,
+  "emailFail": 0,
+  "attachment": {
+    "fileUrl": "/api/customs-requests/files/bc_….pdf",
+    "fileName": "grafik.pdf",
+    "mimeType": "application/pdf"
+  }
+}</pre>
+            <p>Имена файлов рассылки: <code>bc_{uuid}.ext</code>. Дедуп рассылки: опционально <code>message1cId</code> (иначе uuid).</p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/broadcasts/attachments</code><span class="desc">Файл для рассылки → fileUrl (до POST broadcasts).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
+            <p>JSON+<code>fileBase64</code> или multipart <code>file</code>. Имена на диске: <code>bc_{uuid}.ext</code>.</p>
+            <p><b>Success (201):</b> как у других upload — <code>{ ok, file: { fileUrl, fileName, mimeType } }</code>.</p>
+          </div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/integration/organization-messages</code><span class="desc">История общего чата организации.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
             <p><b>Query:</b> <code>id_1c</code> (id организации в 1С, как в <code>organizations.id_1c</code>).</p>
@@ -1540,6 +1578,14 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/purge-marked</code><span class="desc">Снять с сервера файлы уже выгруженных заявок (заглушка с ФИО остаётся).</span></summary>
           <div class="body"><p>То же делает ежедневная чистка <code>purge-expired</code> для помеченных архивом. Заявка в МП остаётся с текстом «на физическом носителе, свяжитесь с {ФИО}».</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/broadcasts</code><span class="desc">Массовая рассылка всем организациям (админка).</span></summary>
+          <div class="body"><p><b>Auth:</b> admin JWT</p>
+            <p>Multipart: <code>text</code>, опционально <code>senderName</code>, <code>file</code> (PDF/изображение).</p>
+            <p>Эффект как у <code>POST /api/integration/broadcasts</code>: общий чат + push + email на <code>login</code>.</p>
+            <p><b>Success:</b> <code>{ ok, batchId, organizations, chatOk, chatFail, emailOk, emailSkip, emailFail }</code></p>
+          </div>
         </details>
         <div class="callout"><b>Исходящие в 1С:</b> автоповтор раз в час при <code>oneCCreatePending</code> / <code>oneCUpdatePending</code>. В DTO: <code>oneCCreateHoursPending</code>, <code>oneCUpdateHoursPending</code>, <code>oneCOutboundStaleOver24h</code>. Суточный алерт в лог и <code>one_c_outbound_daily_alerts</code>.</div>
       </section>

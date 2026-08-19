@@ -11,6 +11,7 @@ const {
   chatAttachmentDiskPath,
   requestIdFromChatStoredName,
   organizationIdFromChatStoredName,
+  isBroadcastChatStoredName,
 } = require('./chatAttachmentStorage');
 
 const UPLOAD_ROOT = path.join(process.cwd(), 'uploads', 'customs-requests');
@@ -177,6 +178,18 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
 
     if (!isIntegrationBearerRequest(request) && isMpJwtRequest(request)) {
       const orgId = mpOrganizationId(request);
+      if (isBroadcastChatStoredName(storedName)) {
+        if (!orgId) {
+          return sendFileDownloadError(reply, fastify, request, 404, {
+            error: 'CHAT_FILE_ACCESS_DENIED',
+            message: 'Нет доступа к вложению рассылки',
+            storedName,
+            requestedStoredName,
+            fileKind: 'chat',
+            details: 'broadcast_unauthenticated',
+          });
+        }
+      } else {
       const chatOrgId = organizationIdFromChatStoredName(storedName);
       if (chatOrgId > 0) {
         if (orgId == null || Number(orgId) !== chatOrgId) {
@@ -208,6 +221,7 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
             details: access.reason,
           });
         }
+      }
       }
     }
 

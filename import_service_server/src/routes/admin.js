@@ -21,6 +21,7 @@ const {
   fetchStaleOutbound,
   runDailyRetentionPurge,
 } = require('../services/backgroundJobs');
+const { sendBroadcast } = require('../services/broadcast');
 const { toOrganizationDto } = require('../util/organizationDto');
 
 const ORGANIZATION_SELECT =
@@ -883,6 +884,70 @@ module.exports = async function adminRoutes(fastify) {
     async (_request, reply) => {
       const r = await purgeMarkedArchivedRequests(fastify.pool);
       return reply.send({ ok: true, ...r });
+    },
+  );
+
+  async function readBroadcastParts(request) {
+    const ct = String(request.headers['content-type'] || '').toLowerCase();
+    if (!ct.includes('multipart/form-data')) {
+      return {
+        text: String(request.body?.text || ''),
+        senderName: String(request.body?.senderName || ''),
+        fileBuffer: null,
+        fileName: null,
+        fileMime: null,
+      };
+    }
+    let text = '';
+    let senderName = '';
+    let fileBuffer = null;
+    let fileName = null;
+    let fileMime = null;
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        const chunks = [];
+        for await (const chunk of part.file) chunks.push(chunk);
+        const buf = Buffer.concat(chunks);
+        if (buf.length) {
+          fileBuffer = buf;
+          fileName = part.filename;
+          fileMime = part.mimetype;
+        }
+      } else if (part.fieldname === 'text') {
+        text = String(part.value || '');
+      } else if (part.fieldname === 'senderName') {
+        senderName = String(part.value || '');
+      }
+    }
+    return { text, senderName, fileBuffer, fileName, fileMime };
+  }
+
+  fastify.post(
+    '/admin/broadcasts',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      try {
+        const actor = await adminActor(request);
+        const parsed = await readBroadcastParts(request);
+        const result = await sendBroadcast(fastify, {
+          text: parsed.text,
+          senderName: parsed.senderName || actor.login || 'Рассылка',
+          source: 'admin',
+          fileBuffer: parsed.fileBuffer,
+          fileName: parsed.fileName,
+          fileMime: parsed.fileMime,
+        });
+        return reply.send(result);
+      } catch (e) {
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: e.messageRu || e.message,
+          });
+        }
+        throw e;
+      }
     },
   );
 

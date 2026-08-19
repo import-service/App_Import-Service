@@ -89,7 +89,7 @@ function normalize(value) {
  * @param {import('../config')} smtpConfig — fastify.config.smtp
  * @returns {Promise<{ success: boolean, messageId?: string, error?: string }>}
  */
-async function sendPlainEmail(smtpConfig, { to, subject, html, text, replyTo = null }, log) {
+async function sendPlainEmail(smtpConfig, { to, subject, html, text, replyTo = null, attachments = null }, log) {
   const recipients = (Array.isArray(to) ? to : [to])
     .map((x) => normalize(x))
     .filter(Boolean);
@@ -108,14 +108,18 @@ async function sendPlainEmail(smtpConfig, { to, subject, html, text, replyTo = n
 
   try {
     const transporter = getTransporter(smtpConfig);
-    const info = await transporter.sendMail({
+    const mail = {
       from: fromHeader,
       to: recipients.join(', '),
       replyTo: replyToNorm || undefined,
       subject: subjectNorm,
       html,
       text,
-    });
+    };
+    if (Array.isArray(attachments) && attachments.length) {
+      mail.attachments = attachments;
+    }
+    const info = await transporter.sendMail(mail);
     if (log?.info) {
       log.info(
         {

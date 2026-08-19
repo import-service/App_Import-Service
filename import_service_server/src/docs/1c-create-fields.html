@@ -183,6 +183,34 @@
 }</pre>
     <p class="muted">Auth для integration HTTP: <code>Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</code>. Организация должна быть синхронизирована (<code>organizations.id_1c</code>).</p>
 
+    <h2>9. Массовая рассылка всем клиентам</h2>
+    <p>Одно сообщение — <b>всем</b> организациям с <code>deleted_at IS NULL</code>. Для каждой организации:</p>
+    <ul>
+      <li>сообщение в <b>общий чат</b> (как от менеджера/рассылки);</li>
+      <li><b>push</b> в приложение (<code>new_org_message</code>);</li>
+      <li><b>email</b> на <code>organizations.login</code> (если похож на email).</li>
+    </ul>
+    <p>Клиент может <b>ответить</b> в общем чате. Рассылка не архивируется отдельно — это обычные входящие в org-chat.</p>
+    <table>
+      <tr><th>Кто</th><th>Метод</th><th>Назначение</th></tr>
+      <tr><td>1С</td><td><code>POST /api/integration/broadcasts</code></td><td>Текст + опционально <code>attachments[]</code> или <code>fileBase64</code></td></tr>
+      <tr><td>1С</td><td><code>POST /api/integration/broadcasts/attachments</code></td><td>Сначала загрузить файл → <code>fileUrl</code>, потом в <code>attachments[]</code></td></tr>
+      <tr><td>Админка</td><td><code>POST /api/admin/broadcasts</code></td><td>Тот же эффект: multipart <code>text</code>, <code>file</code></td></tr>
+    </table>
+<pre>{
+  "message1cId": "BROADCAST-2026-001",
+  "text": "Уважаемые клиенты, напоминаем о графике работы.",
+  "senderName": "Import Service",
+  "attachments": [
+    {
+      "fileUrl": "/api/customs-requests/files/bc_….pdf",
+      "fileName": "notice.pdf",
+      "mimeType": "application/pdf"
+    }
+  ]
+}</pre>
+    <p class="muted"><code>message1cId</code> — id рассылки для дедупа (в чате каждой орг: <code>broadcast-{message1cId}-org-{organizationId}</code>). Файлы рассылки на диске: префикс <code>bc_</code>.</p>
+
     <h2>Прочие поля анкеты (тоже с create)</h2>
     <table>
       <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>

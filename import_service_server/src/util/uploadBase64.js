@@ -142,9 +142,33 @@ function parseChatAttachmentJsonBody(body) {
   });
 }
 
+/** JSON + base64 без external1cId (рассылка, общий файл). */
+function parseStandaloneFileBase64Body(body) {
+  const fileName = normalize(body?.fileName || body?.file_name || body?.name);
+  const mimeType = normalize(body?.mimeType || body?.mime_type || body?.contentType);
+  const { buffer, mimeType: mimeFromDataUrl } = decodeBase64Payload(extractBase64FromBody(body));
+  const declaredMime = mimeType || mimeFromDataUrl || '';
+  const kind = resolveFileKind({
+    buffer,
+    clientFileName: fileName,
+    mimeType: declaredMime || 'application/octet-stream',
+  });
+  const finalMime = kind.mimeType;
+  if (buffer.length > LIMIT_PHOTO_DOC_BYTES) {
+    throw new Error(`VALIDATION_ERROR: файл больше ${formatLimitMb(LIMIT_PHOTO_DOC_BYTES)}`);
+  }
+  return {
+    fileName: fileName || undefined,
+    mimeType: finalMime,
+    sourceMimeType: declaredMime || null,
+    buffer,
+  };
+}
+
 module.exports = {
   parseOneCUploadJsonBody,
   parseChatAttachmentJsonBody,
+  parseStandaloneFileBase64Body,
   parseIntegrationFileBase64Body,
   extractBase64FromBody,
   decodeBase64Payload,

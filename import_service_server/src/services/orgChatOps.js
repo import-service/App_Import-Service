@@ -154,22 +154,27 @@ async function getOrgChatListPreview(pool, organizationId) {
   };
 }
 
-async function createOrgMessageFrom1c(fastify, {
-  id1c,
+/**
+ * Входящее в общий чат (менеджер/система/рассылка) по organizationId.
+ * message1cId — уникальный ключ дедупа (для рассылки: broadcast-{id}-org-{orgId}).
+ */
+async function createOrgInboundMessage(fastify, {
+  organizationId,
+  id1c = null,
   message1cId,
   text,
   attachments = [],
   sender1cId,
   senderName,
 }) {
-  const orgKey = normalize(id1c);
+  const orgId = Number(organizationId);
   const msgId = normalize(message1cId);
   const bodyText = clipText(text || '');
   const atts = Array.isArray(attachments) ? attachments : [];
-  if (!orgKey || !msgId) {
+  if (!Number.isFinite(orgId) || orgId <= 0 || !msgId) {
     const e = new Error('VALIDATION_ERROR');
     e.code = 'VALIDATION_ERROR';
-    e.messageRu = 'id_1c и message1cId обязательны';
+    e.messageRu = 'organizationId и message1cId обязательны';
     throw e;
   }
   if (!bodyText && !atts.length) {
@@ -179,14 +184,14 @@ async function createOrgMessageFrom1c(fastify, {
     throw e;
   }
 
-  const org = await findOrganizationById1c(fastify.pool, orgKey);
+  const org = await findOrganizationById(fastify.pool, orgId);
   if (!org) {
     const e = new Error('NOT_FOUND');
     e.code = 'NOT_FOUND';
     throw e;
   }
-  const organizationId = Number(org.id);
-  const parties = await resolveOrgChatParties(fastify.pool, organizationId);
+  const orgKey = normalize(id1c) || normalize(org.id_1c) || null;
+  const parties = await resolveOrgChatParties(fastify.pool, orgId);
   const attsNorm = normalizeMessageAttachments(atts);
 
   const [ex] = await fastify.pool.query(
@@ -199,7 +204,7 @@ async function createOrgMessageFrom1c(fastify, {
       ok: true,
       dedup: true,
       id: ex[0].id,
-      organizationId,
+      organizationId: orgId,
       id1c: orgKey,
       message: existingRow ? orgMessageDto(existingRow, orgKey, parties) : null,
     };
@@ -215,44 +220,76 @@ async function createOrgMessageFrom1c(fastify, {
       (organization_id, author_type, user_id, direction, message_1c_id, text_content, attachments_json, delivery_status)
      VALUES
       (?, 'manager_1c', NULL, 'from_1c', ?, ?, ?, NULL)`,
-    [organizationId, msgId, bodyText, jsonAttachmentsOrNull({ attachments: attsNorm, meta })],
+    [orgId, msgId, bodyText, jsonAttachmentsOrNull({ attachments: attsNorm, meta })],
   );
 
   const newId = ins.insertId;
   const messageRow = await loadOrgMessageRow(fastify.pool, newId);
   const dto = orgMessageDto(messageRow, orgKey, parties);
-  const roomId = orgRoomId(organizationId);
+  const roomId = orgRoomId(orgId);
 
   if (fastify.chatWss) {
     try {
       await fastify.chatWss.broadcast(roomId, {
         type: 'message_created',
         chatKind: 'org',
-        organizationId,
+        organizationId: orgId,
         id1c: orgKey,
         message: dto,
       });
     } catch (e) {
-      fastify.log.error(e, 'org chat broadcast failed (incoming 1C message)');
+      fastify.log.error(e, 'org chat broadcast failed (incoming message)');
     }
   }
 
   notifyOrgMessageFrom1C(fastify, {
-    organizationId,
+    organizationId: orgId,
     messageId: newId,
     text: bodyText,
   }).catch((e) => {
-    fastify.log.warn({ organizationId, err: e.message }, 'push notify org 1c message failed');
+    fastify.log.warn({ organizationId: orgId, err: e.message }, 'push notify org message failed');
   });
 
   return {
     ok: true,
     dedup: false,
     id: newId,
-    organizationId,
+    organizationId: orgId,
     id1c: orgKey,
     message: dto,
   };
+}
+
+async function createOrgMessageFrom1c(fastify, {
+  id1c,
+  message1cId,
+  text,
+  attachments = [],
+  sender1cId,
+  senderName,
+}) {
+  const orgKey = normalize(id1c);
+  if (!orgKey) {
+    const e = new Error('VALIDATION_ERROR');
+    e.code = 'VALIDATION_ERROR';
+    e.messageRu = 'id_1c и message1cId обязательны';
+    throw e;
+  }
+  const org = await findOrganizationById1c(fastify.pool, orgKey);
+  if (!org) {
+    const e = new Error('NOT_FOUND');
+    e.code = 'NOT_FOUND';
+    throw e;
+  }
+  return createOrgInboundMessage(fastify, {
+    organizationId: org.id,
+    id1c: orgKey,
+    message1cId,
+    text,
+    attachments,
+    sender1cId,
+    senderName,
+  });
 }
 
 async function createOrgMessageFromUser(fastify, {
@@ -524,6 +561,7 @@ module.exports = {
   listOrgMessageDtos,
   getOrgChatListPreview,
   resolveOrgChatParties,
+  createOrgInboundMessage,
   createOrgMessageFrom1c,
   createOrgMessageFromUser,
   markOrgReadByUser,

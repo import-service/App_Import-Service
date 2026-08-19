@@ -15,6 +15,7 @@ import 'package:import_service_admin/data/datasources/remote/admin_settings_remo
 import 'package:import_service_admin/data/datasources/remote/auth_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/customs_requests_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/organizations_remote_data_source.dart';
+import 'package:import_service_admin/data/datasources/remote/broadcast_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/storage_remote_data_source.dart';
 import 'package:import_service_admin/data/repositories/admin_users_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/admin_settings_repository_impl.dart';
@@ -64,6 +65,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<StorageRemoteDataSource>(
     () => StorageRemoteDataSource(sl<Dio>()),
+  );
+  sl.registerLazySingleton<BroadcastRemoteDataSource>(
+    () => BroadcastRemoteDataSource(sl<Dio>()),
   );
   sl.registerLazySingleton<OrganizationsRemoteDataSource>(
     () => OrganizationsRemoteDataSource(sl<Dio>()),

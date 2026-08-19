@@ -16,6 +16,7 @@ class AdminShellPage extends StatelessWidget {
     (icon: Icons.star_outline_rounded, label: 'Оценки'),
     (icon: Icons.business_outlined, label: 'Организации'),
     (icon: Icons.admin_panel_settings_outlined, label: 'Админы'),
+    (icon: Icons.campaign_outlined, label: 'Рассылка'),
     (icon: Icons.sd_storage_outlined, label: 'Хранилище'),
     (icon: Icons.settings_outlined, label: '1С'),
   ];

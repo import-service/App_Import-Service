@@ -1,11 +1,12 @@
 const { verifyIntegrationBearer } = require('../util/integrationAuth');
 const { mpOrganizationId } = require('../util/requestOrganizationAccess');
 const { integrationFileUploadPayload } = require('../util/integrationFileUrl');
-const { parseChatAttachmentJsonBody } = require('../util/uploadBase64');
+const { parseChatAttachmentJsonBody, parseStandaloneFileBase64Body } = require('../util/uploadBase64');
 const {
   ensureChatUploadDir,
   saveChatAttachment,
 } = require('../services/chatAttachmentStorage');
+const { saveBroadcastAttachment, sendBroadcast } = require('../services/broadcast');
 const {
   findOrganizationById,
   findOrganizationById1c,
@@ -356,6 +357,109 @@ module.exports = async function orgChatRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
       return handleOrgAttachmentUpload(fastify, request, reply, org.id);
+    },
+  );
+
+  fastify.post(
+    '/integration/broadcasts/attachments',
+    { preHandler: verifyIntegrationBearer },
+    async (request, reply) => {
+      const contentType = String(request.headers['content-type'] || '').toLowerCase();
+      try {
+        if (contentType.includes('application/json')) {
+          const parsed = parseStandaloneFileBase64Body(request.body || {});
+          const saved = await saveBroadcastAttachment(fastify, {
+            buffer: parsed.buffer,
+            clientFileName: parsed.fileName,
+            mimeType: parsed.mimeType,
+          });
+          return reply.code(201).send(integrationFileUploadPayload(saved));
+        }
+        const mp = await request.file();
+        if (!mp) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: 'Нужен multipart file или JSON с fileBase64',
+          });
+        }
+        const chunks = [];
+        for await (const chunk of mp.file) chunks.push(chunk);
+        const saved = await saveBroadcastAttachment(fastify, {
+          buffer: Buffer.concat(chunks),
+          clientFileName: mp.filename,
+          mimeType: mp.mimetype,
+        });
+        return reply.code(201).send(integrationFileUploadPayload(saved));
+      } catch (e) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: e.message || 'Ошибка загрузки',
+        });
+      }
+    },
+  );
+
+  fastify.post(
+    '/integration/broadcasts',
+    {
+      preHandler: verifyIntegrationBearer,
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            text: { type: 'string', maxLength: 5000 },
+            senderName: { type: 'string', maxLength: 255 },
+            message1cId: { type: 'string', maxLength: 255 },
+            attachments: {
+              type: 'array',
+              maxItems: 5,
+              items: {
+                type: 'object',
+                required: ['fileUrl'],
+                properties: {
+                  fileUrl: { type: 'string', minLength: 1, maxLength: 1024 },
+                  fileName: { type: 'string', maxLength: 255 },
+                  mimeType: { type: 'string', maxLength: 128 },
+                },
+              },
+            },
+            fileName: { type: 'string', maxLength: 255 },
+            fileBase64: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        let fileBuffer = null;
+        let fileName = null;
+        let fileMime = null;
+        if (request.body?.fileBase64) {
+          const parsed = parseStandaloneFileBase64Body(request.body);
+          fileBuffer = parsed.buffer;
+          fileName = parsed.fileName;
+          fileMime = parsed.mimeType;
+        }
+        const result = await sendBroadcast(fastify, {
+          text: request.body.text,
+          attachments: request.body.attachments,
+          senderName: request.body.senderName || 'Рассылка',
+          source: 'integration',
+          batchId: request.body.message1cId || null,
+          fileBuffer,
+          fileName,
+          fileMime,
+        });
+        return reply.send(result);
+      } catch (e) {
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: e.messageRu || e.message,
+          });
+        }
+        throw e;
+      }
     },
   );
 };
