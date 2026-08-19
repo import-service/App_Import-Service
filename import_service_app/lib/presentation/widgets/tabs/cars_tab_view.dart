@@ -242,6 +242,8 @@ class _CarsTabViewState extends State<CarsTabView> {
             hasDocsAction: attention.hasDocsAction(c.id),
             statusUpdateSummary: attention.statusUpdateSummaryFor(c.id),
             pendingActionHints: requestDetailUrgentActionHints(c, strings),
+            isArchivedOffline: c.isArchivedOffline,
+            archivedByName: c.archivedByName,
           ),
         )
         .toList();

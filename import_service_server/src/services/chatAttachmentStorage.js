@@ -28,9 +28,9 @@ function isAllowedChatMime(mimeType) {
 
 /**
  * Сохранить вложение чата на диск.
- * @returns {{ storedName, fileName, mimeType, fileSizeBytes, fileUrl }}
+ * Заявка: `r{requestId}_{uuid}.ext`. Общий чат: `o{organizationId}_{uuid}.ext`.
  */
-async function saveChatAttachment(_fastify, { requestId, buffer, clientFileName, mimeType }) {
+async function saveChatAttachment(_fastify, { requestId, organizationId, buffer, clientFileName, mimeType }) {
   await ensureChatUploadDir();
   const kind = resolveFileKind({
     buffer,
@@ -51,7 +51,14 @@ async function saveChatAttachment(_fastify, { requestId, buffer, clientFileName,
   }
 
   const ext = kind.ext.startsWith('.') ? kind.ext : `.${kind.ext}`;
-  const storedName = `r${Number(requestId)}_${uuidv4()}${ext}`;
+  const orgId = Number(organizationId);
+  const reqId = Number(requestId);
+  let storedName;
+  if (Number.isFinite(orgId) && orgId > 0) {
+    storedName = `o${orgId}_${uuidv4()}${ext}`;
+  } else {
+    storedName = `r${reqId}_${uuidv4()}${ext}`;
+  }
   const displayName = ensureDisplayFileName({
     mimeType: resolvedMime,
     clientFileName: clientFileName || `attachment${ext}`,
@@ -80,6 +87,11 @@ function requestIdFromChatStoredName(storedName) {
   return m ? Number(m[1]) : 0;
 }
 
+function organizationIdFromChatStoredName(storedName) {
+  const m = /^o(\d+)_/.exec(normalize(storedName));
+  return m ? Number(m[1]) : 0;
+}
+
 module.exports = {
   CHAT_UPLOAD_ROOT,
   MAX_CHAT_ATTACHMENT_BYTES,
@@ -87,6 +99,7 @@ module.exports = {
   saveChatAttachment,
   chatAttachmentDiskPath,
   requestIdFromChatStoredName,
+  organizationIdFromChatStoredName,
   buildChatFileUrl,
   isAllowedChatMime,
 };

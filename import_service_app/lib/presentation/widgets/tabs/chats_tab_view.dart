@@ -72,9 +72,16 @@ class ChatsTabView extends StatelessWidget {
           item: item,
           hasUnread: hasUnread,
           noPreviewText: strings.chatsNoPreview,
+          pinned: item.isOrgChat,
+          title: item.isOrgChat ? strings.orgChatTitle : null,
+          subtitle: item.isOrgChat ? strings.orgChatSubtitle : null,
           onTap: () async {
             sl<RequestChatUnreadCubit>().clearUnread(item.requestId);
-            await context.pushRequestChat(item.requestId);
+            if (item.isOrgChat) {
+              await context.pushOrgChat();
+            } else {
+              await context.pushRequestChat(item.requestId);
+            }
             await sl<ChatListCubit>().load();
           },
         );

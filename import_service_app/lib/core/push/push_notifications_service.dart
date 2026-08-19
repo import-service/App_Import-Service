@@ -29,7 +29,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 }
 
-enum PushOpenKind { requestDetail, requestChat }
+enum PushOpenKind { requestDetail, requestChat, orgChat }
 
 final class PushOpenTarget {
   const PushOpenTarget({
@@ -389,11 +389,28 @@ final class PushNotificationsService {
 
   PushOpenTarget? _extractOpenTarget(RemoteMessage message) {
     final data = message.data;
-    final requestId = _readRequestId(data);
-    if (requestId == null) return null;
     final type = (data['type']?.trim().toLowerCase() ?? '');
     final event = (data['event']?.trim().toLowerCase() ?? '');
     final action = (data['action']?.trim().toLowerCase() ?? '');
+    final chatKind = (data['chatKind']?.trim().toLowerCase() ??
+        data['chat_kind']?.trim().toLowerCase() ??
+        '');
+    if (type == 'new_org_message' ||
+        event == 'new_org_message' ||
+        chatKind == 'org') {
+      return const PushOpenTarget(
+        requestId: 'org',
+        kind: PushOpenKind.orgChat,
+      );
+    }
+    final requestId = _readRequestId(data);
+    if (requestId == null) return null;
+    if (requestId == 'org') {
+      return const PushOpenTarget(
+        requestId: 'org',
+        kind: PushOpenKind.orgChat,
+      );
+    }
     final openChat = type == 'new_message' ||
         type == 'chat_message' ||
         event == 'new_message' ||

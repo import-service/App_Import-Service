@@ -420,6 +420,39 @@ wss://157-22-173-7.sslip.io/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER
 - Во вложениях сообщений `fileUrl` — `/api/customs-requests/files/…` (relative, как у файлов заявки).
 - Исходящий push сервера → 1С на `…/customs-request-chat` при сообщении из МП **сохраняется**.
 
+## POST /api/integration/organization-messages
+
+Сообщение менеджера в **общий чат организации** (не заявка). Ключ: `id_1c` организации. Дедуп по `message1cId`. Пишет любой менеджер.
+
+```json
+{
+  "id_1c": "GUID-ORG-1C",
+  "message1cId": "GUID-MSG-ORG-0001",
+  "text": "Добрый день",
+  "sender1cId": "u-manager-001",
+  "senderName": "Иванов И.И.",
+  "attachments": []
+}
+```
+
+Ответ: `{ ok, id, organizationId, message }`.
+
+## GET /api/integration/organization-messages
+
+`?id_1c=…` → `{ items, organizationId, id_1c, chatKind: "org" }`.
+
+## POST /api/integration/organization-messages/attachments
+
+JSON+`fileBase64` или multipart, `id_1c`. Файл: `o{organizationId}_…`.
+
+## WSS общий чат (1С)
+
+```
+wss://157-22-173-7.sslip.io/ws/1c/org/?id_1c=<GUID>&token=<INTEGRATION_BEARER_TOKEN>
+```
+
+Исходящий HTTP сервера → 1С: `…/organization-chat` (из create-URL админки). Пока метод не опубликован в 1С, исходящие из МП будут `failed`.
+
 ## Правила интеграции организаций
 
 - Один вызов = одна организация (upsert по `id_1c`).

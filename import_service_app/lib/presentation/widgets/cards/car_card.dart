@@ -23,11 +23,14 @@ class CarCard extends StatelessWidget {
   final VoidCallback? onOpenDetails;
   final VoidCallback? onOpenChat;
 
-  bool get _showGoToChat => requestChatAvailable(
-    status: car.requestStatus,
-    external1cId: car.external1cId,
-    managerFullName: car.managerFullName,
-  );
+  bool get _showGoToChat =>
+      !car.isArchivedOffline &&
+      requestChatAvailable(
+        status: car.requestStatus,
+        external1cId: car.external1cId,
+        managerFullName: car.managerFullName,
+        isArchivedOffline: car.isArchivedOffline,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +108,18 @@ class CarCard extends StatelessWidget {
                                   ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                              if (car.isArchivedOffline) ...[
+                                const Gap(8),
+                                Text(
+                                  sl<JsonStringsService>().requestArchivedOffline(
+                                    car.archivedByName,
+                                  ),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.accentRed,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ],

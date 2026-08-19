@@ -165,6 +165,8 @@ Query:
 
 Деталка заявки (+ `files`).
 
+Если заявка выгружена в ZIP и затем снята с диска сервера: `isArchivedOffline: true`, `archivedByName`, `archiveLocation`. Файлов нет; в МП — текст связаться с ФИО. Общий чат организации в этот архив не входит.
+
 ### PATCH /api/customs-requests/:id
 
 Обновить поля анкеты (без полей 1С и без смены статуса). Поддерживается **`legalInn`** / **`inn`** (10 или 12 цифр).
@@ -291,7 +293,9 @@ Push `request_files_update` — после upload от 1С; в `data.changedDocT
 
 Список чатов организации (МП, вкладка «Чаты»). Auth: JWT пользователя.
 
-Успех: `{ items: [{ requestId, carMake, carModel, vin, managerFullName, external1cId, lastText, lastAt, unread, unreadCount }] }`.
+Успех: `{ items: [{ kind, requestId, carMake, carModel, vin, managerFullName, external1cId, lastText, lastAt, unread, unreadCount }] }`.
+
+Первая строка — общий чат организации (`kind: "org"`, `requestId: "org"`), далее чаты заявок (`kind: "request"`).
 
 Непрочитанное: входящие `from_1c` с `read_by_user_at IS NULL`. Сбрасывается `POST …/messages/read` при открытии чата.
 
@@ -333,17 +337,42 @@ Multipart `file` (JPEG/PNG/WebP/GIF/PDF, до 25 МБ). Auth: JWT пользов
 
 Прочитанность входящих сообщений 1С у пользователя.
 
+## Общий чат организации
+
+Один чат на организацию (логин МП). Не keyed по `requestId`. Unread-ключ: `org`.
+
+### GET /api/org-chat/messages
+
+История. Query: `limit`, `beforeId`. Auth: JWT. `{ items, chatKind: "org" }`.
+
+### POST /api/org-chat/messages
+
+`text`, `clientMessageId`, опционально `attachments[]`.
+
+### POST /api/org-chat/messages/read
+
+`{ upToMessageId }`.
+
+### POST /api/org-chat/messages/attachments
+
+Multipart `file`. Имя: `o{organizationId}_{uuid}.ext`. Раздача: `GET /api/customs-requests/files/:storedName`.
+
+Push входящего: `type: new_org_message`, `requestId: "org"`.
+
 ## Realtime (WSS)
 
 **МП:**
 
-- `wss://157-22-173-7.sslip.io/ws/<requestId>/?token=<accessToken>`
+- `wss://157-22-173-7.sslip.io/ws/<requestId>/?token=<accessToken>` — чат заявки
+- `wss://157-22-173-7.sslip.io/ws/org/?token=<accessToken>` — общий чат организации
 
 **1С (полный дуплекс, HTTP чата при этом остаётся):**
 
 - `wss://157-22-173-7.sslip.io/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER_TOKEN>`
+- `wss://157-22-173-7.sslip.io/ws/1c/org/?id_1c=<GUID>&token=<INTEGRATION_BEARER_TOKEN>` — общий чат, комната `org:{organizationId}`
 
-После connect: `{ "type": "ready", "requestId", "external1cId", "role": "1c" }`.
+После connect (заявка): `{ "type": "ready", "requestId", "external1cId", "role": "1c" }`.
+После connect (орг): `{ "type": "ready", "chatKind": "org", "organizationId", "id1c", "role": "1c" }`.
 
 От 1С на сокет:
 

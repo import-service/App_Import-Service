@@ -19,6 +19,8 @@ class DemoCar {
     this.hasDocsAction = false,
     this.statusUpdateSummary,
     this.pendingActionHints = const [],
+    this.isArchivedOffline = false,
+    this.archivedByName,
   });
 
   final String id;
@@ -39,6 +41,8 @@ class DemoCar {
 
   /// Что нужно сделать в заявке (подпись, чек…) — из данных item, не только push.
   final List<String> pendingActionHints;
+  final bool isArchivedOffline;
+  final String? archivedByName;
 
   bool get hasPendingActions => pendingActionHints.isNotEmpty;
 

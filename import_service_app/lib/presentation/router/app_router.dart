@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
+import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/presentation/pages/car_request_detail_page.dart';
 import 'package:import_service_app/presentation/pages/request_chat_page.dart';
 import 'package:import_service_app/presentation/pages/home_page.dart';
@@ -33,6 +34,16 @@ final GoRouter appRouter = GoRouter(
       name: 'home',
       builder: (BuildContext context, GoRouterState state) {
         return const HomePage();
+      },
+    ),
+    GoRoute(
+      path: '/org/chat',
+      name: 'orgChat',
+      builder: (BuildContext context, GoRouterState state) {
+        return const RequestChatPage(
+          requestId: ChatListItem.orgChatId,
+          isOrgChat: true,
+        );
       },
     ),
     GoRoute(

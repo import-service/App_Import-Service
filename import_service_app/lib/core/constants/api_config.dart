@@ -24,4 +24,18 @@ class ApiConfig {
       queryParameters: <String, String>{'token': accessToken},
     ).toString();
   }
+
+  /// Общий чат организации: `wss://<host>/ws/org/?token=…`
+  static String orgChatWebsocketUrl(String accessToken) {
+    final raw = baseUrl.trim();
+    final u = Uri.parse(raw.endsWith('/') ? raw : '$raw/');
+    final scheme = u.scheme == 'https' ? 'wss' : 'ws';
+    return Uri(
+      scheme: scheme,
+      host: u.host,
+      port: u.hasPort ? u.port : null,
+      path: '/ws/org/',
+      queryParameters: <String, String>{'token': accessToken},
+    ).toString();
+  }
 }

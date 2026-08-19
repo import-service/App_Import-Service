@@ -10,16 +10,38 @@ const {
   createMessageFromUser,
   markReadByUser,
   markReadBy1c,
-  messageDto,
   normalize,
 } = require('./chatMessageOps');
+const {
+  orgRoomId,
+  findOrganizationById,
+  findOrganizationById1c,
+  listOrgMessageDtos,
+  createOrgMessageFrom1c,
+  createOrgMessageFromUser,
+  markOrgReadByUser,
+  markOrgReadBy1c,
+} = require('./orgChatOps');
 
 /**
  * WSS комнаты чата — единый дуплекс для МП и 1С.
  *
- * МП:  `/ws/{requestId}/?token=<JWT>` — history / send / read
- * 1С:  `/ws/1c/?external1cId=…&token=<INTEGRATION_BEARER>` — history / send / read
+ * МП:  `/ws/{requestId}/?token=<JWT>` — чат заявки
+ * МП:  `/ws/org/?token=<JWT>` — общий чат организации
+ * 1С:  `/ws/1c/?external1cId=…&token=<INTEGRATION_BEARER>`
+ * 1С:  `/ws/1c/org/?id_1c=…&token=<INTEGRATION_BEARER>`
  */
+function parseRoomKey(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  if (s.startsWith('org:')) {
+    const n = Number(s.slice(4));
+    return Number.isFinite(n) && n > 0 ? s : null;
+  }
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function startChatWss(fastify) {
   if (fastify.__chatWssInited) {
     return fastify.__chatWss;
@@ -89,17 +111,21 @@ function startChatWss(fastify) {
     const requestId = ws.__roomId;
     const external1cId = ws.__external1cId;
     const authKind = ws.__authKind;
+    const chatKind = ws.__chatKind || 'request';
+    const organizationId = ws.__organizationId;
+    const id1c = ws.__id1c;
 
     if (type === 'history') {
-      const items = await listMessageDtos(
-        fastify.pool,
-        requestId,
-        external1cId || null,
-      );
+      const items = chatKind === 'org'
+        ? await listOrgMessageDtos(fastify.pool, organizationId, id1c || null)
+        : await listMessageDtos(fastify.pool, requestId, external1cId || null);
       sendJson(ws, {
         type: 'history',
-        requestId,
+        chatKind,
+        requestId: chatKind === 'org' ? null : requestId,
+        organizationId: chatKind === 'org' ? organizationId : null,
         external1cId: external1cId || null,
+        id1c: id1c || null,
         items,
       });
       return;
@@ -108,7 +134,26 @@ function startChatWss(fastify) {
     if (type === 'send') {
       try {
         let result;
-        if (authKind === 'integration') {
+        if (chatKind === 'org') {
+          if (authKind === 'integration') {
+            result = await createOrgMessageFrom1c(fastify, {
+              id1c,
+              message1cId: body.message1cId,
+              text: body.text,
+              attachments: body.attachments,
+              sender1cId: body.sender1cId,
+              senderName: body.senderName,
+            });
+          } else {
+            result = await createOrgMessageFromUser(fastify, {
+              organizationId,
+              userId: ws.__userId,
+              text: body.text,
+              attachments: body.attachments,
+              clientMessageId: body.clientMessageId,
+            });
+          }
+        } else if (authKind === 'integration') {
           result = await createMessageFrom1c(fastify, {
             external1cId,
             message1cId: body.message1cId,
@@ -131,7 +176,8 @@ function startChatWss(fastify) {
           ok: true,
           dedup: Boolean(result.dedup),
           id: result.id,
-          requestId: result.requestId,
+          requestId: result.requestId || null,
+          organizationId: result.organizationId || null,
           message: result.message || null,
           oneC: result.oneC || null,
         });
@@ -148,9 +194,16 @@ function startChatWss(fastify) {
 
     if (type === 'read') {
       try {
-        const result = authKind === 'integration'
-          ? await markReadBy1c(fastify, { requestId, upToMessageId: body.upToMessageId })
-          : await markReadByUser(fastify, { requestId, upToMessageId: body.upToMessageId });
+        let result;
+        if (chatKind === 'org') {
+          result = authKind === 'integration'
+            ? await markOrgReadBy1c(fastify, { organizationId, upToMessageId: body.upToMessageId })
+            : await markOrgReadByUser(fastify, { organizationId, upToMessageId: body.upToMessageId });
+        } else {
+          result = authKind === 'integration'
+            ? await markReadBy1c(fastify, { requestId, upToMessageId: body.upToMessageId })
+            : await markReadByUser(fastify, { requestId, upToMessageId: body.upToMessageId });
+        }
         sendJson(ws, { type: 'read_ack', ...result });
       } catch (e) {
         sendJson(ws, {
@@ -198,13 +251,13 @@ function startChatWss(fastify) {
         res.end(JSON.stringify({ error: 'NOT_FOUND' }));
         return;
       }
-      const requestId = Number(u.searchParams.get('requestId'));
-      if (!requestId) {
+      const roomKey = parseRoomKey(u.searchParams.get('roomId') || u.searchParams.get('requestId'));
+      if (!roomKey) {
         res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ error: 'BAD_ROOM' }));
         return;
       }
-      const set = getRoomSet(requestId);
+      const set = getRoomSet(roomKey);
       let subscribers = 0;
       let integrationSubscribers = 0;
       let jwtSubscribers = 0;
@@ -217,7 +270,8 @@ function startChatWss(fastify) {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({
         ok: true,
-        requestId,
+        requestId: roomKey,
+        roomId: roomKey,
         subscribers,
         integrationSubscribers,
         jwtSubscribers,
@@ -249,14 +303,14 @@ function startChatWss(fastify) {
           res.end(JSON.stringify({ error: 'BAD_JSON' }));
           return;
         }
-        const requestId = Number(body.requestId);
-        if (!requestId) {
+        const roomKey = parseRoomKey(body.roomId || body.requestId);
+        if (!roomKey) {
           res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ error: 'BAD_ROOM' }));
           return;
         }
         const payload = JSON.stringify(body.event || {});
-        const set = getRoomSet(requestId);
+        const set = getRoomSet(roomKey);
         let delivered = 0;
         let integrationDelivered = 0;
         let jwtDelivered = 0;
@@ -315,11 +369,53 @@ function startChatWss(fastify) {
       let external1cId = '';
       let authKind = auth.kind;
       let userId = null;
+      let chatKind = 'request';
+      let organizationId = null;
+      let id1c = '';
 
+      const oneCOrgMatch = u.pathname.match(/^\/ws\/1c\/org\/?$/);
+      const mpOrgMatch = u.pathname.match(/^\/ws\/org\/?$/);
       const oneCMatch = u.pathname.match(/^\/ws\/1c\/?$/);
       const mpMatch = u.pathname.match(/^\/ws\/([0-9]+)\/?$/);
 
-      if (oneCMatch) {
+      if (oneCOrgMatch) {
+        if (auth.kind !== 'integration') {
+          socket.destroy();
+          return;
+        }
+        id1c = normalize(u.searchParams.get('id_1c') || u.searchParams.get('id1c'));
+        if (!id1c) {
+          socket.destroy();
+          return;
+        }
+        const org = await findOrganizationById1c(fastify.pool, id1c);
+        if (!org) {
+          socket.destroy();
+          return;
+        }
+        chatKind = 'org';
+        organizationId = Number(org.id);
+        roomId = orgRoomId(organizationId);
+      } else if (mpOrgMatch) {
+        if (auth.kind !== 'jwt') {
+          socket.destroy();
+          return;
+        }
+        userId = Number(auth.decoded?.sub);
+        if (!userId) {
+          socket.destroy();
+          return;
+        }
+        const org = await findOrganizationById(fastify.pool, userId);
+        if (!org) {
+          socket.destroy();
+          return;
+        }
+        chatKind = 'org';
+        organizationId = Number(org.id);
+        id1c = org.id_1c || '';
+        roomId = orgRoomId(organizationId);
+      } else if (oneCMatch) {
         if (auth.kind !== 'integration') {
           socket.destroy();
           return;
@@ -367,6 +463,9 @@ function startChatWss(fastify) {
         ws.__authKind = authKind;
         ws.__external1cId = external1cId || null;
         ws.__userId = userId;
+        ws.__chatKind = chatKind;
+        ws.__organizationId = organizationId;
+        ws.__id1c = id1c || null;
         getRoomSet(roomId).add(ws);
         ws.on('close', () => {
           getRoomSet(roomId).delete(ws);
@@ -379,8 +478,11 @@ function startChatWss(fastify) {
         });
         sendJson(ws, {
           type: 'ready',
-          requestId: roomId,
+          chatKind,
+          requestId: chatKind === 'org' ? null : roomId,
+          organizationId: chatKind === 'org' ? organizationId : null,
           external1cId: external1cId || null,
+          id1c: id1c || null,
           role: authKind === 'integration' ? '1c' : 'app',
           ts: new Date().toISOString(),
         });
@@ -400,8 +502,9 @@ function startChatWss(fastify) {
 
   const api = {
     async roomStats(requestId) {
+      const roomId = String(requestId);
       const res = await fetch(
-        `http://127.0.0.1:${cfg.broadcastPort}/room-stats?requestId=${Number(requestId)}`,
+        `http://127.0.0.1:${cfg.broadcastPort}/room-stats?roomId=${encodeURIComponent(roomId)}`,
         {
           method: 'GET',
           headers: {
@@ -423,7 +526,7 @@ function startChatWss(fastify) {
           'Content-Type': 'application/json; charset=utf-8',
           'X-Broadcast-Secret': String(cfg.broadcastSecret),
         },
-        body: JSON.stringify({ requestId, event }),
+        body: JSON.stringify({ roomId: String(requestId), requestId, event }),
       });
       if (!res.ok) {
         const t = await res.text();

@@ -27,11 +27,16 @@ import 'package:import_service_app/presentation/widgets/chips/request_status_pil
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Маршрут: `/request/:id/chat` — чат [api-app.md] REST+WSS; в демо: автоответ.
+/// Маршрут: `/request/:id/chat` или `/org/chat` — REST+WSS; в демо: автоответ.
 class RequestChatPage extends StatelessWidget {
-  const RequestChatPage({super.key, required this.requestId});
+  const RequestChatPage({
+    super.key,
+    required this.requestId,
+    this.isOrgChat = false,
+  });
 
   final String requestId;
+  final bool isOrgChat;
 
   @override
   Widget build(BuildContext context) {
@@ -43,15 +48,19 @@ class RequestChatPage extends StatelessWidget {
         strings: sl<JsonStringsService>(),
         wss: ChatBroadcastWssClient(),
       ),
-      child: _RequestChatView(requestId: requestId),
+      child: _RequestChatView(requestId: requestId, isOrgChat: isOrgChat),
     );
   }
 }
 
 class _RequestChatView extends StatefulWidget {
-  const _RequestChatView({required this.requestId});
+  const _RequestChatView({
+    required this.requestId,
+    this.isOrgChat = false,
+  });
 
   final String requestId;
+  final bool isOrgChat;
 
   @override
   State<_RequestChatView> createState() => _RequestChatViewState();
@@ -107,17 +116,18 @@ class _RequestChatViewState extends State<_RequestChatView> {
         }
       },
       builder: (context, cstate) {
+        final title = widget.isOrgChat ? s.orgChatTitle : s.chatPageTitle;
         if (cstate.isLoading) {
           return Scaffold(
             backgroundColor: AppTheme.pageBackground,
-            appBar: _chatAppBar(context, s.chatPageTitle),
+            appBar: _chatAppBar(context, title),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
         if (cstate.isUnavailable) {
           return Scaffold(
             backgroundColor: AppTheme.pageBackground,
-            appBar: _chatAppBar(context, s.chatPageTitle),
+            appBar: _chatAppBar(context, title),
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -141,10 +151,13 @@ class _RequestChatViewState extends State<_RequestChatView> {
             final car = _findItem(carState.items, requestId);
             return Scaffold(
               backgroundColor: AppTheme.pageBackground,
-              appBar: _chatAppBar(context, s.chatPageTitle),
+              appBar: _chatAppBar(context, title),
               body: Column(
                 children: [
-                  if (car != null) _headerCard(context, car, s) else const SizedBox.shrink(),
+                  if (!widget.isOrgChat && car != null)
+                    _headerCard(context, car, s)
+                  else
+                    const SizedBox.shrink(),
                   Expanded(
                     child: _messageList(
                       context: context,

@@ -681,6 +681,7 @@ async function listChatsForOrganization(pool, organizationId) {
       lastAt: toIsoDate(row.last_at),
       unread: unreadCount > 0,
       unreadCount,
+      kind: 'request',
     };
   });
 }

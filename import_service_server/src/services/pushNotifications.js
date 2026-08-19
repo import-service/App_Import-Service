@@ -378,11 +378,29 @@ async function notifyMessageFrom1C(fastify, dto) {
   });
 }
 
+async function notifyOrgMessageFrom1C(fastify, dto) {
+  const orgId = Number(dto.organizationId);
+  return sendPushToOrganization(fastify, orgId, {
+    title: 'Сообщение от менеджера',
+    body: clipText(dto.text || 'Новое сообщение в общем чате'),
+    data: {
+      type: 'new_org_message',
+      chatKind: 'org',
+      requestId: 'org',
+      request_id: 'org',
+      id: 'org',
+      organizationId: String(orgId || ''),
+      messageId: dto.messageId,
+    },
+  });
+}
+
 module.exports = {
   sendPushToOrganization,
   notifyStateChangedFrom1C,
   notifyFilesChangedFrom1C,
   notifyMessageFrom1C,
+  notifyOrgMessageFrom1C,
   buildStateChangeSummary,
   buildFilesChangeSummary,
   buildStatePushTitle,

@@ -8,6 +8,7 @@ import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/error/failures.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/data/websocket/chat_broadcast_wss_client.dart';
+import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
 import 'package:import_service_app/presentation/bloc/request_chat/request_chat_state.dart';
@@ -105,7 +106,9 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
     final t = _session.accessToken;
     if (t == null || t.isEmpty) return;
     if (_wss.isActive) return;
-    final url = ApiConfig.chatWebsocketUrl(requestId, t);
+    final url = requestId == ChatListItem.orgChatId
+        ? ApiConfig.orgChatWebsocketUrl(t)
+        : ApiConfig.chatWebsocketUrl(requestId, t);
     _wss.connect(
       url: url,
       onMessage: (msg) {

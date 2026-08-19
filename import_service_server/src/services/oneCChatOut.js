@@ -52,6 +52,22 @@ function buildOneCChatUrl(createUrl) {
   return `${raw.replace(/\/$/, '')}/customs-request-chat`;
 }
 
+function buildOneCOrgChatUrl(createUrl) {
+  const raw = String(createUrl || '').trim();
+  if (!raw) return '';
+  if (/\/organization-chat\/?$/i.test(raw)) return raw;
+  if (/\/customs-request-chat\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-request-chat\/?$/i, '/organization-chat');
+  }
+  if (/\/customs-request-update\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-request-update\/?$/i, '/organization-chat');
+  }
+  if (/\/customs-request\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-request\/?$/i, '/organization-chat');
+  }
+  return `${raw.replace(/\/$/, '')}/organization-chat`;
+}
+
 /**
  * @param {import('fastify').FastifyInstance} fastify
  */
@@ -100,4 +116,52 @@ async function sendUserMessageTo1C(fastify, {
   throw lastErr;
 }
 
-module.exports = { sendUserMessageTo1C, buildOneCChatUrl };
+async function sendOrgUserMessageTo1C(fastify, {
+  id1c,
+  organizationId,
+  clientMessageId,
+  text,
+  attachmentsJson,
+  senderName,
+  recipientName,
+}) {
+  const settings = await getAppSettings(fastify.pool);
+  const chatUrl = buildOneCOrgChatUrl(settings.oneCRequestCreateUrl);
+  if (!chatUrl) {
+    const e = new Error('ONE_C_CHAT_URL_NOT_SET');
+    e.code = 'ONE_C_CHAT_URL_NOT_SET';
+    throw e;
+  }
+
+  const body = {
+    id_1c: id1c || null,
+    organizationId,
+    clientMessageId,
+    text,
+    attachments: attachmentsJson,
+    senderName: senderName || null,
+    recipientName: recipientName || null,
+    authorType: 'app_user',
+    chatKind: 'org',
+  };
+
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await postJson({
+        url: chatUrl,
+        body,
+        bearerToken: settings.oneCRequestCreateBearerToken || '',
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+      });
+    } catch (e) {
+      lastErr = e;
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(250 * attempt);
+      }
+    }
+  }
+  throw lastErr;
+}
+
+module.exports = { sendUserMessageTo1C, sendOrgUserMessageTo1C, buildOneCChatUrl, buildOneCOrgChatUrl };

@@ -1,12 +1,14 @@
 import 'package:equatable/equatable.dart';
 
-/// Строка вкладки «Чаты»: заявка с доступным чатом (`external1cId`).
+/// Строка вкладки «Чаты»: заявка с доступным чатом (`external1cId`)
+/// или закреплённый общий чат организации (`kind == org`).
 final class ChatListItem extends Equatable {
   const ChatListItem({
     required this.requestId,
     required this.carMake,
     required this.carModel,
     required this.vin,
+    this.kind = 'request',
     this.managerFullName,
     this.external1cId,
     this.lastText,
@@ -15,7 +17,12 @@ final class ChatListItem extends Equatable {
     this.unreadCount = 0,
   });
 
+  /// Sentinel `requestId` / ключ unread для общего чата (не numeric id заявки).
+  static const String orgChatId = 'org';
+
   final String requestId;
+  /// `org` | `request`.
+  final String kind;
   final String carMake;
   final String carModel;
   final String vin;
@@ -25,6 +32,8 @@ final class ChatListItem extends Equatable {
   final DateTime? lastAt;
   final bool unread;
   final int unreadCount;
+
+  bool get isOrgChat => kind == 'org' || requestId == orgChatId;
 
   String get displayCarLine {
     final a = carMake.trim();
@@ -43,8 +52,12 @@ final class ChatListItem extends Equatable {
 
   factory ChatListItem.fromJson(Map<String, dynamic> json) {
     final idRaw = json['requestId'] ?? json['request_id'] ?? json['id'];
+    final id = idRaw == null ? '' : idRaw.toString();
+    final kindRaw = _str(json, 'kind', 'kind').toLowerCase();
+    final isOrg = kindRaw == 'org' || id == orgChatId;
     return ChatListItem(
-      requestId: idRaw == null ? '' : idRaw.toString(),
+      requestId: isOrg ? orgChatId : id,
+      kind: isOrg ? 'org' : (kindRaw.isEmpty ? 'request' : kindRaw),
       carMake: _str(json, 'carMake', 'car_make'),
       carModel: _str(json, 'carModel', 'car_model'),
       vin: _str(json, 'vin', 'vin'),
@@ -80,6 +93,7 @@ final class ChatListItem extends Equatable {
   @override
   List<Object?> get props => [
         requestId,
+        kind,
         carMake,
         carModel,
         vin,

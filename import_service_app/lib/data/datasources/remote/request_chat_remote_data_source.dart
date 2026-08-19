@@ -6,12 +6,25 @@ import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 import 'package:uuid/uuid.dart';
 
-/// REST по чату: список `GET /customs-requests/chats`, история/отправка `…/:id/messages`.
+/// REST по чату: список `GET /customs-requests/chats`, история/отправка `…/:id/messages`
+/// или общий чат `org-chat/messages`.
 final class RequestChatRemoteDataSource {
   RequestChatRemoteDataSource(this._dio);
 
   final Dio _dio;
   static const Uuid _uuid = Uuid();
+
+  static bool _isOrg(String requestId) => requestId == ChatListItem.orgChatId;
+
+  static String _messagesPath(String requestId) {
+    if (_isOrg(requestId)) return 'org-chat/messages';
+    return 'customs-requests/${Uri.encodeComponent(requestId)}/messages';
+  }
+
+  static String _readPath(String requestId) => '${_messagesPath(requestId)}/read';
+
+  static String _attachPath(String requestId) =>
+      '${_messagesPath(requestId)}/attachments';
 
   static List<Map<String, dynamic>> _messageItemsFromResponse(dynamic data) {
     if (data is List<dynamic>) {
@@ -57,8 +70,7 @@ final class RequestChatRemoteDataSource {
     int limit = 50,
     int? beforeId,
   }) async {
-    final idEnc = Uri.encodeComponent(requestId);
-    final path = 'customs-requests/$idEnc/messages';
+    final path = _messagesPath(requestId);
     try {
       final q = <String, dynamic>{'limit': limit};
       if (beforeId != null) {
@@ -86,8 +98,7 @@ final class RequestChatRemoteDataSource {
     String? clientMessageId,
     List<ChatAttachment> attachments = const <ChatAttachment>[],
   }) async {
-    final idEnc = Uri.encodeComponent(requestId);
-    final path = 'customs-requests/$idEnc/messages';
+    final path = _messagesPath(requestId);
     final id = (clientMessageId != null && clientMessageId.isNotEmpty)
         ? clientMessageId
         : _uuid.v4();
@@ -142,8 +153,7 @@ final class RequestChatRemoteDataSource {
     String requestId, {
     required int upToMessageId,
   }) async {
-    final idEnc = Uri.encodeComponent(requestId);
-    final path = 'customs-requests/$idEnc/messages/read';
+    final path = _readPath(requestId);
     try {
       await _dio.post<dynamic>(
         path,
@@ -165,8 +175,7 @@ final class RequestChatRemoteDataSource {
     required String filePath,
     String? fileName,
   }) async {
-    final idEnc = Uri.encodeComponent(requestId);
-    final path = 'customs-requests/$idEnc/messages/attachments';
+    final path = _attachPath(requestId);
     final name = (fileName != null && fileName.trim().isNotEmpty)
         ? fileName.trim()
         : filePath.split(RegExp(r'[\\/]')).last;

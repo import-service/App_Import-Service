@@ -281,10 +281,25 @@
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/chats</code><span class="desc">Список чатов организации (МП, вкладка «Чаты»).</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p>
-            <p>Заявки с <code>external1cId</code> (чат доступен). Непрочитанное: входящие <code>direction=from_1c</code> с <code>read_by_user_at IS NULL</code> — точка в МП живёт до открытия чата (там <code>POST …/messages/read</code>).</p>
+            <p>Первая строка — <b>общий чат организации</b> (<code>kind: "org"</code>, <code>requestId: "org"</code>), затем заявки с <code>external1cId</code> (<code>kind: "request"</code>). Непрочитанное: входящие <code>direction=from_1c</code> с <code>read_by_user_at IS NULL</code> — точка в МП живёт до открытия чата (там <code>POST …/messages/read</code>).</p>
             <p><b>Success:</b></p><pre>{
   "items": [
     {
+      "kind": "org",
+      "requestId": "org",
+      "organizationId": 14,
+      "carMake": "",
+      "carModel": "",
+      "vin": "",
+      "managerFullName": null,
+      "external1cId": null,
+      "lastText": "Добрый день",
+      "lastAt": "2026-08-19T04:11:00.000Z",
+      "unread": true,
+      "unreadCount": 1
+    },
+    {
+      "kind": "request",
       "requestId": 123,
       "carMake": "Toyota",
       "carModel": "Crown",
@@ -403,6 +418,45 @@
             <p><b>Сервер → клиент:</b> <code>ready</code>, <code>history</code>, <code>send_ack</code>, <code>read_ack</code>, <code>message_created</code>, <code>read</code> (в т.ч. <code>by: "1c"</code>).</p>
             <p>HTTP GET/POST messages и <code>…/messages/read</code> — fallback, если сокет недоступен.</p>
             <p><b>Errors handshake:</b> <code>401</code> — соединение рвётся.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Общий чат организации</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/org-chat/messages</code><span class="desc">История общего чата (один на организацию).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p>
+            <p>Не привязан к заявке. Ключ unread в МП — строка <code>org</code> (не numeric <code>requestId</code>).</p>
+            <p><b>Request:</b></p><pre>{
+  "query": { "limit": 50, "beforeId": null }
+}</pre>
+            <p><b>Success:</b> <code>{ "items": [...], "limit", "beforeId", "chatKind": "org" }</code> — поля сообщения как у чата заявки, плюс <code>organizationId</code>, <code>id1c</code>, <code>requestId: null</code>.</p>
+            <p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/org-chat/messages</code><span class="desc">Отправить сообщение в общий чат.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p>
+            <p>Тело как у чата заявки: <code>text</code>, <code>clientMessageId</code>, опционально <code>attachments[]</code>.</p>
+            <p>Если 1С ещё не опубликовала <code>…/organization-chat</code>, исходящее останется со статусом <code>failed</code> (это ожидаемо до реализации метода в 1С).</p>
+            <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/org-chat/messages/read</code><span class="desc">Прочитанность входящих в общем чате.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{ "upToMessageId": 12 }</pre><p><b>Success:</b></p><pre>{ "ok": true, "updated": 2, "upToMessageId": 12 }</pre></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/org-chat/messages/attachments</code><span class="desc">Вложение общего чата → fileUrl.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p>
+            <p>Multipart <code>file</code>. Имя на диске: <code>o{organizationId}_{uuid}.ext</code> (заявки остаются <code>r{requestId}_…</code>). Раздача тот же <code>GET /api/customs-requests/files/:storedName</code>.</p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method ws">WS</span><code class="path">{{WS_BASE_URL}}/ws/org/?token=&lt;accessToken&gt;</code><span class="desc">WSS общего чата МП.</span></summary>
+          <div class="body">
+            <p><b>URL:</b></p><pre>{{WS_BASE_URL}}/ws/org/?token=sample_access_token_value</pre>
+            <p>Протокол тот же (<code>history</code> / <code>send</code> / <code>read</code>). Комната: <code>org:{organizationId}</code> — <b>не</b> numeric id заявки.</p>
+            <p>Push входящего: <code>type: new_org_message</code>, <code>requestId: "org"</code>.</p>
           </div>
         </details>
       </section>
@@ -1066,6 +1120,35 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
             <p>Если у 1С уже есть публичный <code>fileUrl</code> — upload на наш сервер не обязателен.</p>
             <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
         </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/integration/organization-messages</code><span class="desc">История общего чата организации.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
+            <p><b>Query:</b> <code>id_1c</code> (id организации в 1С, как в <code>organizations.id_1c</code>).</p>
+            <p><b>Success:</b> <code>{ "items", "organizationId", "id_1c", "chatKind": "org" }</code>.</p>
+            <p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/organization-messages</code><span class="desc">Сообщение менеджера в общий чат организации.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
+            <p>Пишет любой менеджер. Дедуп по <code>message1cId</code>.</p>
+            <table class="fields">
+              <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
+              <tr><td><code>id_1c</code></td><td>да</td><td>Id организации в 1С.</td></tr>
+              <tr><td><code>message1cId</code></td><td>да</td><td>Уникальный id сообщения в 1С.</td></tr>
+              <tr><td><code>text</code></td><td>нет*</td><td>Текст (*или вложения).</td></tr>
+              <tr><td><code>sender1cId</code> / <code>senderName</code></td><td>нет</td><td>Кто написал в 1С.</td></tr>
+              <tr><td><code>attachments[]</code></td><td>нет</td><td><code>fileUrl</code>, <code>fileName</code>, <code>mimeType</code>.</td></tr>
+            </table>
+            <p><b>Success:</b></p><pre>{ "ok": true, "id": 12, "organizationId": 14, "message": { } }</pre>
+            <p>Push в МП: <code>type: new_org_message</code>.</p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/organization-messages/attachments</code><span class="desc">Вложение общего чата с 1С → fileUrl.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
+            <p><b>Query/body:</b> <code>id_1c</code>. JSON+<code>fileBase64</code> или multipart. Имя файла: <code>o{organizationId}_…</code>.</p>
+          </div>
+        </details>
       </section>
     </section>
 
@@ -1149,10 +1232,15 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
             <p><b>Errors handshake:</b> без/с неверным токеном — соединение рвётся (часто выглядит как вечное «открывается»).</p>
           </div>
         </details>
+        <details class="card">
+          <summary class="summary"><span class="method ws">WS</span><code class="path">{{WS_BASE_URL}}/ws/1c/org/?id_1c=&lt;GUID&gt;&amp;token=&lt;INTEGRATION_BEARER_TOKEN&gt;</code><span class="desc">WSS общего чата организации.</span></summary>
+          <div class="body">
+            <p><b>URL:</b></p><pre>{{WS_BASE_URL}}/ws/1c/org/?id_1c=GUID-ORG-1C&amp;token=INTEGRATION_BEARER_TOKEN</pre>
+            <p>Тот же JSON-протокол. После connect: <code>chatKind: "org"</code>, <code>organizationId</code>, <code>id1c</code>. Комната <code>org:{organizationId}</code> — не смешивать с чатом заявки.</p>
+            <p>HTTP fallback: <code>GET/POST /api/integration/organization-messages</code>.</p>
+          </div>
+        </details>
       </section>
-
-      <section class="group">
-        <h2>Исходящий HTTP: customs-request-chat (сервер → 1С)</h2>
         <details class="card" open>
           <summary class="summary"><span class="method post">POST</span><code class="path">…/customs-request-chat</code><span class="desc">HTTP на стороне 1С: сообщение клиента, когда нет живого WSS.</span></summary>
           <div class="body">
@@ -1185,6 +1273,26 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
             <p><b>Ожидаемый ответ 1С:</b> любой <code>2xx</code> и JSON. При наличии id (<code>oneCMessageId</code> / <code>message1cId</code> / <code>id_1c</code>) сервер сохраняет его в <code>message_1c_id</code>.</p>
             <p><b>При ошибке 1С:</b> сообщение остаётся в чате МП со статусом <code>failed</code> и текстом в <code>last_1c_error</code>.</p>
             <p>1С должна <b>опубликовать</b> этот HTTP-метод. Без него при отсутствии WSS менеджер не узнает о новых сообщениях из МП.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Исходящий HTTP: organization-chat (сервер → 1С)</h2>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">…/organization-chat</code><span class="desc">HTTP на стороне 1С: сообщение клиента из общего чата, если нет живого WSS 1С.</span></summary>
+          <div class="body">
+            <p>URL строится из create-URL админки, суффикс <code>/organization-chat</code> (аналог <code>/customs-request-chat</code>).</p>
+            <p>Пока метод в 1С не опубликован, сообщения из МП получают <code>delivery_status=failed</code> — это ожидаемо.</p>
+            <p><b>Request:</b></p><pre>{
+  "id_1c": "GUID-ORG-1C",
+  "organizationId": 14,
+  "clientMessageId": "f14d9f58-f1c0-4f4d-b3ef-f92d0cc7077f",
+  "text": "Вопрос по организации",
+  "authorType": "app_user",
+  "chatKind": "org",
+  "attachments": []
+}</pre>
           </div>
         </details>
       </section>
@@ -1396,6 +1504,42 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/storage/purge-expired</code><span class="desc">Удалить просроченные closed сейчас.</span></summary>
           <div class="body"><p>Фоновый job тоже запускается раз в сутки. В ответе также <code>chatFilesRemoved</code>, <code>chatMessagesSoftDeleted</code>.</p></div>
+        </details>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives</code><span class="desc">Список выгрузок архива (кто, куда, период).</span></summary>
+          <div class="body"><p><b>Auth:</b> admin JWT</p>
+            <p>Общий чат организации в архив <b>не</b> входит. Период экспорта — не больше 3 месяцев.</p>
+            <p><b>Success:</b> <code>{ items: [{ id, periodFrom, periodTo, archivedByName, archiveLocation, adminLogin, requestCount, zipFileName, createdAt }] }</code></p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives/preview</code><span class="desc">Какие заявки попадут в ZIP за период.</span></summary>
+          <div class="body"><p>Query: <code>periodFrom</code>, <code>periodTo</code> (YYYY-MM-DD). Максимум 93 дня.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/export</code><span class="desc">Скачать ZIP и пометить заявки «есть копия на диске».</span></summary>
+          <div class="body"><p>Тело:</p><pre>{
+  "periodFrom": "2026-01-01",
+  "periodTo": "2026-03-31",
+  "archivedByName": "Иванов Иван Иванович",
+  "archiveLocation": "D:\\Архив\\2026-Q1"
+}</pre>
+            <p><code>archiveLocation</code> необязателен. Если пусто — в журнал и <code>manifest.json</code> пишется имя ZIP. Админка запоминает последнее непустое значение.</p>
+            <p>Ответ: <code>application/zip</code>. Файлы с сервера сразу <b>не</b> удаляются.</p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/import-preview</code><span class="desc">Разобрать ZIP: список заявок для выбора.</span></summary>
+          <div class="body"><p>Multipart поле <code>file</code>.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/import</code><span class="desc">Вернуть выбранные заявки из ZIP на сервер.</span></summary>
+          <div class="body"><p>Multipart <code>file</code>, query <code>requestIds=1,2,3</code> (пусто = все из манифеста).</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/purge-marked</code><span class="desc">Снять с сервера файлы уже выгруженных заявок (заглушка с ФИО остаётся).</span></summary>
+          <div class="body"><p>То же делает ежедневная чистка <code>purge-expired</code> для помеченных архивом. Заявка в МП остаётся с текстом «на физическом носителе, свяжитесь с {ФИО}».</p></div>
         </details>
         <div class="callout"><b>Исходящие в 1С:</b> автоповтор раз в час при <code>oneCCreatePending</code> / <code>oneCUpdatePending</code>. В DTO: <code>oneCCreateHoursPending</code>, <code>oneCUpdateHoursPending</code>, <code>oneCOutboundStaleOver24h</code>. Суточный алерт в лог и <code>one_c_outbound_daily_alerts</code>.</div>
       </section>

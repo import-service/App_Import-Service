@@ -10,6 +10,7 @@ const {
 const {
   chatAttachmentDiskPath,
   requestIdFromChatStoredName,
+  organizationIdFromChatStoredName,
 } = require('./chatAttachmentStorage');
 
 const UPLOAD_ROOT = path.join(process.cwd(), 'uploads', 'customs-requests');
@@ -176,23 +177,37 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
 
     if (!isIntegrationBearerRequest(request) && isMpJwtRequest(request)) {
       const orgId = mpOrganizationId(request);
-      const chatRequestId = requestIdFromChatStoredName(storedName);
-      const access = await assertMpCanAccessChatFile(fastify.pool, chatRequestId, orgId);
-      if (!access.ok) {
-        const reasonMessages = {
-          missing_org_or_request: 'Не удалось проверить доступ к вложению чата',
-          request_not_found: 'Заявка для вложения чата не найдена',
-          wrong_organization: 'Нет доступа к вложению чата (другая организация)',
-          chat_not_available: 'Чат по этой заявке недоступен',
-        };
-        return sendFileDownloadError(reply, fastify, request, 404, {
-          error: 'CHAT_FILE_ACCESS_DENIED',
-          message: reasonMessages[access.reason] || 'Нет доступа к вложению чата',
-          storedName,
-          requestedStoredName,
-          fileKind: 'chat',
-          details: access.reason,
-        });
+      const chatOrgId = organizationIdFromChatStoredName(storedName);
+      if (chatOrgId > 0) {
+        if (orgId == null || Number(orgId) !== chatOrgId) {
+          return sendFileDownloadError(reply, fastify, request, 404, {
+            error: 'CHAT_FILE_ACCESS_DENIED',
+            message: 'Нет доступа к вложению общего чата',
+            storedName,
+            requestedStoredName,
+            fileKind: 'chat',
+            details: 'wrong_organization',
+          });
+        }
+      } else {
+        const chatRequestId = requestIdFromChatStoredName(storedName);
+        const access = await assertMpCanAccessChatFile(fastify.pool, chatRequestId, orgId);
+        if (!access.ok) {
+          const reasonMessages = {
+            missing_org_or_request: 'Не удалось проверить доступ к вложению чата',
+            request_not_found: 'Заявка для вложения чата не найдена',
+            wrong_organization: 'Нет доступа к вложению чата (другая организация)',
+            chat_not_available: 'Чат по этой заявке недоступен',
+          };
+          return sendFileDownloadError(reply, fastify, request, 404, {
+            error: 'CHAT_FILE_ACCESS_DENIED',
+            message: reasonMessages[access.reason] || 'Нет доступа к вложению чата',
+            storedName,
+            requestedStoredName,
+            fileKind: 'chat',
+            details: access.reason,
+          });
+        }
       }
     }
 

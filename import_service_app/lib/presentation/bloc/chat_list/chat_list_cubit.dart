@@ -41,9 +41,13 @@ final class ChatListCubit extends Cubit<ChatListState> {
         state.copyWith(isLoading: false, error: f.message),
       ),
       (items) {
-        emit(ChatListState(items: items, isLoading: false));
+        final pinned = <ChatListItem>[
+          ...items.where((e) => e.isOrgChat),
+          ...items.where((e) => !e.isOrgChat),
+        ];
+        emit(ChatListState(items: pinned, isLoading: false));
         _unread.replaceFromServer(
-          items.where((e) => e.unread).map((e) => e.requestId).toSet(),
+          pinned.where((e) => e.unread).map((e) => e.requestId).toSet(),
         );
       },
     );
@@ -55,12 +59,22 @@ final class ChatListCubit extends Cubit<ChatListState> {
 
   List<ChatListItem> _demoItems() {
     final unread = _unread.state;
-    return _inventory.items
+    final org = ChatListItem(
+      requestId: ChatListItem.orgChatId,
+      kind: 'org',
+      carMake: '',
+      carModel: '',
+      vin: '',
+      unread: unread.has(ChatListItem.orgChatId),
+      unreadCount: unread.has(ChatListItem.orgChatId) ? 1 : 0,
+    );
+    final requests = _inventory.items
         .where(
           (c) => requestChatAvailable(
             status: c.status,
             external1cId: c.external1cId,
             managerFullName: c.managerFullName,
+            isArchivedOffline: c.isArchivedOffline,
           ),
         )
         .map(
@@ -76,5 +90,6 @@ final class ChatListCubit extends Cubit<ChatListState> {
           ),
         )
         .toList();
+    return <ChatListItem>[org, ...requests];
   }
 }

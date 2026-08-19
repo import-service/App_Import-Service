@@ -30,6 +30,7 @@ function storedNameFromIntegrationFileUrl(fileUrl) {
     if (mChat) return decodeURIComponent(mChat[1]);
     const base = p.split('/').pop() || '';
     if (/^r\d+_[\w.-]+$/i.test(base)) return base;
+    if (/^o\d+_[\w.-]+$/i.test(base)) return base;
     return '';
   };
 

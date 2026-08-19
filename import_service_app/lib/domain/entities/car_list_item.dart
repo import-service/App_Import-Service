@@ -46,6 +46,9 @@ final class CarListItem extends Equatable {
     this.vehiclePhotoUrls = const [],
     this.deliveredDocuments = const [],
     this.files = const [],
+    this.isArchivedOffline = false,
+    this.archivedByName,
+    this.archiveLocation,
   });
 
   final String id;
@@ -97,6 +100,9 @@ final class CarListItem extends Equatable {
   final List<DeliveredVehicleDocument> deliveredDocuments;
 
   final List<CustomsRequestFile> files;
+  final bool isArchivedOffline;
+  final String? archivedByName;
+  final String? archiveLocation;
 
   String get displayCarLine {
     final a = carMake.trim();
@@ -177,6 +183,11 @@ final class CarListItem extends Equatable {
       createdAt: json['createdAt'] as String? ?? json['created_at'] as String?,
       updatedAt: json['updatedAt'] as String? ?? json['updated_at'] as String?,
       files: fileList,
+      isArchivedOffline: json['isArchivedOffline'] == true ||
+          json['is_archived_offline'] == true ||
+          (json['archivePurgedAt'] ?? json['archive_purged_at']) != null,
+      archivedByName: _readTrimmedString(json, 'archivedByName', 'archived_by_name'),
+      archiveLocation: _readTrimmedString(json, 'archiveLocation', 'archive_location'),
     );
   }
 
@@ -305,6 +316,9 @@ final class CarListItem extends Equatable {
     List<String>? vehiclePhotoUrls,
     List<DeliveredVehicleDocument>? deliveredDocuments,
     List<CustomsRequestFile>? files,
+    bool? isArchivedOffline,
+    String? archivedByName,
+    String? archiveLocation,
   }) {
     return CarListItem(
       id: id ?? this.id,
@@ -345,6 +359,9 @@ final class CarListItem extends Equatable {
       vehiclePhotoUrls: vehiclePhotoUrls ?? this.vehiclePhotoUrls,
       deliveredDocuments: deliveredDocuments ?? this.deliveredDocuments,
       files: files ?? this.files,
+      isArchivedOffline: isArchivedOffline ?? this.isArchivedOffline,
+      archivedByName: archivedByName ?? this.archivedByName,
+      archiveLocation: archiveLocation ?? this.archiveLocation,
     );
   }
 
@@ -387,6 +404,9 @@ final class CarListItem extends Equatable {
         'vehiclePhotoUrls': vehiclePhotoUrls,
         'deliveredDocuments': deliveredDocuments.map((e) => e.toJson()).toList(),
         'files': files.map((e) => e.toJson()).toList(),
+        'isArchivedOffline': isArchivedOffline,
+        if (archivedByName != null) 'archivedByName': archivedByName,
+        if (archiveLocation != null) 'archiveLocation': archiveLocation,
       };
 
   @override
@@ -429,5 +449,8 @@ final class CarListItem extends Equatable {
         vehiclePhotoUrls,
         deliveredDocuments,
         files,
+        isArchivedOffline,
+        archivedByName,
+        archiveLocation,
       ];
 }

@@ -117,6 +117,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   }
 
   Future<void> _attachDocType(String docType, CarListItem item) async {
+    if (item.isArchivedOffline) return;
     if (_uploadingDocType != null) return;
     final path = await pickRequestDocumentPath(context);
     if (!mounted || path == null || path.isEmpty) return;
@@ -467,6 +468,16 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       const Gap(20),
     ];
 
+    if (item.isArchivedOffline) {
+      out.add(
+        RequestDetailActionHintBanner(
+          message: s.requestArchivedOffline(item.archivedByName),
+          urgent: true,
+        ),
+      );
+      out.add(const Gap(20));
+    }
+
     final urgentHints = requestDetailUrgentActionHints(item, s).toSet().toList();
     for (var i = 0; i < urgentHints.length; i++) {
       if (i > 0) out.add(const Gap(10));
@@ -706,6 +717,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       status: item.status,
       external1cId: item.external1cId,
       managerFullName: item.managerFullName,
+      isArchivedOffline: item.isArchivedOffline,
     );
     final sub = RequestStatusSubType.tryParse(item.statusSubType);
     final shouldFocusDocs = sub == RequestStatusSubType.primaryDocumentsSent ||

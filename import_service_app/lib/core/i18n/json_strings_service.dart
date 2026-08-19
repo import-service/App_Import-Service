@@ -107,6 +107,8 @@ final class JsonStringsService {
   String get chatsTabTitle => text('chatsTabTitle');
   String get chatsEmpty => text('chatsEmpty');
   String get chatsNoPreview => text('chatsNoPreview');
+  String get orgChatTitle => text('orgChatTitle');
+  String get orgChatSubtitle => text('orgChatSubtitle');
   String get profileManagerLabel => text('profileManagerLabel');
   String get profilePhoneLabel => text('profilePhoneLabel');
   String get profileEmailLabel => text('profileEmailLabel');
@@ -196,6 +198,11 @@ final class JsonStringsService {
   String get requestDetailFinanceRecycling => text('requestDetailFinanceRecycling');
   String get requestDetailPhotoPlaceholderA11y => text('requestDetailPhotoPlaceholderA11y');
   String get requestDetailChatA11y => text('requestDetailChatA11y');
+  String requestArchivedOffline(String? name) {
+    final n = name?.trim() ?? '';
+    if (n.isEmpty) return text('requestArchivedOfflineUnknown');
+    return text('requestArchivedOffline').replaceAll('{name}', n);
+  }
   String get demoActionUnavailable => text('demoActionUnavailable');
 
   String requestDetailStatusSince(String date) =>

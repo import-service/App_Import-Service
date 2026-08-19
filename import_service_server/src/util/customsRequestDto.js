@@ -19,7 +19,7 @@ const CUSTOMS_REQUEST_SELECT = `
   one_c_create_pending, one_c_create_last_error_json, one_c_create_last_attempt_at,
   one_c_create_first_failed_at,
   advance_payment_json, actual_payment_json,
-  created_at, updated_at
+  created_at, updated_at, archived_at, archive_id, archived_by_name, archive_location, archive_purged_at
 `.replace(/\s+/g, ' ');
 
 /** Сумма в рублях в state: строка или число. */
@@ -242,6 +242,18 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
         : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
+    archivedAt: row.archived_at != null ? toIso(row.archived_at) : null,
+    archiveId: row.archive_id != null ? Number(row.archive_id) : null,
+    archivedByName:
+      row.archived_by_name != null && String(row.archived_by_name).trim() !== ''
+        ? String(row.archived_by_name).trim()
+        : null,
+    archiveLocation:
+      row.archive_location != null && String(row.archive_location).trim() !== ''
+        ? String(row.archive_location).trim()
+        : null,
+    archivePurgedAt: row.archive_purged_at != null ? toIso(row.archive_purged_at) : null,
+    isArchivedOffline: Boolean(row.archive_purged_at),
   };
 
   const lastErr = parseJsonCol(row.one_c_update_last_error_json);

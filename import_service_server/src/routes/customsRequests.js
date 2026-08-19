@@ -44,6 +44,7 @@ const {
 } = require('../util/requestOrganizationAccess');
 const { serveRequestOrChatFile } = require('../services/requestFileDownload');
 const { listChatsForOrganization } = require('../services/chatMessageOps');
+const { getOrgChatListPreview } = require('../services/orgChatOps');
 
 const RATING_ALLOWED_STATUSES = new Set(['delivered', 'closed']);
 const RATING_COMMENT_MAX = 500;
@@ -601,7 +602,8 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(401).send({ error: 'UNAUTHORIZED' });
       }
       const items = await listChatsForOrganization(fastify.pool, orgId);
-      return reply.send({ items });
+      const orgPreview = await getOrgChatListPreview(fastify.pool, orgId);
+      return reply.send({ items: orgPreview ? [orgPreview, ...items] : items });
     },
   );
 

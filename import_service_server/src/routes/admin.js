@@ -9,6 +9,14 @@ const { CUSTOMS_REQUEST_SELECT, toCustomsRequestDto } = require('../util/customs
 const { CUSTOMS_REQUEST_FILE_SELECT } = require('../util/requestFileStorage');
 const { deleteCustomsRequestWithFiles } = require('../services/requestDeletion');
 const {
+  listRequestsInPeriod,
+  buildExportZip,
+  listArchives,
+  previewZip,
+  importFromZip,
+  purgeMarkedArchivedRequests,
+} = require('../services/requestArchive');
+const {
   getStorageStats,
   fetchStaleOutbound,
   runDailyRetentionPurge,
@@ -727,6 +735,154 @@ module.exports = async function adminRoutes(fastify) {
     async (_request, reply) => {
       const purge = await runDailyRetentionPurge(fastify);
       return reply.send({ ok: true, ...purge });
+    },
+  );
+
+  async function adminActor(request) {
+    const id = Number(request.user?.sub);
+    if (!id) return { id: null, login: null };
+    const [rows] = await fastify.pool.query(
+      'SELECT id, login FROM admin_users WHERE id = ? LIMIT 1',
+      [id],
+    );
+    return { id, login: rows[0]?.login || null };
+  }
+
+  async function readUploadedZip(request) {
+    const mp = await request.file();
+    if (!mp) {
+      const e = new Error('VALIDATION_ERROR');
+      e.code = 'VALIDATION_ERROR';
+      e.messageRu = 'Нужен файл ZIP';
+      throw e;
+    }
+    const chunks = [];
+    for await (const chunk of mp.file) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  fastify.get(
+    '/admin/archives',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const items = await listArchives(fastify.pool, request.query.limit);
+      return reply.send({ items });
+    },
+  );
+
+  fastify.get(
+    '/admin/archives/preview',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      try {
+        const items = await listRequestsInPeriod(
+          fastify.pool,
+          request.query.periodFrom || request.query.from,
+          request.query.periodTo || request.query.to,
+        );
+        return reply.send({ items, count: items.length });
+      } catch (e) {
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
+        }
+        throw e;
+      }
+    },
+  );
+
+  fastify.post(
+    '/admin/archives/export',
+    {
+      onRequest: [fastify.authenticateAdmin],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['periodFrom', 'periodTo', 'archivedByName'],
+          properties: {
+            periodFrom: { type: 'string', minLength: 10, maxLength: 10 },
+            periodTo: { type: 'string', minLength: 10, maxLength: 10 },
+            archivedByName: { type: 'string', minLength: 1, maxLength: 255 },
+            archiveLocation: { type: 'string', maxLength: 1000 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const actor = await adminActor(request);
+        const result = await buildExportZip(fastify.pool, {
+          periodFrom: request.body.periodFrom,
+          periodTo: request.body.periodTo,
+          archivedByName: request.body.archivedByName,
+          archiveLocation: request.body.archiveLocation,
+          adminUserId: actor.id,
+          adminLogin: actor.login,
+        });
+        return reply
+          .header('Content-Type', 'application/zip')
+          .header('Content-Disposition', `attachment; filename="${result.zipFileName}"`)
+          .header('X-Archive-Id', String(result.archiveId))
+          .header('X-Archive-Count', String(result.requestCount))
+          .send(result.buffer);
+      } catch (e) {
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
+        }
+        if (e.code === 'NOT_FOUND') {
+          return reply.code(404).send({ error: 'NOT_FOUND', message: e.messageRu || e.message });
+        }
+        throw e;
+      }
+    },
+  );
+
+  fastify.post(
+    '/admin/archives/import-preview',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      try {
+        const buf = await readUploadedZip(request);
+        const preview = await previewZip(buf);
+        return reply.send(preview);
+      } catch (e) {
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
+        }
+        throw e;
+      }
+    },
+  );
+
+  fastify.post(
+    '/admin/archives/import',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      try {
+        const idsRaw = request.query.requestIds || request.query.ids || '';
+        const selectedIds = String(idsRaw)
+          .split(',')
+          .map((s) => Number(s.trim()))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        const buf = await readUploadedZip(request);
+        const result = await importFromZip(fastify.pool, buf, selectedIds);
+        return reply.send({ ok: true, ...result });
+      } catch (e) {
+        if (e.code === 'VALIDATION_ERROR') {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
+        }
+        throw e;
+      }
+    },
+  );
+
+  fastify.post(
+    '/admin/archives/purge-marked',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (_request, reply) => {
+      const r = await purgeMarkedArchivedRequests(fastify.pool);
+      return reply.send({ ok: true, ...r });
     },
   );
 

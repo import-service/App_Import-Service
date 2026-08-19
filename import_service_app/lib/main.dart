@@ -78,7 +78,10 @@ class _MyAppState extends State<MyApp> {
       target,
     ) {
       final encodedId = Uri.encodeComponent(target.requestId);
-      if (target.kind == PushOpenKind.requestChat) {
+      if (target.kind == PushOpenKind.orgChat) {
+        sl<RequestChatUnreadCubit>().clearUnread(target.requestId);
+        appRouter.push('/org/chat');
+      } else if (target.kind == PushOpenKind.requestChat) {
         sl<RequestChatUnreadCubit>().clearUnread(target.requestId);
         appRouter.push('/request/$encodedId/chat');
       } else {
@@ -93,12 +96,13 @@ class _MyAppState extends State<MyApp> {
     });
     _pushForegroundSub = sl<PushNotificationsService>().foregroundTargetStream
         .listen((target) {
-          if (target.kind == PushOpenKind.requestChat) {
+          if (target.kind == PushOpenKind.orgChat ||
+              target.kind == PushOpenKind.requestChat) {
             if (sl<ChatScreenPresence>().isOpen(target.requestId)) {
               return;
             }
             sl<RequestChatUnreadCubit>().markUnread(target.requestId);
-            unawaited(_showChatPushGo(target.requestId));
+            unawaited(_showChatPushGo(target));
           } else {
             sl<RequestAttentionCubit>().markStatusUpdated(target.requestId);
             sl<AppFeedbackService>().show(
@@ -109,7 +113,7 @@ class _MyAppState extends State<MyApp> {
         });
   }
 
-  Future<void> _showChatPushGo(String requestId) async {
+  Future<void> _showChatPushGo(PushOpenTarget target) async {
     final ctx = appRouter.routerDelegate.navigatorKey.currentContext ??
         appScaffoldMessengerKey.currentContext;
     if (ctx == null || !ctx.mounted) {
@@ -121,9 +125,13 @@ class _MyAppState extends State<MyApp> {
     }
     final go = await ChatPushGoBottomSheet.show(ctx);
     if (go == true) {
-      sl<RequestChatUnreadCubit>().clearUnread(requestId);
-      final encodedId = Uri.encodeComponent(requestId);
-      appRouter.push('/request/$encodedId/chat');
+      sl<RequestChatUnreadCubit>().clearUnread(target.requestId);
+      if (target.kind == PushOpenKind.orgChat) {
+        appRouter.push('/org/chat');
+      } else {
+        final encodedId = Uri.encodeComponent(target.requestId);
+        appRouter.push('/request/$encodedId/chat');
+      }
     }
   }
 

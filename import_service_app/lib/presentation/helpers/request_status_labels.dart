@@ -40,7 +40,9 @@ bool requestChatAvailable({
   required RequestStatus status,
   required String? external1cId,
   required String? managerFullName,
+  bool isArchivedOffline = false,
 }) {
+  if (isArchivedOffline) return false;
   if (status == RequestStatus.newRequest) return false;
   final hasExternal1c = external1cId != null && external1cId.trim().isNotEmpty;
   final hasManager = managerFullName != null && managerFullName.trim().isNotEmpty;

@@ -204,12 +204,21 @@ async function deleteCustomsRequestWithFiles(pool, requestId, uploadRoot = DEFAU
  * Автоочистка: только status=closed старше retentionMonths.
  */
 async function purgeExpiredClosedRequests(pool, retentionMonths, uploadRoot = DEFAULT_UPLOAD_ROOT) {
+  const { purgeMarkedArchivedRequests } = require('./requestArchive');
+  let archivedPurge = { purged: 0, filesRemoved: 0, chatFilesRemoved: 0, chatMessagesSoftDeleted: 0 };
+  try {
+    archivedPurge = await purgeMarkedArchivedRequests(pool, uploadRoot);
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') throw e;
+  }
+
   const months = Math.max(1, Math.min(120, Number(retentionMonths) || 6));
   const [rows] = await pool.query(
     `SELECT id
      FROM customs_requests
      WHERE deleted_at IS NULL
        AND status = 'closed'
+       AND archived_at IS NULL
        AND updated_at < DATE_SUB(NOW(3), INTERVAL ? MONTH)
      ORDER BY updated_at ASC
      LIMIT 50`,
@@ -236,6 +245,8 @@ async function purgeExpiredClosedRequests(pool, retentionMonths, uploadRoot = DE
     chatMessagesSoftDeleted,
     scanned: rows.length,
     retentionMonths: months,
+    archivedPurged: archivedPurge.purged || 0,
+    archivedFilesRemoved: archivedPurge.filesRemoved || 0,
   };
 }
 
@@ -244,5 +255,6 @@ module.exports = {
   purgeExpiredClosedRequests,
   deleteChatForRequest,
   deleteFilesFromDisk,
+  collectChatStoredNamesFromJson,
   DEFAULT_UPLOAD_ROOT,
 };
