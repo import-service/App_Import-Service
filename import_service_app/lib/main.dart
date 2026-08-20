@@ -98,6 +98,9 @@ class _MyAppState extends State<MyApp> {
         .listen((target) {
           if (target.kind == PushOpenKind.orgChat ||
               target.kind == PushOpenKind.requestChat) {
+            if (target.kind == PushOpenKind.orgChat) {
+              unawaited(handleOrgChatRemoteUpdate());
+            }
             if (sl<ChatScreenPresence>().isOpen(target.requestId)) {
               return;
             }

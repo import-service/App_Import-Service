@@ -15,7 +15,7 @@ const {
   DEFAULT_UPLOAD_ROOT,
 } = require('./requestDeletion');
 
-const MAX_PERIOD_DAYS = 93;
+const RECENT_ACTIVITY_DAYS = 30;
 const KIND = 'request-archive';
 
 function toIso(value) {
@@ -45,50 +45,74 @@ function parseDateOnly(raw) {
   return s;
 }
 
-function assertPeriod(periodFrom, periodTo) {
-  const from = parseDateOnly(periodFrom);
-  const to = parseDateOnly(periodTo);
-  if (!from || !to) {
+function assertArchiveBefore(archiveBefore) {
+  const date = parseDateOnly(archiveBefore);
+  if (!date) {
     const e = new Error('VALIDATION_ERROR');
     e.code = 'VALIDATION_ERROR';
-    e.messageRu = 'Нужны даты periodFrom и periodTo (YYYY-MM-DD)';
+    e.messageRu = 'Нужна дата archiveBefore (YYYY-MM-DD)';
     throw e;
   }
-  const fromMs = Date.parse(`${from}T00:00:00.000Z`);
-  const toMs = Date.parse(`${to}T00:00:00.000Z`);
-  if (toMs < fromMs) {
-    const e = new Error('VALIDATION_ERROR');
-    e.code = 'VALIDATION_ERROR';
-    e.messageRu = 'periodTo раньше periodFrom';
-    throw e;
-  }
-  const days = Math.round((toMs - fromMs) / 86400000) + 1;
-  if (days > MAX_PERIOD_DAYS) {
-    const e = new Error('VALIDATION_ERROR');
-    e.code = 'VALIDATION_ERROR';
-    e.messageRu = 'Период не больше 3 месяцев';
-    throw e;
-  }
-  return { from, to };
+  return date;
 }
 
-async function listRequestsInPeriod(pool, periodFrom, periodTo) {
-  const { from, to } = assertPeriod(periodFrom, periodTo);
+function formatLabelDate(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '00_00_00';
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year = String(d.getUTCFullYear()).slice(-2);
+  return `${day}_${month}_${year}`;
+}
+
+function buildZipFileName(minCreatedAt, maxClosedAt) {
+  const from = formatLabelDate(minCreatedAt);
+  const to = formatLabelDate(maxClosedAt);
+  return `${from}-to-${to}.zip`;
+}
+
+/** Закрытые заявки, созданные до archiveBefore, без активности за RECENT_ACTIVITY_DAYS. */
+async function listRequestsEligibleForArchive(pool, archiveBefore) {
+  const before = assertArchiveBefore(archiveBefore);
   const [rows] = await pool.query(
-    `SELECT DISTINCT r.id, r.vin, r.car_make, r.car_model, r.owner_full_name,
-            r.organization_id, r.status, r.archived_at, r.archive_purged_at
+    `SELECT r.id, r.vin, r.car_make, r.car_model, r.owner_full_name,
+            r.organization_id, r.status, r.created_at, r.updated_at, r.archived_at,
+            o.company_name AS organization_name
      FROM customs_requests r
-     LEFT JOIN customs_request_messages m
-       ON m.request_id = r.id AND m.deleted_at IS NULL
+     INNER JOIN organizations o
+       ON o.id = r.organization_id AND o.deleted_at IS NULL
      WHERE r.deleted_at IS NULL
        AND r.archive_purged_at IS NULL
-       AND (
-         (r.created_at >= ? AND r.created_at < DATE_ADD(?, INTERVAL 1 DAY))
-         OR (r.updated_at >= ? AND r.updated_at < DATE_ADD(?, INTERVAL 1 DAY))
-         OR (m.created_at >= ? AND m.created_at < DATE_ADD(?, INTERVAL 1 DAY))
+       AND r.status = 'closed'
+       AND r.created_at < DATE_ADD(?, INTERVAL 1 DAY)
+       AND r.updated_at < DATE_SUB(NOW(3), INTERVAL ? DAY)
+       AND NOT EXISTS (
+         SELECT 1 FROM customs_request_messages m
+         WHERE m.request_id = r.id AND m.deleted_at IS NULL
+           AND m.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
        )
-     ORDER BY r.id ASC`,
-    [from, to, from, to, from, to],
+       AND NOT EXISTS (
+         SELECT 1 FROM customs_request_files f
+         WHERE f.request_id = r.id AND f.deleted_at IS NULL
+           AND (
+             f.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
+             OR f.updated_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
+           )
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM user_sessions us
+         WHERE us.user_id = r.organization_id
+           AND us.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
+       )
+     ORDER BY r.organization_id ASC, r.id ASC`,
+    [
+      before,
+      RECENT_ACTIVITY_DAYS,
+      RECENT_ACTIVITY_DAYS,
+      RECENT_ACTIVITY_DAYS,
+      RECENT_ACTIVITY_DAYS,
+      RECENT_ACTIVITY_DAYS,
+    ],
   );
   return rows.map((row) => ({
     id: Number(row.id),
@@ -97,7 +121,10 @@ async function listRequestsInPeriod(pool, periodFrom, periodTo) {
     carModel: row.car_model || '',
     ownerFullName: row.owner_full_name || '',
     organizationId: Number(row.organization_id) || null,
+    organizationName: row.organization_name || '',
     status: row.status,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
     alreadyArchived: Boolean(row.archived_at),
   }));
 }
@@ -189,15 +216,93 @@ async function packRequest(zip, pool, requestId, uploadRoot) {
   return { files: filesPacked, messages: msgRows.length };
 }
 
-async function buildExportZip(pool, {
-  periodFrom,
-  periodTo,
+async function packOrgChat(zip, pool, organizationId) {
+  const orgId = Number(organizationId);
+  if (!orgId) return { messages: 0 };
+  const folder = `organizations/${orgId}`;
+  let msgRows = [];
+  try {
+    const [m] = await pool.query(
+      `SELECT * FROM organization_messages
+       WHERE organization_id = ? AND deleted_at IS NULL
+       ORDER BY id ASC`,
+      [orgId],
+    );
+    msgRows = m;
+  } catch (e) {
+    if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+    return { messages: 0 };
+  }
+
+  zip.file(`${folder}/messages.json`, JSON.stringify(msgRows.map(rowToPlain), null, 2));
+
+  const chatNames = new Set();
+  for (const m of msgRows) {
+    for (const name of collectOrgChatStoredNamesFromJson(m.attachments_json)) {
+      chatNames.add(name);
+    }
+  }
+  try {
+    const entries = await fs.readdir(CHAT_UPLOAD_ROOT);
+    const prefix = `o${orgId}_`;
+    for (const name of entries) {
+      if (name.startsWith(prefix)) chatNames.add(name);
+    }
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
+  for (const name of chatNames) {
+    const disk = chatAttachmentDiskPath(name);
+    if (!disk) continue;
+    await addDiskFileToZip(zip, `${folder}/org-chat-files/${name}`, disk);
+  }
+  return { messages: msgRows.length };
+}
+
+function collectOrgChatStoredNamesFromJson(value) {
+  const names = collectChatStoredNamesFromJson(value);
+  return names.filter((n) => /^o\d+_/i.test(n));
+}
+
+async function purgeOneRequestAfterArchive(pool, requestId, uploadRoot) {
+  const id = Number(requestId);
+  const [fileRows] = await pool.query(
+    `SELECT id, stored_name, preview_stored_name
+     FROM customs_request_files
+     WHERE request_id = ? AND deleted_at IS NULL`,
+    [id],
+  );
+  await deleteFilesFromDisk(uploadRoot, fileRows);
+  const chat = await deleteChatForRequest(pool, id);
+  await pool.query(
+    `UPDATE customs_request_files
+     SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+     WHERE request_id = ? AND deleted_at IS NULL`,
+    [id],
+  );
+  await pool.query(
+    `UPDATE customs_requests
+     SET archive_purged_at = NOW(3), updated_at = NOW(3)
+     WHERE id = ? AND deleted_at IS NULL`,
+    [id],
+  );
+  return {
+    filesRemoved: fileRows.length,
+    chatFilesRemoved: chat.chatFilesRemoved || 0,
+    chatMessagesSoftDeleted: chat.chatMessagesSoftDeleted || 0,
+  };
+}
+
+async function buildArchiveZip(pool, {
+  archiveBefore,
   archivedByName,
   archiveLocation,
   adminUserId,
   adminLogin,
   uploadRoot = DEFAULT_UPLOAD_ROOT,
+  purgeFromServer = true,
 }) {
+  const before = assertArchiveBefore(archiveBefore);
   const name = String(archivedByName || '').trim();
   if (!name) {
     const e = new Error('VALIDATION_ERROR');
@@ -205,36 +310,66 @@ async function buildExportZip(pool, {
     e.messageRu = 'Нужно ФИО (archivedByName)';
     throw e;
   }
-  const { from, to } = assertPeriod(periodFrom, periodTo);
-  const items = await listRequestsInPeriod(pool, from, to);
+
+  const items = await listRequestsEligibleForArchive(pool, before);
   if (!items.length) {
     const e = new Error('NOT_FOUND');
     e.code = 'NOT_FOUND';
-    e.messageRu = 'За период нет заявок для архива';
+    e.messageRu = 'Нет подходящих закрытых заявок для архива';
     throw e;
   }
 
-  const zip = new JSZip();
-  const archivedAt = new Date().toISOString();
-  const ids = items.map((x) => x.id);
-  const zipFileName = `request-archive_${from}_${to}.zip`;
+  const minCreated = items.reduce(
+    (min, x) => (min == null || new Date(x.createdAt) < new Date(min) ? x.createdAt : min),
+    null,
+  );
+  const maxClosed = items.reduce(
+    (max, x) => (max == null || new Date(x.updatedAt) > new Date(max) ? x.updatedAt : max),
+    null,
+  );
+
+  const zipFileName = buildZipFileName(minCreated, maxClosed);
+  const periodLabel = zipFileName.replace(/\.zip$/i, '');
   const locRaw = String(archiveLocation || '').trim();
   const loc = locRaw || zipFileName;
+  const archivedAt = new Date().toISOString();
+  const ids = items.map((x) => x.id);
+  const orgIds = [...new Set(items.map((x) => x.organizationId).filter(Boolean))];
+
+  const orgChats = [];
+  for (const orgId of orgIds) {
+    const item = items.find((x) => x.organizationId === orgId);
+    orgChats.push({
+      organizationId: orgId,
+      organizationName: item?.organizationName || `Org #${orgId}`,
+    });
+  }
+
   const manifest = {
-    version: 1,
+    version: 2,
     kind: KIND,
-    periodFrom: from,
-    periodTo: to,
+    archiveBefore: before,
+    periodLabel,
+    periodFrom: minCreated ? String(minCreated).slice(0, 10) : before,
+    periodTo: maxClosed ? String(maxClosed).slice(0, 10) : before,
     archivedByName: name,
     archiveLocation: loc,
     archivedAt,
     adminLogin: adminLogin || null,
+    orgChats,
     requests: items,
   };
+
+  const zip = new JSZip();
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
   for (const item of items) {
     await packRequest(zip, pool, item.id, uploadRoot);
+  }
+  for (const orgId of orgIds) {
+    const packed = await packOrgChat(zip, pool, orgId);
+    const entry = orgChats.find((o) => o.organizationId === orgId);
+    if (entry) entry.messageCount = packed.messages;
   }
 
   const [ins] = await pool.query(
@@ -243,8 +378,8 @@ async function buildExportZip(pool, {
        admin_user_id, admin_login, request_ids_json, request_count, zip_file_name)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      from,
-      to,
+      manifest.periodFrom,
+      manifest.periodTo,
       name,
       loc,
       adminUserId || null,
@@ -267,12 +402,73 @@ async function buildExportZip(pool, {
     [archiveId, name, loc, ...ids],
   );
 
+  let purged = 0;
+  let filesRemoved = 0;
+  if (purgeFromServer) {
+    for (const id of ids) {
+      const r = await purgeOneRequestAfterArchive(pool, id, uploadRoot);
+      purged += 1;
+      filesRemoved += r.filesRemoved || 0;
+    }
+  }
+
   const buffer = await zip.generateAsync({
     type: 'nodebuffer',
     compression: 'DEFLATE',
     compressionOptions: { level: 6 },
   });
-  return { buffer, zipFileName, archiveId, requestCount: ids.length, manifest };
+
+  return {
+    buffer,
+    zipFileName,
+    archiveId,
+    requestCount: ids.length,
+    orgCount: orgIds.length,
+    purged,
+    filesRemoved,
+    manifest,
+  };
+}
+
+/** @deprecated используйте buildArchiveZip */
+async function buildExportZip(pool, opts) {
+  if (opts.archiveBefore) {
+    return buildArchiveZip(pool, opts);
+  }
+  return buildArchiveZip(pool, {
+    ...opts,
+    archiveBefore: opts.periodTo || opts.periodFrom,
+  });
+}
+
+/** @deprecated используйте listRequestsEligibleForArchive */
+async function listRequestsInPeriod(pool, periodFrom, periodTo) {
+  return listRequestsEligibleForArchive(pool, periodTo || periodFrom);
+}
+
+function groupManifestOrganizations(manifest) {
+  const orgMap = new Map();
+  const orgChatMeta = new Map(
+    (manifest.orgChats || []).map((o) => [Number(o.organizationId), o]),
+  );
+  for (const r of manifest.requests || []) {
+    const oid = Number(r.organizationId);
+    if (!oid) continue;
+    if (!orgMap.has(oid)) {
+      const chatMeta = orgChatMeta.get(oid);
+      orgMap.set(oid, {
+        organizationId: oid,
+        organizationName: r.organizationName || chatMeta?.organizationName || `Org #${oid}`,
+        orgChat: {
+          available: Boolean(chatMeta || manifest.version >= 2),
+          messageCount: Number(chatMeta?.messageCount) || 0,
+        },
+        requests: [],
+      });
+    }
+    orgMap.get(oid).requests.push(r);
+  }
+  return [...orgMap.values()];
 }
 
 async function listArchives(pool, limit = 50) {
@@ -289,6 +485,9 @@ async function listArchives(pool, limit = 50) {
     id: Number(row.id),
     periodFrom: row.period_from,
     periodTo: row.period_to,
+    periodLabel: row.zip_file_name
+      ? String(row.zip_file_name).replace(/\.zip$/i, '')
+      : null,
     archivedByName: row.archived_by_name,
     archiveLocation: row.archive_location,
     adminLogin: row.admin_login,
@@ -334,12 +533,16 @@ function parseManifest(zip) {
 async function previewZip(buffer) {
   const zip = await JSZip.loadAsync(buffer);
   const manifest = await parseManifest(zip);
+  const organizations = groupManifestOrganizations(manifest);
   return {
+    periodLabel: manifest.periodLabel || null,
     periodFrom: manifest.periodFrom,
     periodTo: manifest.periodTo,
+    archiveBefore: manifest.archiveBefore || null,
     archivedByName: manifest.archivedByName,
     archiveLocation: manifest.archiveLocation,
     archivedAt: manifest.archivedAt,
+    organizations,
     requests: Array.isArray(manifest.requests) ? manifest.requests : [],
   };
 }
@@ -408,6 +611,8 @@ async function restoreOneRequest(pool, zip, requestId, uploadRoot) {
     `UPDATE customs_requests SET
        deleted_at = NULL,
        archive_purged_at = NULL,
+       archived_at = NULL,
+       archive_id = NULL,
        owner_full_name = COALESCE(?, owner_full_name),
        car_make = COALESCE(?, car_make),
        car_model = COALESCE(?, car_model),
@@ -568,7 +773,105 @@ async function restoreOneRequest(pool, zip, requestId, uploadRoot) {
   return { id, ok: true };
 }
 
-async function importFromZip(pool, buffer, selectedIds, uploadRoot = DEFAULT_UPLOAD_ROOT) {
+async function restoreOrgChat(pool, zip, organizationId) {
+  const orgId = Number(organizationId);
+  if (!orgId) return { organizationId: orgId, ok: false, error: 'NO_ORG' };
+  const folder = `organizations/${orgId}`;
+  const msgEntry = zip.file(`${folder}/messages.json`);
+  if (!msgEntry) {
+    return { organizationId: orgId, ok: false, error: 'NO_ORG_CHAT' };
+  }
+
+  const [orgRows] = await pool.query(
+    `SELECT id FROM organizations WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+    [orgId],
+  );
+  if (!orgRows.length) {
+    return { organizationId: orgId, ok: false, error: 'ORGANIZATION_MISSING' };
+  }
+
+  const chatFolder = zip.folder(`${folder}/org-chat-files`);
+  if (chatFolder) {
+    const tasks = [];
+    chatFolder.forEach((rel) => {
+      const base = path.basename(String(rel || ''));
+      if (!base || !/^o\d+_[\w.-]+$/i.test(base)) return;
+      const dest = chatAttachmentDiskPath(base);
+      if (!dest) return;
+      tasks.push(writeZipFileToDisk(zip, `${folder}/org-chat-files/${rel}`, dest));
+    });
+    await Promise.all(tasks);
+  }
+
+  const messages = JSON.parse(await msgEntry.async('string')) || [];
+  let restored = 0;
+  for (const m of messages) {
+    const cid = m.client_message_id || null;
+    const mid = m.message_1c_id || null;
+    if (cid) {
+      const [ex] = await pool.query(
+        `SELECT id FROM organization_messages WHERE client_message_id = ? LIMIT 1`,
+        [cid],
+      );
+      if (ex.length) {
+        await pool.query(
+          `UPDATE organization_messages SET deleted_at = NULL WHERE id = ?`,
+          [ex[0].id],
+        );
+        restored += 1;
+        continue;
+      }
+    }
+    if (mid) {
+      const [ex] = await pool.query(
+        `SELECT id FROM organization_messages WHERE message_1c_id = ? LIMIT 1`,
+        [mid],
+      );
+      if (ex.length) {
+        await pool.query(
+          `UPDATE organization_messages SET deleted_at = NULL WHERE id = ?`,
+          [ex[0].id],
+        );
+        restored += 1;
+        continue;
+      }
+    }
+    try {
+      await pool.query(
+        `INSERT INTO organization_messages
+          (organization_id, author_type, user_id, direction, client_message_id, message_1c_id,
+           text_content, attachments_json, delivery_status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW(3)))`,
+        [
+          orgId,
+          m.author_type || 'manager_1c',
+          m.user_id || null,
+          m.direction || 'from_1c',
+          cid,
+          mid,
+          m.text_content || '',
+          typeof m.attachments_json === 'string'
+            ? m.attachments_json
+            : (m.attachments_json ? JSON.stringify(m.attachments_json) : null),
+          m.delivery_status || null,
+          m.created_at || null,
+        ],
+      );
+      restored += 1;
+    } catch (e) {
+      if (e.code !== 'ER_DUP_ENTRY') throw e;
+    }
+  }
+  return { organizationId: orgId, ok: true, restored };
+}
+
+async function importFromZip(
+  pool,
+  buffer,
+  selectedIds,
+  orgChatOrgIds = [],
+  uploadRoot = DEFAULT_UPLOAD_ROOT,
+) {
   const zip = await JSZip.loadAsync(buffer);
   const manifest = await parseManifest(zip);
   const allIds = (manifest.requests || []).map((r) => Number(r.id)).filter((n) => n > 0);
@@ -584,11 +887,30 @@ async function importFromZip(pool, buffer, selectedIds, uploadRoot = DEFAULT_UPL
     }
     results.push(await restoreOneRequest(pool, zip, id, uploadRoot));
   }
+
+  const allOrgIds = (manifest.orgChats || [])
+    .map((o) => Number(o.organizationId))
+    .filter((n) => n > 0);
+  const wantOrg = Array.isArray(orgChatOrgIds) && orgChatOrgIds.length
+    ? orgChatOrgIds.map(Number).filter((n) => n > 0)
+    : [];
+  const orgResults = [];
+  for (const orgId of wantOrg) {
+    if (allOrgIds.length && !allOrgIds.includes(orgId)) {
+      orgResults.push({ organizationId: orgId, ok: false, error: 'NOT_IN_ARCHIVE' });
+      continue;
+    }
+    orgResults.push(await restoreOrgChat(pool, zip, orgId));
+  }
+
   return {
     archivedByName: manifest.archivedByName,
     archiveLocation: manifest.archiveLocation,
+    periodLabel: manifest.periodLabel || null,
     restored: results.filter((r) => r.ok).length,
+    orgChatsRestored: orgResults.filter((r) => r.ok).length,
     results,
+    orgChatResults: orgResults,
   };
 }
 
@@ -607,42 +929,32 @@ async function purgeMarkedArchivedRequests(pool, uploadRoot = DEFAULT_UPLOAD_ROO
   let chatMessagesSoftDeleted = 0;
   for (const row of rows) {
     const id = Number(row.id);
-    const fileRows = await pool.query(
-      `SELECT id, stored_name, preview_stored_name
-       FROM customs_request_files
-       WHERE request_id = ? AND deleted_at IS NULL`,
-      [id],
-    ).then(([r]) => r);
-    await deleteFilesFromDisk(uploadRoot, fileRows);
-    const chat = await deleteChatForRequest(pool, id);
-    await pool.query(
-      `UPDATE customs_request_files
-       SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
-       WHERE request_id = ? AND deleted_at IS NULL`,
-      [id],
-    );
-    await pool.query(
-      `UPDATE customs_requests
-       SET archive_purged_at = NOW(3), updated_at = NOW(3)
-       WHERE id = ? AND deleted_at IS NULL`,
-      [id],
-    );
+    const r = await purgeOneRequestAfterArchive(pool, id, uploadRoot);
     purged += 1;
-    filesRemoved += fileRows.length;
-    chatFilesRemoved += chat.chatFilesRemoved || 0;
-    chatMessagesSoftDeleted += chat.chatMessagesSoftDeleted || 0;
+    filesRemoved += r.filesRemoved || 0;
+    chatFilesRemoved += r.chatFilesRemoved || 0;
+    chatMessagesSoftDeleted += r.chatMessagesSoftDeleted || 0;
   }
-  return { purged, filesRemoved, chatFilesRemoved, chatMessagesSoftDeleted, scanned: rows.length };
+  return {
+    purged,
+    filesRemoved,
+    chatFilesRemoved,
+    chatMessagesSoftDeleted,
+    scanned: rows.length,
+  };
 }
 
 module.exports = {
-  MAX_PERIOD_DAYS,
+  RECENT_ACTIVITY_DAYS,
   KIND,
-  assertPeriod,
+  assertArchiveBefore,
+  listRequestsEligibleForArchive,
   listRequestsInPeriod,
+  buildArchiveZip,
   buildExportZip,
   listArchives,
   previewZip,
   importFromZip,
   purgeMarkedArchivedRequests,
+  groupManifestOrganizations,
 };

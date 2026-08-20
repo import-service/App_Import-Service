@@ -9,8 +9,8 @@ const { CUSTOMS_REQUEST_SELECT, toCustomsRequestDto } = require('../util/customs
 const { CUSTOMS_REQUEST_FILE_SELECT } = require('../util/requestFileStorage');
 const { deleteCustomsRequestWithFiles } = require('../services/requestDeletion');
 const {
-  listRequestsInPeriod,
-  buildExportZip,
+  listRequestsEligibleForArchive,
+  buildArchiveZip,
   listArchives,
   previewZip,
   importFromZip,
@@ -778,12 +778,34 @@ module.exports = async function adminRoutes(fastify) {
     { onRequest: [fastify.authenticateAdmin] },
     async (request, reply) => {
       try {
-        const items = await listRequestsInPeriod(
+        const archiveBefore = request.query.archiveBefore
+          || request.query.before
+          || request.query.periodTo
+          || request.query.to;
+        const items = await listRequestsEligibleForArchive(
           fastify.pool,
-          request.query.periodFrom || request.query.from,
-          request.query.periodTo || request.query.to,
+          archiveBefore,
         );
-        return reply.send({ items, count: items.length });
+        const orgMap = new Map();
+        for (const item of items) {
+          const oid = item.organizationId;
+          if (!oid) continue;
+          if (!orgMap.has(oid)) {
+            orgMap.set(oid, {
+              organizationId: oid,
+              organizationName: item.organizationName || `Org #${oid}`,
+              requests: [],
+            });
+          }
+          orgMap.get(oid).requests.push(item);
+        }
+        return reply.send({
+          archiveBefore,
+          count: items.length,
+          organizationCount: orgMap.size,
+          organizations: [...orgMap.values()],
+          items,
+        });
       } catch (e) {
         if (e.code === 'VALIDATION_ERROR') {
           return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
@@ -800,12 +822,14 @@ module.exports = async function adminRoutes(fastify) {
       schema: {
         body: {
           type: 'object',
-          required: ['periodFrom', 'periodTo', 'archivedByName'],
+          required: ['archivedByName'],
           properties: {
+            archiveBefore: { type: 'string', minLength: 10, maxLength: 10 },
             periodFrom: { type: 'string', minLength: 10, maxLength: 10 },
             periodTo: { type: 'string', minLength: 10, maxLength: 10 },
             archivedByName: { type: 'string', minLength: 1, maxLength: 255 },
             archiveLocation: { type: 'string', maxLength: 1000 },
+            purgeFromServer: { type: 'boolean' },
           },
         },
       },
@@ -813,19 +837,23 @@ module.exports = async function adminRoutes(fastify) {
     async (request, reply) => {
       try {
         const actor = await adminActor(request);
-        const result = await buildExportZip(fastify.pool, {
-          periodFrom: request.body.periodFrom,
-          periodTo: request.body.periodTo,
+        const archiveBefore = request.body.archiveBefore
+          || request.body.periodTo
+          || request.body.periodFrom;
+        const result = await buildArchiveZip(fastify.pool, {
+          archiveBefore,
           archivedByName: request.body.archivedByName,
           archiveLocation: request.body.archiveLocation,
           adminUserId: actor.id,
           adminLogin: actor.login,
+          purgeFromServer: request.body.purgeFromServer !== false,
         });
         return reply
           .header('Content-Type', 'application/zip')
           .header('Content-Disposition', `attachment; filename="${result.zipFileName}"`)
           .header('X-Archive-Id', String(result.archiveId))
           .header('X-Archive-Count', String(result.requestCount))
+          .header('X-Archive-Purged', String(result.purged || 0))
           .send(result.buffer);
       } catch (e) {
         if (e.code === 'VALIDATION_ERROR') {
@@ -862,12 +890,22 @@ module.exports = async function adminRoutes(fastify) {
     async (request, reply) => {
       try {
         const idsRaw = request.query.requestIds || request.query.ids || '';
+        const orgRaw = request.query.orgChatIds || request.query.orgChatOrgIds || '';
         const selectedIds = String(idsRaw)
           .split(',')
           .map((s) => Number(s.trim()))
           .filter((n) => Number.isFinite(n) && n > 0);
+        const orgChatOrgIds = String(orgRaw)
+          .split(',')
+          .map((s) => Number(s.trim()))
+          .filter((n) => Number.isFinite(n) && n > 0);
         const buf = await readUploadedZip(request);
-        const result = await importFromZip(fastify.pool, buf, selectedIds);
+        const result = await importFromZip(
+          fastify.pool,
+          buf,
+          selectedIds,
+          orgChatOrgIds,
+        );
         return reply.send({ ok: true, ...result });
       } catch (e) {
         if (e.code === 'VALIDATION_ERROR') {

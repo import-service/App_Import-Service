@@ -87,39 +87,34 @@ class StorageRemoteDataSource {
     }
   }
 
-  Future<List<Map<String, dynamic>>> previewPeriod({
-    required String periodFrom,
-    required String periodTo,
+  Future<Map<String, dynamic>> previewEligible({
+    required String archiveBefore,
   }) async {
     try {
       final response = await _dio.get<dynamic>(
         'admin/archives/preview',
-        queryParameters: <String, dynamic>{
-          'periodFrom': periodFrom,
-          'periodTo': periodTo,
-        },
+        queryParameters: <String, dynamic>{'archiveBefore': archiveBefore},
       );
       final data = response.data;
-      if (data is! Map<String, dynamic>) return const [];
-      final raw = data['items'];
-      if (raw is! List) return const [];
-      return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ предпросмотра');
+      }
+      return data;
     } on DioException catch (e) {
       throw ErrorHandler.handle(e);
     }
   }
 
-  Future<({List<int> bytes, String filename})> exportZip({
-    required String periodFrom,
-    required String periodTo,
+  Future<({List<int> bytes, String filename})> archiveZip({
+    required String archiveBefore,
     required String archivedByName,
     String? archiveLocation,
   }) async {
     try {
       final body = <String, dynamic>{
-        'periodFrom': periodFrom,
-        'periodTo': periodTo,
+        'archiveBefore': archiveBefore,
         'archivedByName': archivedByName,
+        'purgeFromServer': true,
       };
       final loc = archiveLocation?.trim();
       if (loc != null && loc.isNotEmpty) {
@@ -130,7 +125,7 @@ class StorageRemoteDataSource {
         data: body,
         options: Options(
           responseType: ResponseType.bytes,
-          receiveTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(minutes: 10),
           sendTimeout: const Duration(minutes: 2),
         ),
       );
@@ -139,7 +134,7 @@ class StorageRemoteDataSource {
       final m = RegExp(r'filename="?([^"]+)"?').firstMatch(disp);
       return (
         bytes: bytes,
-        filename: m?.group(1) ?? 'request-archive.zip',
+        filename: m?.group(1) ?? 'archive.zip',
       );
     } on DioException catch (e) {
       throw ErrorHandler.handle(e);
@@ -173,6 +168,7 @@ class StorageRemoteDataSource {
     required List<int> zipBytes,
     required String filename,
     required List<int> requestIds,
+    required List<int> orgChatOrgIds,
   }) async {
     try {
       final form = FormData.fromMap(<String, dynamic>{
@@ -183,9 +179,10 @@ class StorageRemoteDataSource {
         data: form,
         queryParameters: <String, dynamic>{
           if (requestIds.isNotEmpty) 'requestIds': requestIds.join(','),
+          if (orgChatOrgIds.isNotEmpty) 'orgChatIds': orgChatOrgIds.join(','),
         },
         options: Options(
-          receiveTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(minutes: 10),
           sendTimeout: const Duration(minutes: 5),
         ),
       );

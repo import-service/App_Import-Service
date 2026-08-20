@@ -24,20 +24,23 @@ class _StoragePageState extends State<StoragePage> {
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _expired = const [];
   List<Map<String, dynamic>> _archives = const [];
-  List<Map<String, dynamic>> _preview = const [];
+  Map<String, dynamic>? _eligiblePreview;
+  List<Map<String, dynamic>> _importOrganizations = const [];
   List<Map<String, dynamic>> _importItems = const [];
   final Set<int> _importSelected = <int>{};
+  final Set<int> _importOrgChatSelected = <int>{};
   List<int>? _importZipBytes;
   String _importZipName = 'archive.zip';
+  String? _importPeriodLabel;
   final _retentionCtrl = TextEditingController(text: '6');
-  final _fromCtrl = TextEditingController();
-  final _toCtrl = TextEditingController();
+  final _beforeCtrl = TextEditingController();
   final _fioCtrl = TextEditingController();
   final _placeCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _beforeCtrl.text = _ymd(DateTime.now().subtract(const Duration(days: 30)));
     _loadSavedArchiveLocation();
     _reload();
   }
@@ -52,8 +55,7 @@ class _StoragePageState extends State<StoragePage> {
   @override
   void dispose() {
     _retentionCtrl.dispose();
-    _fromCtrl.dispose();
-    _toCtrl.dispose();
+    _beforeCtrl.dispose();
     _fioCtrl.dispose();
     _placeCtrl.dispose();
     super.dispose();
@@ -124,16 +126,16 @@ class _StoragePageState extends State<StoragePage> {
     if (picked != null) ctrl.text = _ymd(picked);
   }
 
-  Future<void> _loadPreview() async {
+  Future<void> _loadEligiblePreview() async {
     setState(() => _busy = true);
     try {
-      final items = await _storage.previewPeriod(
-        periodFrom: _fromCtrl.text.trim(),
-        periodTo: _toCtrl.text.trim(),
+      final preview = await _storage.previewEligible(
+        archiveBefore: _beforeCtrl.text.trim(),
       );
       if (!mounted) return;
-      setState(() => _preview = items);
-      AppSnackBars.showSuccess('Заявок за период: ${items.length}', context: context);
+      setState(() => _eligiblePreview = preview);
+      final count = preview['count'] ?? 0;
+      AppSnackBars.showSuccess('Под архив: $count заявок', context: context);
     } catch (e) {
       if (!mounted) return;
       AppSnackBars.showError('$e', context: context);
@@ -142,18 +144,33 @@ class _StoragePageState extends State<StoragePage> {
     }
   }
 
-  Future<void> _exportZip() async {
+  Future<void> _archiveZip() async {
     final fio = _fioCtrl.text.trim();
     if (fio.isEmpty) {
       AppSnackBars.showError('Укажите ФИО кто архивирует', context: context);
       return;
     }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Архивировать заявки?'),
+        content: Text(
+          'Будут заархивированы закрытые заявки, созданные до ${_beforeCtrl.text.trim()}, '
+          'без активности за последний месяц. ZIP скачается, файлы с сервера удалятся.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Архивировать')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
     setState(() => _busy = true);
     try {
       final place = _placeCtrl.text.trim();
-      final r = await _storage.exportZip(
-        periodFrom: _fromCtrl.text.trim(),
-        periodTo: _toCtrl.text.trim(),
+      final r = await _storage.archiveZip(
+        archiveBefore: _beforeCtrl.text.trim(),
         archivedByName: fio,
         archiveLocation: place.isEmpty ? null : place,
       );
@@ -163,7 +180,11 @@ class _StoragePageState extends State<StoragePage> {
       }
       if (!mounted) return;
       saveBytesAsFile(Uint8List.fromList(r.bytes), r.filename);
-      AppSnackBars.showSuccess('ZIP скачан. Сохраните файл на физноситель.', context: context);
+      AppSnackBars.showSuccess(
+        'ZIP «${r.filename}» скачан. Заявки сняты с сервера.',
+        context: context,
+      );
+      setState(() => _eligiblePreview = null);
       await _reload();
     } catch (e) {
       if (!mounted) return;
@@ -173,25 +194,70 @@ class _StoragePageState extends State<StoragePage> {
     }
   }
 
+  void _selectAllImportForOrg(Map<String, dynamic> org, bool selected) {
+    final oid = int.tryParse('${org['organizationId']}') ?? 0;
+    final requests = org['requests'];
+    setState(() {
+      if (selected) {
+        if (oid > 0 && _orgHasChat(org)) _importOrgChatSelected.add(oid);
+        if (requests is List) {
+          for (final r in requests.whereType<Map<String, dynamic>>()) {
+            final id = int.tryParse('${r['id']}') ?? 0;
+            if (id > 0) _importSelected.add(id);
+          }
+        }
+      } else {
+        if (oid > 0) _importOrgChatSelected.remove(oid);
+        if (requests is List) {
+          for (final r in requests.whereType<Map<String, dynamic>>()) {
+            final id = int.tryParse('${r['id']}') ?? 0;
+            if (id > 0) _importSelected.remove(id);
+          }
+        }
+      }
+    });
+  }
+
+  bool _orgHasChat(Map<String, dynamic> org) {
+    final chat = org['orgChat'];
+    if (chat is Map<String, dynamic>) {
+      return chat['available'] == true;
+    }
+    return true;
+  }
+
   Future<void> _pickImportZip() async {
     final picked = await pickZipFile();
     if (picked == null) return;
     setState(() => _busy = true);
     try {
       final preview = await _storage.importPreview(picked.bytes, picked.name);
-      final raw = preview['requests'];
-      final items = raw is List
-          ? raw.whereType<Map<String, dynamic>>().toList()
+      final orgsRaw = preview['organizations'];
+      final orgs = orgsRaw is List
+          ? orgsRaw.whereType<Map<String, dynamic>>().toList()
+          : <Map<String, dynamic>>[];
+      final flatRaw = preview['requests'];
+      final flat = flatRaw is List
+          ? flatRaw.whereType<Map<String, dynamic>>().toList()
           : <Map<String, dynamic>>[];
       if (!mounted) return;
       setState(() {
         _importZipBytes = picked.bytes;
         _importZipName = picked.name;
-        _importItems = items;
+        _importPeriodLabel = preview['periodLabel']?.toString();
+        _importOrganizations = orgs;
+        _importItems = flat;
         _importSelected
           ..clear()
           ..addAll(
-            items.map((e) => int.tryParse('${e['id']}') ?? 0).where((id) => id > 0),
+            flat.map((e) => int.tryParse('${e['id']}') ?? 0).where((id) => id > 0),
+          );
+        _importOrgChatSelected
+          ..clear()
+          ..addAll(
+            orgs
+                .map((o) => int.tryParse('${o['organizationId']}') ?? 0)
+                .where((id) => id > 0),
           );
       });
     } catch (e) {
@@ -204,8 +270,8 @@ class _StoragePageState extends State<StoragePage> {
 
   Future<void> _runImport() async {
     final bytes = _importZipBytes;
-    if (bytes == null || _importSelected.isEmpty) {
-      AppSnackBars.showError('Выберите ZIP и заявки', context: context);
+    if (bytes == null || (_importSelected.isEmpty && _importOrgChatSelected.isEmpty)) {
+      AppSnackBars.showError('Выберите ZIP и что импортировать', context: context);
       return;
     }
     setState(() => _busy = true);
@@ -214,32 +280,21 @@ class _StoragePageState extends State<StoragePage> {
         zipBytes: bytes,
         filename: _importZipName,
         requestIds: _importSelected.toList(),
+        orgChatOrgIds: _importOrgChatSelected.toList(),
       );
       if (!mounted) return;
-      AppSnackBars.showSuccess('Восстановлено: ${r['restored'] ?? 0}', context: context);
+      AppSnackBars.showSuccess(
+        'Заявок: ${r['restored'] ?? 0}, общих чатов: ${r['orgChatsRestored'] ?? 0}',
+        context: context,
+      );
       setState(() {
         _importZipBytes = null;
         _importItems = const [];
+        _importOrganizations = const [];
         _importSelected.clear();
+        _importOrgChatSelected.clear();
+        _importPeriodLabel = null;
       });
-      await _reload();
-    } catch (e) {
-      if (!mounted) return;
-      AppSnackBars.showError('$e', context: context);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _purgeMarked() async {
-    setState(() => _busy = true);
-    try {
-      final r = await _storage.purgeMarkedArchives();
-      if (!mounted) return;
-      AppSnackBars.showSuccess(
-        'Очищено заявок (файлы сняты): ${r['purged'] ?? 0}',
-        context: context,
-      );
       await _reload();
     } catch (e) {
       if (!mounted) return;
@@ -308,6 +363,109 @@ class _StoragePageState extends State<StoragePage> {
     return '${(n / (1024 * 1024 * 1024)).toStringAsFixed(2)} ГБ';
   }
 
+  Widget _buildImportOrgTree() {
+    if (_importOrganizations.isEmpty && _importItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    if (_importOrganizations.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final p in _importItems)
+            CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              value: _importSelected.contains(int.tryParse('${p['id']}') ?? -1),
+              title: Text('№${p['id']}  ${p['vin'] ?? ''}'),
+              onChanged: _busy
+                  ? null
+                  : (v) {
+                      final id = int.tryParse('${p['id']}') ?? 0;
+                      if (id <= 0) return;
+                      setState(() {
+                        if (v == true) {
+                          _importSelected.add(id);
+                        } else {
+                          _importSelected.remove(id);
+                        }
+                      });
+                    },
+            ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        for (final org in _importOrganizations) _buildImportOrgTile(org),
+      ],
+    );
+  }
+
+  Widget _buildImportOrgTile(Map<String, dynamic> org) {
+    final oid = int.tryParse('${org['organizationId']}') ?? 0;
+    final name = '${org['organizationName'] ?? 'Org #$oid'}';
+    final requests = org['requests'] is List
+        ? (org['requests'] as List).whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
+    final reqIds = requests.map((r) => int.tryParse('${r['id']}') ?? 0).where((id) => id > 0);
+    final allReqSelected = reqIds.isNotEmpty && reqIds.every(_importSelected.contains);
+    final chatSelected = oid > 0 && _importOrgChatSelected.contains(oid);
+    final allSelected = allReqSelected && (!_orgHasChat(org) || chatSelected);
+
+    return ExpansionTile(
+      title: Text(name),
+      subtitle: Text('${requests.length} заявок'),
+      leading: Checkbox(
+        value: allSelected,
+        tristate: true,
+        onChanged: _busy
+            ? null
+            : (v) {
+                _selectAllImportForOrg(org, v == true);
+              },
+      ),
+      children: [
+        if (_orgHasChat(org) && oid > 0)
+          CheckboxListTile(
+            dense: true,
+            value: chatSelected,
+            title: const Text('Общий чат'),
+            onChanged: _busy
+                ? null
+                : (v) {
+                    setState(() {
+                      if (v == true) {
+                        _importOrgChatSelected.add(oid);
+                      } else {
+                        _importOrgChatSelected.remove(oid);
+                      }
+                    });
+                  },
+          ),
+        for (final r in requests)
+          CheckboxListTile(
+            dense: true,
+            value: _importSelected.contains(int.tryParse('${r['id']}') ?? -1),
+            title: Text('№${r['id']}  ${r['vin'] ?? ''}  ${r['ownerFullName'] ?? ''}'),
+            onChanged: _busy
+                ? null
+                : (v) {
+                    final id = int.tryParse('${r['id']}') ?? 0;
+                    if (id <= 0) return;
+                    setState(() {
+                      if (v == true) {
+                        _importSelected.add(id);
+                      } else {
+                        _importSelected.remove(id);
+                      }
+                    });
+                  },
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -315,6 +473,7 @@ class _StoragePageState extends State<StoragePage> {
       return const Center(child: CircularProgressIndicator());
     }
     final stats = _stats ?? {};
+    final diskLow = stats['diskLow'] == true;
     final stale = stats['staleOutbound'];
     final staleList = stale is List ? stale.whereType<Map<String, dynamic>>().toList() : <Map<String, dynamic>>[];
 
@@ -326,7 +485,8 @@ class _StoragePageState extends State<StoragePage> {
           Text('Хранилище файлов', style: theme.textTheme.titleLarge),
           const Gap(8),
           Text(
-            'Файлы заявок хранятся на сервере. Закрытые заявки удаляются автоматически по сроку.',
+            'Архив: закрытые заявки, созданные до выбранной даты, без активности месяц. '
+            'ZIP с именем периода (создание первой — закрытие последней). Общий чат включается в архив.',
             style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
           ),
           const Gap(20),
@@ -334,48 +494,41 @@ class _StoragePageState extends State<StoragePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _row('Папка uploads', '${stats['uploadsPath'] ?? '—'}'),
-                const Gap(10),
-                _row('Занято файлами', _fmtBytes(stats['uploadsBytes'])),
-                const Gap(10),
-                _row('Диск всего', _fmtBytes(stats['diskTotalBytes'])),
-                const Gap(10),
+                if (diskLow)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      'Мало места на диске — рекомендуется архивация.',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.accentRed),
+                    ),
+                  ),
+                _row('Файлы заявок', _fmtBytes(stats['uploadsBytes'])),
+                const Gap(8),
+                _row('Вложения чатов', _fmtBytes(stats['chatAttachmentsBytes'])),
+                const Gap(8),
+                _row('Всего данных', _fmtBytes(stats['dataBytes'] ?? stats['uploadsBytes'])),
+                const Gap(8),
                 _row('Свободно на диске', _fmtBytes(stats['diskFreeBytes'])),
+                const Gap(8),
+                _row('Диск всего', _fmtBytes(stats['diskTotalBytes'])),
               ],
             ),
           ),
           const Gap(16),
-          Text('Архив заявок на физноситель', style: theme.textTheme.titleMedium),
-          const Gap(8),
-          Text(
-            'Общий чат организации не архивируется. Период — не больше 3 месяцев. '
-            'Путь физносителя необязателен; последнее значение подставляется автоматически. '
-            'Скачанный ZIP сразу не удаляет файлы с сервера.',
-            style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
-          ),
+          Text('Архивация на физноситель', style: theme.textTheme.titleMedium),
           const Gap(12),
           _card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextField(
-                  controller: _fromCtrl,
+                  controller: _beforeCtrl,
                   readOnly: true,
                   decoration: const InputDecoration(
-                    labelText: 'Период с',
+                    labelText: 'Архивировать закрытые, созданные до',
                     border: OutlineInputBorder(),
                   ),
-                  onTap: _busy ? null : () => _pickDate(_fromCtrl),
-                ),
-                const Gap(10),
-                TextField(
-                  controller: _toCtrl,
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Период по',
-                    border: OutlineInputBorder(),
-                  ),
-                  onTap: _busy ? null : () => _pickDate(_toCtrl),
+                  onTap: _busy ? null : () => _pickDate(_beforeCtrl),
                 ),
                 const Gap(10),
                 TextField(
@@ -396,24 +549,21 @@ class _StoragePageState extends State<StoragePage> {
                 ),
                 const Gap(12),
                 OutlinedButton(
-                  onPressed: _busy ? null : _loadPreview,
-                  child: const Text('Показать заявки за период'),
+                  onPressed: _busy ? null : _loadEligiblePreview,
+                  child: const Text('Сколько попадёт под архив'),
                 ),
                 const Gap(8),
                 FilledButton(
-                  onPressed: _busy ? null : _exportZip,
-                  child: const Text('Скачать ZIP и пометить'),
+                  onPressed: _busy ? null : _archiveZip,
+                  child: const Text('Архивировать и снять с сервера'),
                 ),
-                if (_preview.isNotEmpty) ...[
+                if (_eligiblePreview != null) ...[
                   const Gap(10),
-                  Text('К выгрузке: ${_preview.length}', style: theme.textTheme.bodySmall),
-                  for (final p in _preview.take(12))
-                    Text(
-                      '№${p['id']}  ${p['vin'] ?? ''}  ${p['ownerFullName'] ?? ''}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  if (_preview.length > 12)
-                    Text('… и ещё ${_preview.length - 12}', style: theme.textTheme.bodySmall),
+                  Text(
+                    'К архивации: ${_eligiblePreview!['count'] ?? 0} заявок, '
+                    'организаций: ${_eligiblePreview!['organizationCount'] ?? 0}',
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ],
               ],
             ),
@@ -424,49 +574,29 @@ class _StoragePageState extends State<StoragePage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text('Импорт ZIP', style: theme.textTheme.titleSmall),
+                if (_importPeriodLabel != null) ...[
+                  const Gap(4),
+                  Text('Период архива: $_importPeriodLabel', style: theme.textTheme.bodySmall),
+                ],
                 const Gap(8),
                 OutlinedButton(
                   onPressed: _busy ? null : _pickImportZip,
                   child: const Text('Выбрать ZIP'),
                 ),
-                if (_importItems.isNotEmpty) ...[
+                if (_importOrganizations.isNotEmpty || _importItems.isNotEmpty) ...[
                   const Gap(8),
-                  for (final p in _importItems)
-                    CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: _importSelected.contains(int.tryParse('${p['id']}') ?? -1),
-                      title: Text('№${p['id']}  ${p['vin'] ?? ''}'),
-                      onChanged: _busy
-                          ? null
-                          : (v) {
-                              final id = int.tryParse('${p['id']}') ?? 0;
-                              if (id <= 0) return;
-                              setState(() {
-                                if (v == true) {
-                                  _importSelected.add(id);
-                                } else {
-                                  _importSelected.remove(id);
-                                }
-                              });
-                            },
-                    ),
+                  _buildImportOrgTree(),
                   FilledButton(
                     onPressed: _busy ? null : _runImport,
-                    child: const Text('Импортировать выбранные'),
+                    child: const Text('Импортировать выбранное'),
                   ),
                 ],
-                const Gap(8),
-                OutlinedButton(
-                  onPressed: _busy ? null : _purgeMarked,
-                  child: const Text('Снять с сервера уже выгруженное'),
-                ),
               ],
             ),
           ),
           if (_archives.isNotEmpty) ...[
             const Gap(12),
-            Text('Кто архивировал и куда', style: theme.textTheme.titleSmall),
+            Text('Журнал архивов', style: theme.textTheme.titleSmall),
             const Gap(8),
             for (final a in _archives)
               _card(
@@ -475,12 +605,10 @@ class _StoragePageState extends State<StoragePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('${a['archivedByName'] ?? '—'} · ${a['adminLogin'] ?? ''}'),
+                    Text('${a['archiveLocation'] ?? ''}', style: theme.textTheme.bodySmall),
                     Text(
-                      '${a['archiveLocation'] ?? ''}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    Text(
-                      '${a['periodFrom']} — ${a['periodTo']} · заявок: ${a['requestCount']}',
+                      '${a['periodLabel'] ?? '${a['periodFrom']} — ${a['periodTo']}'} · '
+                      'заявок: ${a['requestCount']}',
                       style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
                     ),
                   ],

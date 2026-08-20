@@ -8,15 +8,26 @@ import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
 import 'package:import_service_app/domain/entities/request_status_sub_type.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
+import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
+import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/presentation/helpers/push_change_summary.dart';
 import 'package:import_service_app/presentation/router/app_router.dart';
+
+/// Обновление списка чатов после push в общий чат организации.
+Future<void> handleOrgChatRemoteUpdate() async {
+  await sl<ChatListCubit>().load();
+}
 
 /// Обработка push по заявке: refresh, таб списка, подсветка карточки.
 Future<void> handleRequestRemoteUpdate(RequestRemoteUpdate update) async {
   final id = update.requestId.trim();
   if (id.isEmpty) return;
+  if (id == ChatListItem.orgChatId) {
+    await handleOrgChatRemoteUpdate();
+    return;
+  }
 
   _focusTabFromPushStatus(update.status);
 
@@ -57,7 +68,7 @@ Future<void> handleRequestRemoteUpdate(RequestRemoteUpdate update) async {
 /// Перед открытием деталки по тапу на push — сразу таб по data.status, затем refresh.
 Future<void> prepareCarsTabBeforeDetailOpen(String requestId) async {
   final id = requestId.trim();
-  if (id.isEmpty) return;
+  if (id.isEmpty || id == ChatListItem.orgChatId) return;
 
   syncCarsTabFromInventory(id);
 

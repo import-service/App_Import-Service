@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_api_availability/google_api_availability.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/core/push/request_remote_update.dart';
+import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/firebase_options.dart';
 
 @pragma('vm:entry-point')
@@ -343,6 +344,7 @@ final class PushNotificationsService {
 
   RequestRemoteUpdate? _extractRemoteUpdate(RemoteMessage message) {
     final data = message.data;
+    if (_isOrgChatPushData(data)) return null;
     final requestId = _readRequestId(data);
     if (requestId == null) return null;
     final type = (data['type']?.trim().toLowerCase() ?? '');
@@ -387,30 +389,33 @@ final class PushNotificationsService {
     return null;
   }
 
-  PushOpenTarget? _extractOpenTarget(RemoteMessage message) {
-    final data = message.data;
+  bool _isOrgChatPushData(Map<String, dynamic> data) {
     final type = (data['type']?.trim().toLowerCase() ?? '');
     final event = (data['event']?.trim().toLowerCase() ?? '');
-    final action = (data['action']?.trim().toLowerCase() ?? '');
     final chatKind = (data['chatKind']?.trim().toLowerCase() ??
         data['chat_kind']?.trim().toLowerCase() ??
         '');
     if (type == 'new_org_message' ||
         event == 'new_org_message' ||
         chatKind == 'org') {
+      return true;
+    }
+    return _readRequestId(data) == ChatListItem.orgChatId;
+  }
+
+  PushOpenTarget? _extractOpenTarget(RemoteMessage message) {
+    final data = message.data;
+    final type = (data['type']?.trim().toLowerCase() ?? '');
+    final event = (data['event']?.trim().toLowerCase() ?? '');
+    final action = (data['action']?.trim().toLowerCase() ?? '');
+    if (_isOrgChatPushData(data)) {
       return const PushOpenTarget(
-        requestId: 'org',
+        requestId: ChatListItem.orgChatId,
         kind: PushOpenKind.orgChat,
       );
     }
     final requestId = _readRequestId(data);
     if (requestId == null) return null;
-    if (requestId == 'org') {
-      return const PushOpenTarget(
-        requestId: 'org',
-        kind: PushOpenKind.orgChat,
-      );
-    }
     final openChat = type == 'new_message' ||
         type == 'chat_message' ||
         event == 'new_message' ||

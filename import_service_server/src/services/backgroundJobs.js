@@ -5,6 +5,7 @@ const { getAppSettings } = require('./appSettings');
 const { pushCustomsRequestCreateTo1C } = require('./oneCCreateSync');
 const { pushCustomsRequestUpdateTo1C } = require('./oneCUpdateSync');
 const { purgeExpiredClosedRequests, DEFAULT_UPLOAD_ROOT } = require('./requestDeletion');
+const { CHAT_UPLOAD_ROOT } = require('./chatAttachmentStorage');
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -154,6 +155,8 @@ async function dirSizeBytes(dirPath) {
 
 async function getStorageStats(uploadRoot = DEFAULT_UPLOAD_ROOT) {
   const uploadsBytes = await dirSizeBytes(uploadRoot);
+  const chatAttachmentsBytes = await dirSizeBytes(CHAT_UPLOAD_ROOT);
+  const dataBytes = uploadsBytes + chatAttachmentsBytes;
 
   let diskTotal = null;
   let diskFree = null;
@@ -165,12 +168,21 @@ async function getStorageStats(uploadRoot = DEFAULT_UPLOAD_ROOT) {
     // statfs недоступен — только uploads
   }
 
+  const diskLow = diskFree != null && (
+    diskFree < 5 * 1024 * 1024 * 1024
+    || (diskTotal != null && diskFree / diskTotal < 0.15)
+  );
+
   return {
     uploadsBytes,
+    chatAttachmentsBytes,
+    dataBytes,
     uploadsPath: uploadRoot,
+    chatAttachmentsPath: CHAT_UPLOAD_ROOT,
     diskTotalBytes: diskTotal,
     diskFreeBytes: diskFree,
     diskUsedBytes: diskTotal != null && diskFree != null ? diskTotal - diskFree : null,
+    diskLow: Boolean(diskLow),
   };
 }
 

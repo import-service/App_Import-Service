@@ -1533,7 +1533,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/storage/stats</code><span class="desc">Диск, uploads, retention, зависшие исходящие в 1С.</span></summary>
-          <div class="body"><p>Поля: <code>uploadsBytes</code>, <code>diskFreeBytes</code>, <code>diskTotalBytes</code>, <code>retentionMonths</code>, <code>staleOutbound[]</code>, <code>topRequestsByBytes[]</code>.</p><p>Автоудаление: только <code>status=closed</code> старше <code>retentionMonths</code> (по умолчанию 6). Вместе с заявкой удаляются файлы заявки, сообщения чата и вложения чата.</p></div>
+          <div class="body"><p>Поля: <code>uploadsBytes</code>, <code>chatAttachmentsBytes</code>, <code>dataBytes</code>, <code>diskFreeBytes</code>, <code>diskTotalBytes</code>, <code>diskLow</code>, <code>retentionMonths</code>, <code>staleOutbound[]</code>, <code>topRequestsByBytes[]</code>.</p><p>Автоудаление: только <code>status=closed</code> старше <code>retentionMonths</code> (по умолчанию 6).</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method put">PUT</span><code class="path">/api/admin/storage/retention</code><span class="desc">Срок хранения closed-заявок (месяцы).</span></summary>
@@ -1543,41 +1543,43 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/storage/purge-expired</code><span class="desc">Удалить просроченные closed сейчас.</span></summary>
           <div class="body"><p>Фоновый job тоже запускается раз в сутки. В ответе также <code>chatFilesRemoved</code>, <code>chatMessagesSoftDeleted</code>.</p></div>
         </details>
-        </details>
         <details class="card">
-          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives</code><span class="desc">Список выгрузок архива (кто, куда, период).</span></summary>
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives</code><span class="desc">Журнал архивов (кто, куда, период в имени ZIP).</span></summary>
           <div class="body"><p><b>Auth:</b> admin JWT</p>
-            <p>Общий чат организации в архив <b>не</b> входит. Период экспорта — не больше 3 месяцев.</p>
-            <p><b>Success:</b> <code>{ items: [{ id, periodFrom, periodTo, archivedByName, archiveLocation, adminLogin, requestCount, zipFileName, createdAt }] }</code></p>
+            <p><b>Success:</b> <code>{ items: [{ id, periodFrom, periodTo, periodLabel, archivedByName, archiveLocation, adminLogin, requestCount, zipFileName, createdAt }] }</code></p>
           </div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives/preview</code><span class="desc">Какие заявки попадут в ZIP за период.</span></summary>
-          <div class="body"><p>Query: <code>periodFrom</code>, <code>periodTo</code> (YYYY-MM-DD). Максимум 93 дня.</p></div>
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives/preview</code><span class="desc">Сколько закрытых заявок попадёт под архив.</span></summary>
+          <div class="body"><p>Query: <code>archiveBefore</code> (YYYY-MM-DD) — закрытые, <b>созданные до</b> этой даты, без активности 30 дней (чат, файлы, обновление, вход клиента).</p>
+            <p><b>Success:</b> <code>{ archiveBefore, count, organizationCount, organizations[], items[] }</code></p></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/export</code><span class="desc">Скачать ZIP и пометить заявки «есть копия на диске».</span></summary>
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/export</code><span class="desc">ZIP + снятие заявок с сервера.</span></summary>
           <div class="body"><p>Тело:</p><pre>{
-  "periodFrom": "2026-01-01",
-  "periodTo": "2026-03-31",
+  "archiveBefore": "2026-01-20",
   "archivedByName": "Иванов Иван Иванович",
-  "archiveLocation": "D:\\Архив\\2026-Q1"
+  "archiveLocation": "D:\\Архив\\2026-Q1",
+  "purgeFromServer": true
 }</pre>
-            <p><code>archiveLocation</code> необязателен. Если пусто — в журнал и <code>manifest.json</code> пишется имя ZIP. Админка запоминает последнее непустое значение.</p>
-            <p>Ответ: <code>application/zip</code>. Файлы с сервера сразу <b>не</b> удаляются.</p>
+            <p>Имя ZIP: <code>DD_MM_YY-to-DD_MM_YY.zip</code> (создание первой заявки — закрытие последней в архиве).</p>
+            <p>В ZIP: заявки (meta, files, messages, chat-files), общий чат организаций (<code>organizations/{orgId}/</code>).</p>
+            <p><code>purgeFromServer</code> по умолчанию <code>true</code>: файлы заявок удаляются, в МП — заглушка «на физносителе».</p>
+            <p>Ответ: <code>application/zip</code>, заголовки <code>X-Archive-Id</code>, <code>X-Archive-Count</code>, <code>X-Archive-Purged</code>.</p>
           </div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/import-preview</code><span class="desc">Разобрать ZIP: список заявок для выбора.</span></summary>
-          <div class="body"><p>Multipart поле <code>file</code>.</p></div>
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/import-preview</code><span class="desc">Разобрать ZIP: дерево организаций.</span></summary>
+          <div class="body"><p>Multipart поле <code>file</code>.</p>
+            <p><b>Success:</b> <code>{ periodLabel, organizations[{ organizationId, organizationName, orgChat, requests[] }], requests[] }</code></p></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/import</code><span class="desc">Вернуть выбранные заявки из ZIP на сервер.</span></summary>
-          <div class="body"><p>Multipart <code>file</code>, query <code>requestIds=1,2,3</code> (пусто = все из манифеста).</p></div>
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/import</code><span class="desc">Восстановить выбранное из ZIP.</span></summary>
+          <div class="body"><p>Multipart <code>file</code>. Query: <code>requestIds=1,2</code>, <code>orgChatIds=14,15</code> (общий чат). Пусто = все из манифеста. Конфликт — перезапись только тем, что в ZIP.</p></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/purge-marked</code><span class="desc">Снять с сервера файлы уже выгруженных заявок (заглушка с ФИО остаётся).</span></summary>
-          <div class="body"><p>То же делает ежедневная чистка <code>purge-expired</code> для помеченных архивом. Заявка в МП остаётся с текстом «на физическом носителе, свяжитесь с {ФИО}».</p></div>
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/purge-marked</code><span class="desc">Снять с сервера помеченные архивом (legacy).</span></summary>
+          <div class="body"><p>Обычно не нужен: <code>export</code> с <code>purgeFromServer:true</code> удаляет сразу.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/broadcasts</code><span class="desc">Массовая рассылка всем организациям (админка).</span></summary>
