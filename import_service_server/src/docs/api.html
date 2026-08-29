@@ -1285,7 +1285,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
             <p><b>Назначение:</b> доставить в 1С сообщение клиента из МП, если по заявке нет открытого WSS 1С (или WSS отвалился — fallback).</p>
             <p><b>Когда НЕ вызывается:</b> если в комнате заявки уже есть живой integration-сокет — сервер шлёт только <code>message_created</code> по WSS.</p>
             <p><b>Auth:</b> тот же Bearer, что для создания/обновления заявки (из админки: create URL / bearer).</p>
-            <p><b>URL:</b> строится из URL создания заявки в админке: тот же хост/база, суффикс <code>customs-request-chat</code> (отдельный метод на стороне 1С, не create и не files update).</p>
+            <p><b>URL:</b> из create-URL в админке. Если там <code>…/customs-request</code>, <code>…/customs-requests/upload</code> и т.п. — сервер подменяет на <code>…/customs-request-chat</code> (тот же хост/база). Пример: create = <code>…/MobileAppIntegration/customs-requests/upload</code> → chat = <code>…/MobileAppIntegration/customs-request-chat</code>.</p>
             <table class="fields">
               <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
               <tr><td><code>external1cId</code></td><td>да</td><td>Id заявки в 1С.</td></tr>

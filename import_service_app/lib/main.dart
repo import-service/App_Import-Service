@@ -102,6 +102,7 @@ class _MyAppState extends State<MyApp> {
               unawaited(handleOrgChatRemoteUpdate());
             }
             if (sl<ChatScreenPresence>().isOpen(target.requestId)) {
+              sl<ChatScreenPresence>().notifyLiveUpdate(target.requestId);
               return;
             }
             sl<RequestChatUnreadCubit>().markUnread(target.requestId);

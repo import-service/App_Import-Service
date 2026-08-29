@@ -49,10 +49,16 @@ final class ChatBroadcastWssClient {
         },
         onError: (Object e, StackTrace st) {
           _failPending(e);
+          if (identical(_channel, ch)) {
+            _channel = null;
+          }
           onError?.call(e, st);
         },
         onDone: () {
           _failPending(StateError('wss closed'));
+          if (identical(_channel, ch)) {
+            _channel = null;
+          }
           onDone?.call();
         },
       );

@@ -43,6 +43,13 @@ function buildOneCChatUrl(createUrl) {
   const raw = String(createUrl || '').trim();
   if (!raw) return '';
   if (/\/customs-request-chat\/?$/i.test(raw)) return raw;
+  // В админке часто стоит upload/files URL — режем до базы интеграции.
+  if (/\/customs-requests\/upload\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-requests\/upload\/?$/i, '/customs-request-chat');
+  }
+  if (/\/customs-requests\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-requests\/?$/i, '/customs-request-chat');
+  }
   if (/\/customs-request-update\/?$/i.test(raw)) {
     return raw.replace(/\/customs-request-update\/?$/i, '/customs-request-chat');
   }
@@ -58,6 +65,12 @@ function buildOneCOrgChatUrl(createUrl) {
   if (/\/organization-chat\/?$/i.test(raw)) return raw;
   if (/\/customs-request-chat\/?$/i.test(raw)) {
     return raw.replace(/\/customs-request-chat\/?$/i, '/organization-chat');
+  }
+  if (/\/customs-requests\/upload\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-requests\/upload\/?$/i, '/organization-chat');
+  }
+  if (/\/customs-requests\/?$/i.test(raw)) {
+    return raw.replace(/\/customs-requests\/?$/i, '/organization-chat');
   }
   if (/\/customs-request-update\/?$/i.test(raw)) {
     return raw.replace(/\/customs-request-update\/?$/i, '/organization-chat');

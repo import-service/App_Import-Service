@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -73,7 +75,14 @@ class _RequestChatViewState extends State<_RequestChatView> {
   @override
   void initState() {
     super.initState();
-    sl<ChatScreenPresence>().enter(widget.requestId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final cubit = context.read<RequestChatCubit>();
+      sl<ChatScreenPresence>().enter(
+        widget.requestId,
+        onLiveUpdate: () => unawaited(cubit.softRefreshFromServer()),
+      );
+    });
     sl<RequestChatUnreadCubit>().clearUnread(widget.requestId);
   }
 

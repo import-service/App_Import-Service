@@ -38,6 +38,9 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
   final ChatBroadcastWssClient _wss;
   int _demoSeq = 0;
   static const Uuid _uuid = Uuid();
+  Timer? _wssReconnectTimer;
+  int _wssReconnectAttempt = 0;
+  bool _softRefreshInFlight = false;
 
   List<ChatMessage> _sortAndDedupe(Iterable<ChatMessage> all) {
     final byId = <int, ChatMessage>{};
@@ -122,13 +125,49 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
       onError: (e, st) {
         if (isClosed) return;
         emit(state.copyWith(wssConnected: false));
+        _scheduleWssReconnect();
       },
       onDone: () {
         if (isClosed) return;
         emit(state.copyWith(wssConnected: false));
+        _scheduleWssReconnect();
       },
     );
+    _wssReconnectAttempt = 0;
     emit(state.copyWith(wssConnected: true));
+  }
+
+  void _scheduleWssReconnect() {
+    if (isClosed || _session.isDemo) return;
+    _wssReconnectTimer?.cancel();
+    final attempt = _wssReconnectAttempt.clamp(0, 5);
+    _wssReconnectAttempt = attempt + 1;
+    final delay = Duration(seconds: 1 << attempt); // 1,2,4,8,16,32
+    _wssReconnectTimer = Timer(delay, () {
+      if (isClosed) return;
+      if (_wss.isActive) return;
+      _connectWss();
+    });
+  }
+
+  /// Подтянуть историю по HTTP и смержить (fallback, если WSS молчит).
+  Future<void> softRefreshFromServer() async {
+    if (_session.isDemo || isClosed || _softRefreshInFlight) return;
+    _softRefreshInFlight = true;
+    try {
+      final r = await _repo.loadMessages(requestId, limit: 100);
+      if (isClosed) return;
+      r.fold((_) {}, (raw) {
+        final merged = _sortAndDedupe(<ChatMessage>[...state.messages, ...raw]);
+        emit(state.copyWith(messages: merged, error: null));
+        unawaited(_markReadInBackground(merged));
+        if (!_wss.isActive) {
+          _connectWss();
+        }
+      });
+    } finally {
+      _softRefreshInFlight = false;
+    }
   }
 
   void _applyReadEvent(ChatReadEvent ev) {
@@ -393,6 +432,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
 
   @override
   Future<void> close() {
+    _wssReconnectTimer?.cancel();
     _wss.disconnect();
     return super.close();
   }
