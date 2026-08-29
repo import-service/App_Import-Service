@@ -16,7 +16,7 @@ class CarRequestFileSlotRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTheme.white,
+      color: AppTheme.cardBackground,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onPressed,

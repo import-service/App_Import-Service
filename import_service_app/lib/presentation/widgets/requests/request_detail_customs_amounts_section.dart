@@ -81,7 +81,7 @@ class _AmountTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.white,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.requestCardBorder),
       ),

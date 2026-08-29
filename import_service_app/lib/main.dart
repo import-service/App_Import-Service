@@ -14,6 +14,7 @@ import 'package:import_service_app/core/push/push_request_handler.dart';
 import 'package:import_service_app/core/push/request_remote_update.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
+import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/ui/app_phone_width_scope.dart';
@@ -152,33 +153,43 @@ class _MyAppState extends State<MyApp> {
     return ValueListenableBuilder<Locale>(
       valueListenable: appLocale,
       builder: (context, locale, _) {
-        return MaterialApp.router(
-          scaffoldMessengerKey: appScaffoldMessengerKey,
-          builder: (context, child) => AppPhoneWidthScope(
-            child: child ?? const SizedBox.shrink(),
-          ),
-          onGenerateTitle: (_) => sl<JsonStringsService>().appTitle,
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light(),
-          locale: locale,
-          localeResolutionCallback: (locale, supportedLocales) {
-            if (locale == null) {
-              return const Locale('ru');
-            }
-            for (final supported in supportedLocales) {
-              if (supported.languageCode == locale.languageCode) {
-                return supported;
-              }
-            }
-            return const Locale('ru');
+        return ValueListenableBuilder<ThemeMode>(
+          valueListenable: appThemeMode,
+          builder: (context, themeMode, _) {
+            return MaterialApp.router(
+              scaffoldMessengerKey: appScaffoldMessengerKey,
+              builder: (context, child) {
+                AppTheme.bindBrightness(Theme.of(context).brightness);
+                return AppPhoneWidthScope(
+                  child: child ?? const SizedBox.shrink(),
+                );
+              },
+              onGenerateTitle: (_) => sl<JsonStringsService>().appTitle,
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light(),
+              darkTheme: AppTheme.dark(),
+              themeMode: themeMode,
+              locale: locale,
+              localeResolutionCallback: (locale, supportedLocales) {
+                if (locale == null) {
+                  return const Locale('ru');
+                }
+                for (final supported in supportedLocales) {
+                  if (supported.languageCode == locale.languageCode) {
+                    return supported;
+                  }
+                }
+                return const Locale('ru');
+              },
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [Locale('ru'), Locale('zh')],
+              routerConfig: appRouter,
+            );
           },
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [Locale('ru'), Locale('zh')],
-          routerConfig: appRouter,
         );
       },
     );

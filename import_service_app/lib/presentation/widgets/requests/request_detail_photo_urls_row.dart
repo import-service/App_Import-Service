@@ -24,7 +24,7 @@ class RequestDetailPhotoUrlsRow extends StatelessWidget {
         itemBuilder: (context, i) {
           final u = urls[i].trim();
           return Material(
-            color: AppTheme.white,
+            color: AppTheme.cardBackground,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () => onTileTap(i),

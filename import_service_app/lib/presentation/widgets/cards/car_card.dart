@@ -38,7 +38,7 @@ class CarCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.white,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: car.hasPendingActions

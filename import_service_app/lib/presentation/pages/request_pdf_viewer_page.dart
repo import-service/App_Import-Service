@@ -140,7 +140,7 @@ class _RequestPdfViewerPageState extends State<RequestPdfViewerPage> {
           ),
           if (pdfReady)
             Material(
-              color: AppTheme.white,
+              color: AppTheme.cardBackground,
               child: SafeArea(
                 top: false,
                 child: Padding(

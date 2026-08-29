@@ -34,7 +34,7 @@ class ChatListCard extends StatelessWidget {
     final sub = (subtitle ?? formatVinForList(item.vin)).trim();
 
     return Material(
-      color: AppTheme.white,
+      color: AppTheme.cardBackground,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -43,7 +43,7 @@ class ChatListCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: pinned
                 ? AppTheme.accentRed.withValues(alpha: 0.04)
-                : AppTheme.white,
+                : AppTheme.cardBackground,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: hasUnread

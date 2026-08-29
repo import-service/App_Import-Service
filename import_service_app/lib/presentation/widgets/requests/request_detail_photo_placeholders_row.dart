@@ -28,7 +28,7 @@ class RequestDetailPhotoPlaceholdersRow extends StatelessWidget {
             button: true,
             label: placeholderA11y ?? '',
             child: Material(
-              color: AppTheme.white,
+              color: AppTheme.cardBackground,
               borderRadius: BorderRadius.circular(12),
               child: InkWell(
                 onTap: onTileTap,

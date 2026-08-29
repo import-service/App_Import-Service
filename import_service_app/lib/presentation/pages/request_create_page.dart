@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dartz/dartz.dart' show Either;
 import 'package:flutter/material.dart';
+import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/session_lost_handler.dart';
@@ -159,6 +160,18 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         additionalFile2Paths: List<String>.from(_files.additionalFile2Paths),
       );
 
+  bool get _ownedVehiclesComplete {
+    for (final row in _ownedVehicles) {
+      final name = row.name.text.trim();
+      final yearRaw = row.year.text.trim();
+      final year = int.tryParse(yearRaw);
+      if (name.isEmpty || year == null || year < 1900 || year > 2100) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool _validateForSubmit() {
     final s = sl<JsonStringsService>();
     final email = _companyEmailController.text.trim();
@@ -180,6 +193,13 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         snilsRaw.isEmpty ||
         vin.isEmpty) {
       sl<AppFeedbackService>().show(s.fieldRequiredError, kind: AppFeedbackKind.error);
+      return false;
+    }
+    if (!_ownedVehiclesComplete) {
+      sl<AppFeedbackService>().show(
+        s.text('requestOwnedVehicleIncompleteError'),
+        kind: AppFeedbackKind.error,
+      );
       return false;
     }
     if (!_isValidEmail(email)) {
@@ -248,7 +268,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         isValidRuPhoneDigits(personPhoneDigits) &&
         isValidSnilsDigits(snilsRaw) &&
         _isValidVin(vin);
-    return formatsOk && _files.allRequiredReady && !_submitting;
+    return formatsOk &&
+        _ownedVehiclesComplete &&
+        _files.allRequiredReady &&
+        !_submitting;
   }
 
   String? get _submitBlockReason {
@@ -294,6 +317,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (!isValidSnilsDigits(personSnils)) return s.text('snilsChecksumError');
     if (!_isValidVin(vin)) {
       return vinValidationMessage(vin, s) ?? s.text('vinFormatError');
+    }
+    if (!_ownedVehiclesComplete) {
+      return s.text('requestOwnedVehicleIncompleteError');
     }
     if (!_files.allRequiredReady) return s.text('requestFilesRequiredError');
     return null;
@@ -852,7 +878,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                   .replaceAll('{done}', '$_uploadDone')
                   .replaceAll('{total}', '$_uploadTotal'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF4A4A4A),
+                color: AppTheme.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
         ),
@@ -897,7 +923,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE0E0E0)),
+        border: Border.all(color: AppTheme.requestCardBorder),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -999,7 +1025,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     return Text(
       text,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: const Color(0xFF7C7C7C),
+            color: AppTheme.textSecondary,
             fontWeight: FontWeight.w500,
           ),
     );
@@ -1112,7 +1138,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }) {
     final s = sl<JsonStringsService>();
     final baseStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: const Color(0xFF7C7C7C),
+          color: AppTheme.textSecondary,
           fontWeight: FontWeight.w500,
         );
     return Column(

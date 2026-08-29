@@ -234,7 +234,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final borderColor = highlight
         ? AppTheme.accentRed.withValues(alpha: 0.55)
         : AppTheme.requestCardBorder;
-    final bg = highlight ? AppTheme.accentRed.withValues(alpha: 0.06) : AppTheme.white;
+    final bg = highlight ? AppTheme.accentRed.withValues(alpha: 0.06) : AppTheme.cardBackground;
 
     const outerRadius = 12.0;
     const thumbRadius = 8.0;
@@ -998,7 +998,7 @@ class _NotFoundBody extends StatelessWidget {
     final s = sl<JsonStringsService>();
     return Scaffold(
       appBar: BrandPrimaryAppBar(title: s.requestDetailNotFound),
-      body: const Center(
+      body: Center(
         child: Icon(
           Icons.search_off_rounded,
           size: 40,

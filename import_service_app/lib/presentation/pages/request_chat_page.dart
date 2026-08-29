@@ -279,7 +279,7 @@ class _RequestChatViewState extends State<_RequestChatView> {
   }) {
     final s = sl<JsonStringsService>();
     return Material(
-      color: AppTheme.white,
+      color: AppTheme.cardBackground,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -323,7 +323,7 @@ class _RequestChatViewState extends State<_RequestChatView> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.attach_file_outlined,
                             color: AppTheme.textSecondary,
                           ),
@@ -350,19 +350,19 @@ class _RequestChatViewState extends State<_RequestChatView> {
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
+                          borderSide: BorderSide(
                             color: AppTheme.requestCardBorder,
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
+                          borderSide: BorderSide(
                             color: AppTheme.inputOutlineGray,
                             width: 1.2,
                           ),
                         ),
                         filled: true,
-                        fillColor: AppTheme.white,
+                        fillColor: AppTheme.cardBackground,
                       ),
                       onSubmitted: (_) {
                         if (!cstate.isSending) {
@@ -433,7 +433,7 @@ class _RequestChatViewState extends State<_RequestChatView> {
     final chip = requestStatusLabel(car.status, s);
     final t = Theme.of(context);
     return Material(
-      color: AppTheme.white,
+      color: AppTheme.cardBackground,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
         child: Column(
@@ -515,17 +515,16 @@ class _ChatBubble extends StatelessWidget {
     final t = Theme.of(context);
     final isOut = !message.isFrom1c;
     final align = isOut ? Alignment.centerRight : Alignment.centerLeft;
-    const outBg = Color(0xFFE6E6E6);
     final inDecoration = BoxDecoration(
-      color: AppTheme.white,
+      color: AppTheme.cardBackground,
       border: Border.all(color: AppTheme.requestCardBorder, width: 0.5),
       borderRadius: const BorderRadius.all(
         Radius.circular(12),
       ),
     );
-    const outDecoration = BoxDecoration(
-      color: outBg,
-      borderRadius: BorderRadius.all(
+    final outDecoration = BoxDecoration(
+      color: AppTheme.chatOutgoingBubbleBg,
+      borderRadius: const BorderRadius.all(
         Radius.circular(12),
       ),
     );

@@ -9,6 +9,7 @@ import 'package:import_service_app/core/auth/session_lost_handler.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
+import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/network/dio_client.dart';
 import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
@@ -88,6 +89,7 @@ Future<void> initDependencies() async {
     appLocale.value = Locale(platform.languageCode);
   }
   await sl<JsonStringsService>().load(appLocale.value);
+  await loadAppThemeMode(prefs);
 
   // Callback ленивый: SessionLostHandler регистрируется ниже, до первых API.
   sl.registerLazySingleton<DioClient>(

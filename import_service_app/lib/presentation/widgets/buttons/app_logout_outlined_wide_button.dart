@@ -21,7 +21,7 @@ class AppLogoutOutlinedWideButton extends StatelessWidget {
       height: height,
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
-          backgroundColor: AppTheme.white,
+          backgroundColor: AppTheme.cardBackground,
           foregroundColor: AppTheme.textPrimary,
           side: const BorderSide(color: AppTheme.accentRed, width: 1),
         ),

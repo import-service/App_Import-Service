@@ -20,7 +20,7 @@ class RequestDetailDeliverableDocRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Material(
-      color: AppTheme.white,
+      color: AppTheme.cardBackground,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => _open(),

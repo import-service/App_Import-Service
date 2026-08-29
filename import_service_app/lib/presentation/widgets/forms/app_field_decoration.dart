@@ -29,7 +29,7 @@ InputDecoration buildAppOutlineInputDecoration(
     fillColor: surface,
     enabledBorder: OutlineInputBorder(
       borderRadius: radius,
-      borderSide: const BorderSide(color: AppTheme.inputOutlineGray, width: 1),
+      borderSide: BorderSide(color: AppTheme.inputOutlineGray, width: 1),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: radius,

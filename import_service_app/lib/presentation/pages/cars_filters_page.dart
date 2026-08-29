@@ -76,7 +76,7 @@ class _CarsFiltersPageState extends State<CarsFiltersPage> {
             child: SafeArea(
               top: false,
               child: Container(
-                color: AppTheme.white,
+                color: AppTheme.cardBackground,
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

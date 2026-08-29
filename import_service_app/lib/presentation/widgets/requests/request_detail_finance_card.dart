@@ -30,7 +30,7 @@ class RequestDetailFinanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.white,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.requestCardBorder),
       ),
@@ -119,7 +119,7 @@ class RequestDetailFinanceCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: AppTheme.requestCardBorder),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.qr_code_2_rounded,
                         size: 28,
                         color: AppTheme.textSecondary,
