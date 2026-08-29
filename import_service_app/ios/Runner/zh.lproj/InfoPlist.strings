@@ -1,0 +1,6 @@
+/* Chinese localization for App Store languages badge. */
+"CFBundleDisplayName" = "进口服务";
+"NSCameraUsageDescription" = "应用使用相机为申请拍摄照片。";
+"NSMicrophoneUsageDescription" = "录制视频时需要使用麦克风。";
+"NSPhotoLibraryAddUsageDescription" = "必要时将照片保存到相册。";
+"NSPhotoLibraryUsageDescription" = "需要访问相册以选择申请所需的图片。";

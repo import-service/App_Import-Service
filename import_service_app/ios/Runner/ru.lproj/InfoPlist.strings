@@ -1,0 +1,6 @@
+/* Локализация для бейджа языков App Store (CFBundleLocalizations). */
+"CFBundleDisplayName" = "Импорт Сервис";
+"NSCameraUsageDescription" = "Приложение использует камеру, чтобы сделать фото для заявки.";
+"NSMicrophoneUsageDescription" = "Микрофон нужен при записи видео в режиме камеры.";
+"NSPhotoLibraryAddUsageDescription" = "При необходимости сохраняем снимки в вашу галерею.";
+"NSPhotoLibraryUsageDescription" = "Нужен доступ к фото, чтобы выбрать изображения для заявки.";
