@@ -154,6 +154,11 @@ class _HomePageState extends State<HomePage> {
           _tabProfile => strings.profileTabTitle,
           _ => strings.carsTabTitle,
         };
+        final goToProfileAction = IconButton(
+          onPressed: () => setState(() => _tabIndex = _tabProfile),
+          icon: const Icon(Icons.settings_outlined),
+          tooltip: strings.profileTabTitle,
+        );
         final appBarActions = _tabIndex == _tabCars
             ? <Widget>[
                 IconButton(
@@ -172,6 +177,7 @@ class _HomePageState extends State<HomePage> {
                   icon: const Icon(Icons.tune_outlined),
                   tooltip: strings.carsFilterTooltip,
                 ),
+                goToProfileAction,
               ]
             : _tabIndex == _tabChats
                 ? <Widget>[
@@ -180,6 +186,7 @@ class _HomePageState extends State<HomePage> {
                       icon: const Icon(Icons.refresh_rounded),
                       tooltip: strings.carsRefreshTooltip,
                     ),
+                    goToProfileAction,
                   ]
                 : <Widget>[SettingsAppBarAction(tooltip: strings.settingsTitle)];
 
