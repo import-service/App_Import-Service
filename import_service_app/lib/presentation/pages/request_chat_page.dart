@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
-import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/push/chat_screen_presence.dart';
@@ -18,6 +17,7 @@ import 'package:import_service_app/core/util/vin_display.dart';
 import 'package:import_service_app/data/websocket/chat_broadcast_wss_client.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
+import 'package:import_service_app/presentation/helpers/chat_attachment_open_helper.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
@@ -27,7 +27,6 @@ import 'package:import_service_app/presentation/bloc/request_chat/request_chat_s
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Маршрут: `/request/:id/chat` или `/org/chat` — REST+WSS; в демо: автоответ.
 class RequestChatPage extends StatelessWidget {
@@ -585,18 +584,7 @@ class _ChatBubble extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(bottom: 4),
                               child: InkWell(
-                                onTap: () async {
-                                  final resolved = _resolveChatAttachmentUrl(
-                                    a.fileUrl.trim(),
-                                  );
-                                  if (resolved == null) return;
-                                  final uri = Uri.tryParse(resolved);
-                                  if (uri == null) return;
-                                  await launchUrl(
-                                    uri,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                },
+                                onTap: () => openChatAttachment(context, a),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -713,16 +701,4 @@ class _SystemChatNotice extends StatelessWidget {
       ),
     );
   }
-}
-
-String? _resolveChatAttachmentUrl(String rawUrl) {
-  final value = rawUrl.trim();
-  if (value.isEmpty) return null;
-  if (value.startsWith('http://') || value.startsWith('https://')) return value;
-  final base = ApiConfig.baseUrl.trim();
-  final normalized = base.endsWith('/') ? base : '$base/';
-  final apiUri = Uri.parse(normalized);
-  return apiUri
-      .resolve(value.startsWith('/') ? value.substring(1) : value)
-      .toString();
 }

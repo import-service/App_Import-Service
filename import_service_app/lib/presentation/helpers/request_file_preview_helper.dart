@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/domain/entities/customs_doc_type.dart';
@@ -169,6 +170,113 @@ Future<String> normalizeImagePathIfNeeded(String path) async {
   return path;
 }
 
+/// Скачать произвольный URL с Bearer (вложения чата и т.п.).
+Future<String?> downloadAuthenticatedUrl({
+  required String url,
+  required String saveFileName,
+}) async {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) return null;
+  final name = saveFileName.trim().isEmpty
+      ? 'file.bin'
+      : saveFileName.replaceAll(RegExp(r'[^\w.\- ()\u0400-\u04FF]'), '_');
+  try {
+    final dir = await getTemporaryDirectory();
+    final savePath = p.join(dir.path, name);
+    await sl<Dio>().download(
+      trimmed,
+      savePath,
+      options: Options(
+        responseType: ResponseType.bytes,
+        followRedirects: true,
+      ),
+    );
+    if (!await File(savePath).exists()) return null;
+    if (await fileHasPdfMagic(savePath)) {
+      return await normalizePdfPathIfNeeded(savePath);
+    }
+    if (await fileHasJpegMagic(savePath) || await fileHasPngMagic(savePath)) {
+      return await normalizeImagePathIfNeeded(savePath);
+    }
+    return savePath;
+  } catch (e, st) {
+    AppLog.error(
+      'downloadAuthenticatedUrl name=$name',
+      tag: 'RequestFile',
+      error: e,
+      stackTrace: st,
+    );
+    return null;
+  }
+}
+
+/// Relative `/api/...` → абсолютный URL API.
+String? resolveApiAbsoluteUrl(String? rawUrl) {
+  final value = rawUrl?.trim();
+  if (value == null || value.isEmpty) return null;
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  final base = ApiConfig.baseUrl.trim();
+  final normalized = base.endsWith('/') ? base : '$base/';
+  final apiUri = Uri.parse(normalized);
+  return apiUri
+      .resolve(value.startsWith('/') ? value.substring(1) : value)
+      .toString();
+}
+
+String chatAttachmentSaveName({
+  required String fileUrl,
+  String? fileName,
+  String? mimeType,
+}) {
+  final fromName = fileName?.trim() ?? '';
+  if (fromName.isNotEmpty && p.extension(fromName).isNotEmpty) {
+    return fromName.replaceAll(RegExp(r'[^\w.\- ()\u0400-\u04FF]'), '_');
+  }
+  final urlExt = p.extension(Uri.tryParse(fileUrl)?.path ?? fileUrl);
+  final mime = mimeType?.trim().toLowerCase() ?? '';
+  var ext = urlExt;
+  if (ext.isEmpty || ext == '.') {
+    if (mime == 'application/pdf') {
+      ext = '.pdf';
+    } else if (mime.contains('jpeg') || mime.contains('jpg')) {
+      ext = '.jpg';
+    } else if (mime.contains('png')) {
+      ext = '.png';
+    } else {
+      ext = '.bin';
+    }
+  }
+  final base = fromName.isNotEmpty
+      ? fromName.replaceAll(RegExp(r'[^\w.\- ()\u0400-\u04FF]'), '_')
+      : 'chat_file';
+  if (p.extension(base).isEmpty) return '$base$ext';
+  return base;
+}
+
+bool looksLikeChatImage({
+  required String localPath,
+  String? fileName,
+  String? mimeType,
+  String? fileUrl,
+}) {
+  final mime = mimeType?.trim().toLowerCase() ?? '';
+  if (mime.startsWith('image/')) return true;
+  final probe = '${fileName ?? ''} ${fileUrl ?? ''} $localPath'.toLowerCase();
+  return RegExp(r'\.(jpe?g|png|webp|gif|heic|bmp)$').hasMatch(probe);
+}
+
+bool looksLikeChatPdf({
+  required String localPath,
+  String? fileName,
+  String? mimeType,
+  String? fileUrl,
+}) {
+  final mime = mimeType?.trim().toLowerCase() ?? '';
+  if (mime == 'application/pdf') return true;
+  final probe = '${fileName ?? ''} ${fileUrl ?? ''} $localPath'.toLowerCase();
+  return probe.contains('.pdf');
+}
+
 /// Скачать файл с Bearer (Dio). Возвращает локальный путь или `null`.
 Future<String?> downloadAuthenticatedRequestFile(
   String url,
@@ -189,12 +297,12 @@ Future<String?> downloadAuthenticatedRequestFile(
     );
     if (!await File(savePath).exists()) return null;
     if (await fileHasPdfMagic(savePath) || isRequestFilePdf(file)) {
-      return normalizePdfPathIfNeeded(savePath);
+      return await normalizePdfPathIfNeeded(savePath);
     }
     if (await fileHasJpegMagic(savePath) ||
         await fileHasPngMagic(savePath) ||
         isRequestFileImage(file)) {
-      return normalizeImagePathIfNeeded(savePath);
+      return await normalizeImagePathIfNeeded(savePath);
     }
     return savePath;
   } catch (e, st) {
