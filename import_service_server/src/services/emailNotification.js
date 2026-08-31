@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 
-const NEW_CUSTOMS_REQUEST_SUBJECT = 'Новый клиент приложение Импорт Сервис';
+const NEW_CUSTOMS_REQUEST_SUBJECT = 'Новая заявка приложение Импорт Сервис';
 const CLIENT_REQUEST_ACCEPTED_SUBJECT = 'Заявка принята на рассмотрение';
 
 let cachedTransporter = null;

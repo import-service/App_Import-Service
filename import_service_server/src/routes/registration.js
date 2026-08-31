@@ -97,7 +97,7 @@ module.exports = async function registrationRoutes(fastify) {
         });
       }
 
-      const subject = 'Заявка регистрация приложение';
+      const subject = 'Новый клиент приложение Импорт Сервис';
       const title = registrationOrgTitle(orgType);
       const nameValue = orgType === 'OOO' ? companyName : fullName;
       const nameLabel =
@@ -106,7 +106,7 @@ module.exports = async function registrationRoutes(fastify) {
       const text = [
         `Приложение: ${fastify.config.smtp.appName}`,
         '',
-        'Новая заявка на получение данных для входа.',
+        'Новый клиент — запрос на регистрацию в приложении.',
         '',
         `Тип организации: ${title}`,
         orgLabel,
@@ -118,7 +118,7 @@ module.exports = async function registrationRoutes(fastify) {
       ].join('\n');
 
       const html = `
-        <h2>Заявка регистрация приложение</h2>
+        <h2>Новый клиент приложение Импорт Сервис</h2>
         <p><b>Приложение:</b> ${fastify.config.smtp.appName}</p>
         <p><b>Тип организации:</b> ${title}</p>
         <p><b>${nameLabel}:</b> ${nameValue}</p>
