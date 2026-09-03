@@ -131,6 +131,8 @@ async function buildApp() {
     await instance.register(require('./routes/customsRequestChat'));
     await instance.register(require('./routes/orgChat'));
     await instance.register(require('./routes/push'));
+    await instance.register(require('./routes/storeVersions'));
+    await instance.register(require('./routes/feedback'));
   }, { prefix: '/api' });
   await fastify.register(require('./routes/docs'));
 

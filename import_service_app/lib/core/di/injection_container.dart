@@ -12,12 +12,14 @@ import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/network/dio_client.dart';
 import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
+import 'package:import_service_app/core/app_update/app_update_service.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/push/chat_screen_presence.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/storage/secure_storage_service.dart';
 import 'package:import_service_app/data/datasources/remote/auth_remote_data_source.dart';
 import 'package:import_service_app/data/datasources/remote/customs_requests_remote_data_source.dart';
+import 'package:import_service_app/data/datasources/remote/feedback_remote_data_source.dart';
 import 'package:import_service_app/data/datasources/remote/request_chat_remote_data_source.dart';
 import 'package:import_service_app/data/repositories/request_chat_repository_impl.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
@@ -62,6 +64,9 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<AppFeedbackService>(AppFeedbackService.new);
   sl.registerLazySingleton<PushNotificationsService>(
     PushNotificationsService.new,
+  );
+  sl.registerLazySingleton<AppUpdateService>(
+    () => AppUpdateService(sl<Dio>()),
   );
 
   sl.registerLazySingleton<SecureStorageService>(SecureStorageService.new);
@@ -111,6 +116,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<CustomsRequestsRemoteDataSource>(
     () => CustomsRequestsRemoteDataSource(sl<Dio>()),
+  );
+  sl.registerLazySingleton<FeedbackRemoteDataSource>(
+    () => FeedbackRemoteDataSource(sl<Dio>()),
   );
   sl.registerLazySingleton<RequestChatRemoteDataSource>(
     () => RequestChatRemoteDataSource(sl<Dio>()),

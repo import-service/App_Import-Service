@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS store_version_latest (
+  store VARCHAR(32) NOT NULL PRIMARY KEY,
+  version_name VARCHAR(64) NULL DEFAULT NULL,
+  version_code INT NULL DEFAULT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  error_message VARCHAR(512) NULL DEFAULT NULL,
+  scanned_at DATETIME(3) NULL DEFAULT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+);
+
+CREATE TABLE IF NOT EXISTS store_version_scan_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  store VARCHAR(32) NOT NULL,
+  version_name VARCHAR(64) NULL DEFAULT NULL,
+  version_code INT NULL DEFAULT NULL,
+  status VARCHAR(16) NOT NULL,
+  error_message VARCHAR(512) NULL DEFAULT NULL,
+  scanned_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_store_version_scan_log_store_time (store, scanned_at)
+);

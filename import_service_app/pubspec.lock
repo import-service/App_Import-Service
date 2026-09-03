@@ -395,6 +395,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.34"
+  flutter_rustore_update:
+    dependency: "direct main"
+    description:
+      name: flutter_rustore_update
+      sha256: a96c472cbeffc5cf81f96f9ebbe53aaf4c3baa90a964418113d45c2c5ae77518
+      url: "https://pub.dev"
+    source: hosted
+    version: "10.5.1"
   flutter_secure_storage:
     dependency: "direct main"
     description:
@@ -558,6 +566,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.8.0"
+  in_app_update:
+    dependency: "direct main"
+    description:
+      name: in_app_update
+      sha256: "9924a3efe592e1c0ec89dda3683b3cfec3d4cd02d908e6de00c24b759038ddb1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2.5"
   intl:
     dependency: "direct main"
     description:

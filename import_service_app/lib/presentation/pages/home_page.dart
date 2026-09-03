@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:import_service_app/core/app_update/app_update_service.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
@@ -52,6 +55,9 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onCarsNavigationIntent();
       sl<ChatListCubit>().load();
+      if (sl<AuthSessionController>().isAuthenticated) {
+        unawaited(sl<AppUpdateService>().maybePromptForUpdate(context));
+      }
     });
   }
 

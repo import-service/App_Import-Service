@@ -5,6 +5,7 @@ import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
 import 'package:import_service_admin/core/error/exceptions.dart';
+import 'package:import_service_admin/data/datasources/remote/store_versions_remote_data_source.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
 import 'package:import_service_admin/domain/repositories/organizations_repository.dart';
 
@@ -20,6 +21,9 @@ class _DashboardPageState extends State<DashboardPage> {
   int? _newCount;
   int? _orgsTotal;
   String? _error;
+  List<Map<String, dynamic>> _storeVersions = const [];
+  String? _storeVersionsError;
+  bool _scanningStores = false;
 
   @override
   void initState() {
@@ -33,6 +37,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _requestsTotal = null;
       _newCount = null;
       _orgsTotal = null;
+      _storeVersionsError = null;
     });
     try {
       final all = await sl<CustomsRequestsRepository>().listRequests(limit: 200);
@@ -41,11 +46,20 @@ class _DashboardPageState extends State<DashboardPage> {
         status: 'new',
       );
       final orgs = await sl<OrganizationsRepository>().list(limit: 1);
+      List<Map<String, dynamic>> stores = const [];
+      String? storesErr;
+      try {
+        stores = await sl<StoreVersionsRemoteDataSource>().fetchLatest();
+      } catch (e) {
+        storesErr = e is ServerException ? e.message : e.toString();
+      }
       if (!mounted) return;
       setState(() {
         _requestsTotal = all.total;
         _newCount = newList.total;
         _orgsTotal = orgs.total;
+        _storeVersions = stores;
+        _storeVersionsError = storesErr;
       });
     } catch (e) {
       if (!mounted) return;
@@ -53,6 +67,33 @@ class _DashboardPageState extends State<DashboardPage> {
       setState(() {
         _error = e is ServerException ? e.message : e.toString();
       });
+    }
+  }
+
+  Future<void> _scanStores() async {
+    if (_scanningStores) return;
+    setState(() => _scanningStores = true);
+    try {
+      final stores = await sl<StoreVersionsRemoteDataSource>().scanNow();
+      if (!mounted) return;
+      setState(() {
+        _storeVersions = stores;
+        _storeVersionsError = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Сканирование сторов завершено')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is ServerException ? e.message : 'Не удалось сканировать сторы',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _scanningStores = false);
     }
   }
 
@@ -66,6 +107,30 @@ class _DashboardPageState extends State<DashboardPage> {
 
   void _goOrganizations() {
     context.go('/organizations');
+  }
+
+  String _storeLabel(String store) {
+    switch (store) {
+      case 'google_play':
+        return 'Google Play';
+      case 'rustore':
+        return 'RuStore';
+      case 'app_store':
+        return 'App Store';
+      default:
+        return store;
+    }
+  }
+
+  String _formatStoreVersion(Map<String, dynamic> row) {
+    final name = row['versionName']?.toString();
+    final code = row['versionCode'];
+    if (name != null && name.isNotEmpty) {
+      if (code != null) return '$name (build $code)';
+      return name;
+    }
+    if (code != null) return 'build $code';
+    return '—';
   }
 
   @override
@@ -122,6 +187,86 @@ class _DashboardPageState extends State<DashboardPage> {
                 onTap: _goOrganizations,
               ),
             ],
+          ),
+          const Gap(28),
+          Row(
+            children: [
+              Text(
+                'Версии в сторах',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const Spacer(),
+              FilledButton.tonalIcon(
+                onPressed: _scanningStores ? null : _scanStores,
+                icon: _scanningStores
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh, size: 18),
+                label: const Text('Сканировать'),
+              ),
+            ],
+          ),
+          const Gap(12),
+          if (_storeVersionsError != null)
+            Text(
+              _storeVersionsError!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.accentRed,
+                  ),
+            ),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFE0E0E0)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  if (_storeVersions.isEmpty)
+                    const Text('Нет данных — запустите сканирование')
+                  else
+                    for (final row in _storeVersions)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                _storeLabel(row['store']?.toString() ?? ''),
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                _formatStoreVersion(row),
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                row['status'] == 'error'
+                                    ? row['errorMessage']?.toString() ?? 'ошибка'
+                                    : row['scannedAt']?.toString() ?? '—',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

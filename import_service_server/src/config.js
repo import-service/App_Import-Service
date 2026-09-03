@@ -11,6 +11,20 @@ function required(name) {
 
 const SERVER_ROOT = path.join(__dirname, '..');
 
+function resolveRustorePrivateKeyPath() {
+  const raw = String(process.env.RUSTORE_PRIVATE_KEY_PATH || '').trim();
+  if (!raw) return '';
+  if (path.isAbsolute(raw)) return raw;
+  return path.join(SERVER_ROOT, raw);
+}
+
+function resolveGooglePlayServiceAccountPath() {
+  const raw = String(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH || '').trim();
+  if (!raw) return '';
+  if (path.isAbsolute(raw)) return raw;
+  return path.join(SERVER_ROOT, raw);
+}
+
 function resolveAdminWebRoot() {
   const raw = String(process.env.ADMIN_WEB_ROOT || 'web').trim() || 'web';
   if (path.isAbsolute(raw)) {
@@ -96,5 +110,13 @@ module.exports = {
     /** Быстрые шаги для ФИО «Тестов Тест Тестович» (по умолчанию 60 с). */
     fastStepMs: Number(process.env.DEMO_FLOW_FAST_STEP_MS || 60000),
     chatReplyMs: Number(process.env.DEMO_FLOW_CHAT_REPLY_MS || 4000),
+  },
+  appStores: {
+    androidPackage: String(process.env.ANDROID_APP_PACKAGE || 'com.importservice.app').trim(),
+    iosAppStoreId: String(process.env.IOS_APP_STORE_ID || '6785875687').trim(),
+    rustorePublicToken: String(process.env.RUSTORE_PUBLIC_TOKEN || '').trim(),
+    rustorePrivateKeyPath: resolveRustorePrivateKeyPath(),
+    rustoreKeyId: String(process.env.RUSTORE_KEY_ID || '').trim(),
+    googlePlayServiceAccountPath: resolveGooglePlayServiceAccountPath(),
   },
 };

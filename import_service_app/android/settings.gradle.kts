@@ -14,6 +14,7 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        maven { url = uri("https://artifactory-external.vkpartner.ru/artifactory/maven") }
     }
 }
 

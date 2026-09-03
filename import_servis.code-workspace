@@ -32,7 +32,8 @@
       "**/.dart_tool": true,
       "**/build": true,
       "**/uploads": true
-    }
+    },
+    "java.configuration.updateBuildConfiguration": "interactive"
   },
   "launch": {
     "version": "0.2.0",

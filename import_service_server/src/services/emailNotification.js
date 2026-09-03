@@ -403,14 +403,133 @@ async function notifyClientRequestRating(
   );
 }
 
+const APP_FEEDBACK_SUBJECT = 'Обратная связь приложение Импорт Сервис';
+const APP_FEEDBACK_MAIL_TO = 'info@import-service.su';
+
+/** Письмо на info@: отзыв / идеи по улучшению из МП (Профиль). */
+async function notifyAppFeedback(
+  smtpConfig,
+  {
+    message,
+    organizationId,
+    id1c,
+    login,
+    role,
+    orgType,
+    companyName,
+    inn,
+    phone,
+    legalEntityName,
+    legalEmail,
+    legalPhone,
+    legalInn,
+    individualFullName,
+    individualPhone,
+    individualSnils,
+    appVersion,
+    platform,
+  },
+  log,
+) {
+  const appName = smtpConfig.appName || 'Импорт Сервис';
+  const to =
+    normalize(APP_FEEDBACK_MAIL_TO) ||
+    normalize(smtpConfig.customsRequestMailTo) ||
+    normalize(smtpConfig.to);
+  if (!to) {
+    return { success: false, error: 'No feedback recipients' };
+  }
+
+  const dash = (v) => normalize(v) || '—';
+  const when = new Date().toISOString();
+  const replyTo = normalize(login) || null;
+
+  const text = [
+    `Обратная связь из приложения «${appName}»`,
+    '',
+    `Сообщение:`,
+    normalize(message),
+    '',
+    `— Учётка —`,
+    `ID организации: ${dash(organizationId)}`,
+    `ID 1С: ${dash(id1c)}`,
+    `Логин (email): ${dash(login)}`,
+    `Роль: ${dash(role)}`,
+    `Тип: ${dash(orgType)}`,
+    `Наименование: ${dash(companyName)}`,
+    `ИНН (учётка): ${dash(inn)}`,
+    `Телефон (учётка): ${dash(phone)}`,
+    '',
+    `— Из последней заявки (если есть) —`,
+    `ЮЛ/ИП: ${dash(legalEntityName)}`,
+    `Email ЮЛ: ${dash(legalEmail)}`,
+    `Телефон ЮЛ: ${dash(legalPhone)}`,
+    `ИНН ЮЛ: ${dash(legalInn)}`,
+    `ФИО физлица: ${dash(individualFullName)}`,
+    `Телефон физлица: ${dash(individualPhone)}`,
+    `СНИЛС: ${dash(individualSnils)}`,
+    '',
+    `— Клиент —`,
+    `Версия МП: ${dash(appVersion)}`,
+    `Платформа: ${dash(platform)}`,
+    `Отправлено: ${when}`,
+  ].join('\n');
+
+  const html = `
+    <h2>Обратная связь — ${escapeHtml(appName)}</h2>
+    <p style="white-space:pre-wrap">${escapeHtml(normalize(message))}</p>
+    <h3>Учётка</h3>
+    <table cellpadding="6" cellspacing="0" border="0">
+      <tr><td><b>ID организации</b></td><td>${escapeHtml(dash(organizationId))}</td></tr>
+      <tr><td><b>ID 1С</b></td><td>${escapeHtml(dash(id1c))}</td></tr>
+      <tr><td><b>Логин (email)</b></td><td>${escapeHtml(dash(login))}</td></tr>
+      <tr><td><b>Роль</b></td><td>${escapeHtml(dash(role))}</td></tr>
+      <tr><td><b>Тип</b></td><td>${escapeHtml(dash(orgType))}</td></tr>
+      <tr><td><b>Наименование</b></td><td>${escapeHtml(dash(companyName))}</td></tr>
+      <tr><td><b>ИНН (учётка)</b></td><td>${escapeHtml(dash(inn))}</td></tr>
+      <tr><td><b>Телефон (учётка)</b></td><td>${escapeHtml(dash(phone))}</td></tr>
+    </table>
+    <h3>Из последней заявки (если есть)</h3>
+    <table cellpadding="6" cellspacing="0" border="0">
+      <tr><td><b>ЮЛ/ИП</b></td><td>${escapeHtml(dash(legalEntityName))}</td></tr>
+      <tr><td><b>Email ЮЛ</b></td><td>${escapeHtml(dash(legalEmail))}</td></tr>
+      <tr><td><b>Телефон ЮЛ</b></td><td>${escapeHtml(dash(legalPhone))}</td></tr>
+      <tr><td><b>ИНН ЮЛ</b></td><td>${escapeHtml(dash(legalInn))}</td></tr>
+      <tr><td><b>ФИО физлица</b></td><td>${escapeHtml(dash(individualFullName))}</td></tr>
+      <tr><td><b>Телефон физлица</b></td><td>${escapeHtml(dash(individualPhone))}</td></tr>
+      <tr><td><b>СНИЛС</b></td><td>${escapeHtml(dash(individualSnils))}</td></tr>
+    </table>
+    <h3>Клиент</h3>
+    <table cellpadding="6" cellspacing="0" border="0">
+      <tr><td><b>Версия МП</b></td><td>${escapeHtml(dash(appVersion))}</td></tr>
+      <tr><td><b>Платформа</b></td><td>${escapeHtml(dash(platform))}</td></tr>
+      <tr><td><b>Отправлено</b></td><td>${escapeHtml(when)}</td></tr>
+    </table>
+  `;
+
+  return sendPlainEmail(
+    smtpConfig,
+    {
+      to,
+      replyTo,
+      subject: APP_FEEDBACK_SUBJECT,
+      html,
+      text,
+    },
+    log,
+  );
+}
+
 module.exports = {
   NEW_CUSTOMS_REQUEST_SUBJECT,
   CLIENT_REQUEST_ACCEPTED_SUBJECT,
   CLIENT_RATING_SUBJECT,
+  APP_FEEDBACK_SUBJECT,
   sendPlainEmail,
   notifyNewCustomsRequest,
   notifyClientRegistrationAccepted,
   notifyClientCustomsRequestAccepted,
   notifyClientRequestRating,
+  notifyAppFeedback,
   escapeHtml,
 };

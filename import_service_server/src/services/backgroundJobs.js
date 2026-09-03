@@ -6,6 +6,7 @@ const { pushCustomsRequestCreateTo1C } = require('./oneCCreateSync');
 const { pushCustomsRequestUpdateTo1C } = require('./oneCUpdateSync');
 const { purgeExpiredClosedRequests, DEFAULT_UPLOAD_ROOT } = require('./requestDeletion');
 const { CHAT_UPLOAD_ROOT } = require('./chatAttachmentStorage');
+const { runStoreVersionScan } = require('./storeVersionScanner');
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -132,6 +133,20 @@ async function runDailyRetentionPurge(fastify) {
   );
 }
 
+async function runDailyStoreVersionScan(fastify) {
+  try {
+    const result = await runStoreVersionScan(fastify);
+    fastify.log.info(
+      { ok: result.ok, stores: (result.results || []).map((r) => r.store) },
+      'daily store version scan',
+    );
+    return result;
+  } catch (e) {
+    fastify.log.error({ err: e.message }, 'daily store version scan failed');
+    return { ok: false, error: e.message };
+  }
+}
+
 async function dirSizeBytes(dirPath) {
   let total = 0;
   let entries;
@@ -205,6 +220,7 @@ function startBackgroundJobs(fastify) {
       if (purge.deleted) {
         fastify.log.info(purge, 'retention purge');
       }
+      await runDailyStoreVersionScan(fastify);
     } catch (e) {
       fastify.log.error({ err: e.message }, 'daily background job failed');
     }
@@ -224,7 +240,9 @@ function startBackgroundJobs(fastify) {
     setInterval(runDaily, DAY_MS);
   }, msUntilMidnight());
 
-  fastify.log.info('background jobs: hourly 1C retry, daily retention + outbound alert');
+  fastify.log.info(
+    'background jobs: hourly 1C retry, daily retention + outbound alert + store versions',
+  );
 }
 
 module.exports = {
@@ -232,6 +250,7 @@ module.exports = {
   runHourlyOneCRetry,
   runDailyOutboundAlert,
   runDailyRetentionPurge,
+  runDailyStoreVersionScan,
   getStorageStats,
   fetchStaleOutbound,
 };
