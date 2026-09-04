@@ -10,6 +10,14 @@ abstract final class AppLog {
     printer: le.SimplePrinter(colors: false, printTime: false),
   );
 
+  /// Опциональный sink на сервер (мини-Sentry). Не вызывать рекурсивно из репортера.
+  static void Function({
+    required String message,
+    String? tag,
+    Object? error,
+    StackTrace? stackTrace,
+  })? remoteErrorSink;
+
   /// Короткие отладочные сообщения (в release отключено).
   static void trace(String message, {String? tag}) {
     final line = tag != null ? '[$tag] $message' : message;
@@ -31,5 +39,13 @@ abstract final class AppLog {
       b.write('\n$stackTrace');
     }
     Logger.e(b.toString(), tag: tag);
+    try {
+      remoteErrorSink?.call(
+        message: '${message ?? 'Error'}',
+        tag: tag,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } catch (_) {}
   }
 }

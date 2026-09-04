@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:import_service_app/core/app_update/app_update_bootstrap.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/core/logging/bootstrap_logger.dart';
+import 'package:import_service_app/core/logging/client_error_reporter.dart';
 import 'package:import_service_app/core/push/chat_screen_presence.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/push/push_request_handler.dart';
@@ -26,21 +29,62 @@ import 'package:import_service_app/presentation/widgets/bottom_sheets/chat_push_
 import 'package:intl/date_symbol_data_local.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  bootstrapLogger();
+  await runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    bootstrapLogger();
 
-  await initDependencies();
-  await initializeDateFormatting('ru');
-  await initializeDateFormatting('zh');
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      final reporter = ClientErrorReporter.instance;
+      if (reporter != null) {
+        unawaited(
+          reporter.report(
+            message: details.exceptionAsString(),
+            stack: details.stack?.toString(),
+            tag: 'FlutterError',
+            fatal: true,
+          ),
+        );
+      }
+    };
 
-  // Firebase до runApp — без getToken (GMS на cold start часто ещё не готов).
-  await sl<PushNotificationsService>().bootstrap();
+    PlatformDispatcher.instance.onError = (error, stack) {
+      final reporter = ClientErrorReporter.instance;
+      if (reporter != null) {
+        unawaited(
+          reporter.report(
+            message: error.toString(),
+            stack: stack.toString(),
+            tag: 'PlatformDispatcher',
+            fatal: true,
+          ),
+        );
+      }
+      return true;
+    };
 
-  runApp(const MyApp());
+    await initDependencies();
+    AppUpdateBootstrap.ensureWired();
+    await initializeDateFormatting('ru');
+    await initializeDateFormatting('zh');
 
-  // Push после первого кадра: меньше гонки с Secure Storage / вторым engine FCM.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    unawaited(_startPushAfterUi());
+    // Firebase до runApp — без getToken (GMS на cold start часто ещё не готов).
+    await sl<PushNotificationsService>().bootstrap();
+
+    runApp(const MyApp());
+
+    // Push после первого кадра: меньше гонки с Secure Storage / вторым engine FCM.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_startPushAfterUi());
+    });
+  }, (error, stack) {
+    // AppLog.error → ClientErrorReporter через remoteErrorSink.
+    AppLog.error(
+      'uncaught zone error',
+      tag: 'Zone',
+      error: error,
+      stackTrace: stack,
+    );
   });
 }
 

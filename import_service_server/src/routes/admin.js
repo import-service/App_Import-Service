@@ -989,6 +989,237 @@ module.exports = async function adminRoutes(fastify) {
     },
   );
 
+  // --- Менеджеры СВХ (organizations.role = svh_manager) ---
+
+  function toSvhManagerDto(row) {
+    return {
+      id: row.id,
+      login: row.login,
+      fullName: row.company_name != null ? String(row.company_name) : '',
+      phone: row.phone != null ? String(row.phone) : '',
+      active: row.deleted_at == null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  fastify.get(
+    '/admin/svh-managers',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
+      const offset = Math.max(Number(request.query.offset) || 0, 0);
+      const includeDisabled = String(request.query.includeDisabled || '') === '1';
+
+      const where = ["role = 'svh_manager'"];
+      if (!includeDisabled) {
+        where.push('deleted_at IS NULL');
+      }
+
+      const [countRows] = await fastify.pool.query(
+        `SELECT COUNT(*) AS total FROM organizations WHERE ${where.join(' AND ')}`,
+      );
+      const total = Number(countRows[0]?.total || 0);
+
+      const [rows] = await fastify.pool.query(
+        `SELECT ${ORGANIZATION_SELECT}
+         FROM organizations
+         WHERE ${where.join(' AND ')}
+         ORDER BY id DESC
+         LIMIT ? OFFSET ?`,
+        [limit, offset],
+      );
+
+      return reply.send({
+        items: rows.map(toSvhManagerDto),
+        total,
+        limit,
+        offset,
+      });
+    },
+  );
+
+  fastify.post(
+    '/admin/svh-managers',
+    {
+      onRequest: [fastify.authenticateAdmin],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['login', 'password'],
+          additionalProperties: false,
+          properties: {
+            login: { type: 'string', minLength: 1, maxLength: 255 },
+            password: { type: 'string', minLength: 6, maxLength: 128 },
+            fullName: { type: 'string', maxLength: 255 },
+            phone: { type: 'string', maxLength: 30 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const login = String(request.body.login || '').trim();
+      const password = String(request.body.password || '');
+      const fullName = String(request.body.fullName || '').trim() || login;
+      const phone = String(request.body.phone || '').trim() || '-';
+
+      if (!login) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Логин обязателен' });
+      }
+
+      const [existing] = await fastify.pool.query(
+        'SELECT id FROM organizations WHERE login = ? AND deleted_at IS NULL LIMIT 1',
+        [login],
+      );
+      if (existing.length) {
+        return reply.code(409).send({
+          error: 'LOGIN_ALREADY_EXISTS',
+          message: 'Такой логин уже занят',
+        });
+      }
+
+      const id1c = `svh:${login}`;
+      const [idClash] = await fastify.pool.query(
+        'SELECT id FROM organizations WHERE id_1c = ? LIMIT 1',
+        [id1c],
+      );
+      if (idClash.length) {
+        return reply.code(409).send({
+          error: 'LOGIN_ALREADY_EXISTS',
+          message: 'Менеджер с таким логином уже существует',
+        });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const [result] = await fastify.pool.query(
+        `INSERT INTO organizations
+           (id_1c, login, role, password_hash, org_type, company_name, inn, phone)
+         VALUES (?, ?, 'svh_manager', ?, 'ООО', ?, '0000000000', ?)`,
+        [id1c, login, passwordHash, fullName, phone],
+      );
+
+      const [rows] = await fastify.pool.query(
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
+        [result.insertId],
+      );
+      return reply.code(201).send({ item: toSvhManagerDto(rows[0]) });
+    },
+  );
+
+  fastify.patch(
+    '/admin/svh-managers/:id',
+    {
+      onRequest: [fastify.authenticateAdmin],
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          minProperties: 1,
+          properties: {
+            password: { type: 'string', minLength: 6, maxLength: 128 },
+            fullName: { type: 'string', maxLength: 255 },
+            phone: { type: 'string', maxLength: 30 },
+            active: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      const [rows] = await fastify.pool.query(
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? AND role = 'svh_manager' LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      const fields = [];
+      const values = [];
+      const body = request.body || {};
+
+      if (body.password != null) {
+        fields.push('password_hash = ?');
+        values.push(await bcrypt.hash(String(body.password), 10));
+      }
+      if (body.fullName != null) {
+        const name = String(body.fullName).trim();
+        if (!name) {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'ФИО не может быть пустым' });
+        }
+        fields.push('company_name = ?');
+        values.push(name);
+      }
+      if (body.phone != null) {
+        fields.push('phone = ?');
+        values.push(String(body.phone).trim() || '-');
+      }
+      if (body.active === false) {
+        fields.push('deleted_at = CURRENT_TIMESTAMP(3)');
+      } else if (body.active === true) {
+        fields.push('deleted_at = NULL');
+      }
+
+      if (!fields.length) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нет полей для обновления' });
+      }
+
+      values.push(id);
+      await fastify.pool.query(
+        `UPDATE organizations SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?`,
+        values,
+      );
+
+      if (body.active === false || body.password != null) {
+        await fastify.pool.query(
+          'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
+          [id],
+        );
+      }
+
+      const [updated] = await fastify.pool.query(
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      return reply.send({ item: toSvhManagerDto(updated[0]) });
+    },
+  );
+
+  fastify.delete(
+    '/admin/svh-managers/:id',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      const [rows] = await fastify.pool.query(
+        `SELECT id FROM organizations WHERE id = ? AND role = 'svh_manager' AND deleted_at IS NULL LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      await fastify.pool.query(
+        `UPDATE organizations
+         SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+         WHERE id = ?`,
+        [id],
+      );
+      await fastify.pool.query(
+        'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
+        [id],
+      );
+      return reply.send({ ok: true });
+    },
+  );
+
   // Временный endpoint для быстрого сброса последней demo-заявки из админки.
   fastify.post(
     '/admin/customs-requests/demo-reset-latest',

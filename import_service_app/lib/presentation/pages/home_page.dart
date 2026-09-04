@@ -55,8 +55,14 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onCarsNavigationIntent();
       sl<ChatListCubit>().load();
-      if (sl<AuthSessionController>().isAuthenticated) {
-        unawaited(sl<AppUpdateService>().maybePromptForUpdate(context));
+      if (sl<AuthSessionController>().hasActiveSession &&
+          sl<AuthSessionController>().isAuthenticated) {
+        // Небольшой отступ после go(/home), чтобы root navigator был готов.
+        unawaited(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          if (!mounted) return;
+          await sl<AppUpdateService>().maybePromptForUpdate(context);
+        }());
       }
     });
   }
@@ -109,6 +115,7 @@ class _HomePageState extends State<HomePage> {
       await sl<CarInventoryCubit>().reloadFromDisk();
       sl<RequestChatUnreadCubit>().clearAll();
       sl<ChatListCubit>().reset();
+      sl<AppUpdateService>().resetSessionFlag();
       if (!context.mounted) return;
       context.go('/login');
     } on ServerException catch (e) {

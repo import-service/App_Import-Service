@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/auth/session_role.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/domain/entities/chat_list_item.dart';
@@ -8,17 +9,39 @@ import 'package:import_service_app/presentation/pages/car_request_detail_page.da
 import 'package:import_service_app/presentation/pages/request_chat_page.dart';
 import 'package:import_service_app/presentation/pages/home_page.dart';
 import 'package:import_service_app/presentation/pages/login_page.dart';
+import 'package:import_service_app/presentation/pages/svh_home_page.dart';
+import 'package:import_service_app/presentation/pages/svh_request_detail_page.dart';
 
 /// Корневой роутер. Новые маршруты добавляй в [routes].
 final GoRouter appRouter = GoRouter(
   refreshListenable: Listenable.merge([appLocale, sl<AuthSessionController>()]),
   initialLocation: '/login',
   redirect: (context, state) {
-    final loggedIn = sl<AuthSessionController>().hasActiveSession;
-    final isLogin = state.uri.path == '/login';
+    final session = sl<AuthSessionController>();
+    final loggedIn = session.hasActiveSession;
+    final path = state.uri.path;
+    final isLogin = path == '/login';
 
     if (!loggedIn && !isLogin) return '/login';
-    if (loggedIn && isLogin) return '/home';
+    if (loggedIn && isLogin) return homeLocationForSession(session);
+
+    // Клиент не должен сидеть в shell СВХ и наоборот.
+    if (loggedIn && isSvhManagerSession(session) && path == '/home') {
+      return '/svh-home';
+    }
+    if (loggedIn && !isSvhManagerSession(session) && path == '/svh-home') {
+      return '/home';
+    }
+    if (loggedIn &&
+        !isSvhManagerSession(session) &&
+        path.startsWith('/svh-request/')) {
+      return '/home';
+    }
+    if (loggedIn &&
+        isSvhManagerSession(session) &&
+        (path.startsWith('/request/') || path == '/org/chat')) {
+      return '/svh-home';
+    }
     return null;
   },
   routes: [
@@ -34,6 +57,21 @@ final GoRouter appRouter = GoRouter(
       name: 'home',
       builder: (BuildContext context, GoRouterState state) {
         return const HomePage();
+      },
+    ),
+    GoRoute(
+      path: '/svh-home',
+      name: 'svhHome',
+      builder: (BuildContext context, GoRouterState state) {
+        return const SvhHomePage();
+      },
+    ),
+    GoRoute(
+      path: '/svh-request/:id',
+      name: 'svhRequestDetail',
+      builder: (BuildContext context, GoRouterState state) {
+        final id = state.pathParameters['id'] ?? '';
+        return SvhRequestDetailPage(requestId: id);
       },
     ),
     GoRoute(

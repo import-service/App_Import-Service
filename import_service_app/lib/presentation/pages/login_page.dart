@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:import_service_app/core/app_update/app_update_bootstrap.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
-import 'package:import_service_app/core/app_update/app_update_service.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
+import 'package:import_service_app/core/auth/session_role.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -101,14 +102,16 @@ class _LoginPageState extends State<LoginPage> {
       await sl<AuthService>().login(login: login, password: password);
       await sl<RequestDraftCubit>().clearAll();
       await sl<CarInventoryCubit>().replaceAll(const <CarListItem>[]);
-      await sl<CarsRepository>().listVehicles();
+      final session = sl<AuthSessionController>();
+      if (!isSvhManagerSession(session)) {
+        await sl<CarsRepository>().listVehicles();
+      }
       final prefs = sl<SharedPreferences>();
       await prefs.setString(SessionPreferencesKeys.authLastEmail, login);
       await prefs.setString(SessionPreferencesKeys.authLastPassword, password);
       if (!mounted) return;
-      await sl<AppUpdateService>().maybePromptForUpdate(context);
-      if (!mounted) return;
-      context.go('/home');
+      context.go(homeLocationForSession(session));
+      AppUpdateBootstrap.scheduleAfterLogin();
     } on ServerException catch (e) {
       if (!mounted) return;
       sl<AppFeedbackService>().show(

@@ -17,13 +17,19 @@ class CarCard extends StatelessWidget {
     required this.car,
     this.onOpenDetails,
     this.onOpenChat,
+    this.suppressClientActions = false,
   });
 
   final DemoCar car;
   final VoidCallback? onOpenDetails;
   final VoidCallback? onOpenChat;
 
+  /// Для shell СВХ: без чата и без блока оценки клиента.
+  final bool suppressClientActions;
+
   bool get _showGoToChat =>
+      !suppressClientActions &&
+      onOpenChat != null &&
       !car.isArchivedOffline &&
       requestChatAvailable(
         status: car.requestStatus,
@@ -31,6 +37,8 @@ class CarCard extends StatelessWidget {
         managerFullName: car.managerFullName,
         isArchivedOffline: car.isArchivedOffline,
       );
+
+  bool get _showRating => !suppressClientActions && car.showRatingBlock;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +67,7 @@ class CarCard extends StatelessWidget {
                   16,
                   16,
                   16,
-                  (_showGoToChat || car.showRatingBlock) ? 0 : 16,
+                  (_showGoToChat || _showRating) ? 0 : 16,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -201,7 +209,7 @@ class CarCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (car.showRatingBlock) ...[
+            if (_showRating) ...[
               const Gap(10),
               Padding(
                 padding: EdgeInsets.fromLTRB(

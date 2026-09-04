@@ -312,6 +312,17 @@ function signedDocType(baseDocType) {
   return `${base}_sign`;
 }
 
+/** DocType, которые менеджер СВХ может загружать (фото/архив авто), без анкеты/подписей/оплат. */
+function isSvhManagerAllowedDocType(docType) {
+  const c = normalizeDocType(docType);
+  if (!c) return false;
+  if (c.startsWith('car_')) return true;
+  if (c === 'add_doc1' || c === 'add_doc2') return true;
+  if (c === 'transit_archive_photo' || c === 'transit_archive_video') return true;
+  if (/^transit_archive_photo_\d+$/.test(c)) return true;
+  return false;
+}
+
 module.exports = {
   DEAL_TYPES,
   STATUS_SUB_TYPES,
@@ -323,6 +334,7 @@ module.exports = {
   LEGACY_STATUS_SUB_TYPE_ALIASES,
   normalizeDocType,
   isKnownDocType,
+  isSvhManagerAllowedDocType,
   normalizeStatusSubType,
   isKnownStatusSubType,
   suggestedStatusForSubType,

@@ -11,6 +11,7 @@ import 'package:import_service_admin/data/datasources/mock/auth_mock_data_source
 import 'package:import_service_admin/data/datasources/mock/customs_requests_mock_data_source.dart';
 import 'package:import_service_admin/data/datasources/mock/mock_json_loader.dart';
 import 'package:import_service_admin/data/datasources/remote/admin_users_remote_data_source.dart';
+import 'package:import_service_admin/data/datasources/remote/svh_managers_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/admin_settings_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/auth_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/customs_requests_remote_data_source.dart';
@@ -18,12 +19,15 @@ import 'package:import_service_admin/data/datasources/remote/organizations_remot
 import 'package:import_service_admin/data/datasources/remote/broadcast_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/storage_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/store_versions_remote_data_source.dart';
+import 'package:import_service_admin/data/datasources/remote/client_errors_remote_data_source.dart';
 import 'package:import_service_admin/data/repositories/admin_users_repository_impl.dart';
+import 'package:import_service_admin/data/repositories/svh_managers_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/admin_settings_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/auth_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/customs_requests_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/organizations_repository_impl.dart';
 import 'package:import_service_admin/domain/repositories/admin_users_repository.dart';
+import 'package:import_service_admin/domain/repositories/svh_managers_repository.dart';
 import 'package:import_service_admin/domain/repositories/admin_settings_repository.dart';
 import 'package:import_service_admin/domain/repositories/auth_repository.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
@@ -70,6 +74,9 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<StoreVersionsRemoteDataSource>(
     () => StoreVersionsRemoteDataSource(sl<Dio>()),
   );
+  sl.registerLazySingleton<ClientErrorsRemoteDataSource>(
+    () => ClientErrorsRemoteDataSource(sl<Dio>()),
+  );
   sl.registerLazySingleton<BroadcastRemoteDataSource>(
     () => BroadcastRemoteDataSource(sl<Dio>()),
   );
@@ -78,6 +85,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<AdminUsersRemoteDataSource>(
     () => AdminUsersRemoteDataSource(sl<Dio>()),
+  );
+  sl.registerLazySingleton<SvhManagersRemoteDataSource>(
+    () => SvhManagersRemoteDataSource(sl<Dio>()),
   );
   sl.registerLazySingleton<AdminSettingsRemoteDataSource>(
     () => AdminSettingsRemoteDataSource(sl<Dio>()),
@@ -106,6 +116,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<AdminUsersRepository>(
     () => AdminUsersRepositoryImpl(sl<AdminUsersRemoteDataSource>()),
+  );
+  sl.registerLazySingleton<SvhManagersRepository>(
+    () => SvhManagersRepositoryImpl(sl<SvhManagersRemoteDataSource>()),
   );
   sl.registerLazySingleton<AdminSettingsRepository>(
     () => AdminSettingsRepositoryImpl(sl<AdminSettingsRemoteDataSource>()),

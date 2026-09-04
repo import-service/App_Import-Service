@@ -13,6 +13,7 @@ import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/network/dio_client.dart';
 import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
 import 'package:import_service_app/core/app_update/app_update_service.dart';
+import 'package:import_service_app/core/logging/client_error_reporter.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/push/chat_screen_presence.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
@@ -107,6 +108,7 @@ Future<void> initDependencies() async {
     ),
   );
   sl.registerLazySingleton<Dio>(() => sl<DioClient>().dio);
+  ClientErrorReporter.install(sl<Dio>());
 
   sl.registerLazySingleton<AuthRemoteDataSource>(
     () => AuthRemoteDataSource(sl<Dio>()),

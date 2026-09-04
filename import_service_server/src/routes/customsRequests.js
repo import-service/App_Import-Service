@@ -20,6 +20,7 @@ const {
   normalizeStatusSubType,
   suggestedStatusForSubType,
   isKnownStatusSubType,
+  isSvhManagerAllowedDocType,
 } = require('../constants/customsCatalog');
 const { notifyStateChangedFrom1C } = require('../services/pushNotifications');
 const {
@@ -40,6 +41,7 @@ const {
 const {
   mpOrganizationId,
   isMpJwtRequest,
+  isSvhManagerRequest,
   denyUnlessOwnsRequest,
 } = require('../util/requestOrganizationAccess');
 const { serveRequestOrChatFile } = require('../services/requestFileDownload');
@@ -389,6 +391,14 @@ module.exports = async function customsRequestsRoutes(fastify) {
         row = data.row;
       }
 
+      if (isSvhManagerRequest(request) && !isSvhManagerAllowedDocType(docType)) {
+        return reply.code(403).send({
+          error: 'FORBIDDEN',
+          message:
+            'Менеджер СВХ может загружать только фото авто и архив (car_*, transit_archive_*, add_doc1/2)',
+        });
+      }
+
       const declaredMime = normalize(mp.mimetype) || '';
       return finalizeCustomsUpload(fastify, request, reply, {
         row,
@@ -462,6 +472,13 @@ module.exports = async function customsRequestsRoutes(fastify) {
         validateCreateBody(request.body);
       } catch (e) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.message });
+      }
+
+      if (isSvhManagerRequest(request)) {
+        return reply.code(403).send({
+          error: 'FORBIDDEN',
+          message: 'Менеджер СВХ не создаёт заявки',
+        });
       }
 
       const legalInn = resolveLegalInnFromBody(request.body, { required: true });
@@ -569,11 +586,29 @@ module.exports = async function customsRequestsRoutes(fastify) {
       const limit = Math.min(Math.max(Number(request.query.limit) || 20, 1), 100);
       const offset = Math.max(Number(request.query.offset) || 0, 0);
       const status = normalize(request.query.status);
-      const where = ['deleted_at IS NULL', 'organization_id = ?'];
-      const args = [orgId];
+      const vin = normalize(request.query.vin).toUpperCase();
+      const q = normalize(request.query.q);
+
+      const where = ['deleted_at IS NULL'];
+      const args = [];
+      const svh = isSvhManagerRequest(request);
+      if (!svh) {
+        where.push('organization_id = ?');
+        args.push(orgId);
+      }
       if (status) {
         where.push('status = ?');
         args.push(status);
+      }
+      if (vin) {
+        where.push('UPPER(vin) LIKE ?');
+        args.push(`%${vin}%`);
+      } else if (q) {
+        const like = `%${q}%`;
+        where.push(
+          `(vin LIKE ? OR car_make LIKE ? OR car_model LIKE ? OR individual_full_name LIKE ? OR legal_entity_name LIKE ?)`,
+        );
+        args.push(like, like, like, like, like);
       }
       args.push(limit, offset);
 
@@ -650,6 +685,13 @@ module.exports = async function customsRequestsRoutes(fastify) {
       const id = Number(request.params.id);
       if (!Number.isFinite(id) || id <= 0) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      if (isSvhManagerRequest(request)) {
+        return reply.code(403).send({
+          error: 'FORBIDDEN',
+          message: 'Оценка заявки недоступна менеджеру СВХ',
+        });
       }
 
       const orgId = mpOrganizationId(request);
@@ -801,6 +843,13 @@ module.exports = async function customsRequestsRoutes(fastify) {
       const id = Number(request.params.id);
       if (!Number.isFinite(id) || id <= 0) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      if (isSvhManagerRequest(request)) {
+        return reply.code(403).send({
+          error: 'FORBIDDEN',
+          message: 'Менеджер СВХ не может изменять поля заявки',
+        });
       }
 
       const orgId = mpOrganizationId(request);

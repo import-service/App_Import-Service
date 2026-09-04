@@ -8,11 +8,16 @@ import 'package:import_service_app/domain/entities/request_files_batch_upload_re
 
 /// Список заявок и создание заявки.
 abstract class CarsRepository {
-  /// [api-app.md]: `GET /api/customs-requests` с опциями `limit` / `offset` / `status`.
+  /// [api-app.md]: `GET /api/customs-requests` с опциями `limit` / `offset` / `status` / `vin` / `q`.
+  ///
+  /// [syncInventory]: для клиента — обновить локальный store; для СВХ (пагинация/поиск) — `false`.
   Future<Either<Failure, List<CarListItem>>> listVehicles({
     int? limit,
     int? offset,
     String? status,
+    String? vin,
+    String? q,
+    bool syncInventory = true,
   });
 
   /// Полная заявка по id; вне демо — `GET /api/customs-requests/:id`, результат сохраняется в локальном store.

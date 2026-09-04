@@ -45,6 +45,9 @@ final class CarsRepositoryImpl implements CarsRepository {
     int? limit,
     int? offset,
     String? status,
+    String? vin,
+    String? q,
+    bool syncInventory = true,
   }) async {
     try {
       if (!_session.isDemo) {
@@ -52,9 +55,13 @@ final class CarsRepositoryImpl implements CarsRepository {
           limit: limit,
           offset: offset,
           status: status,
+          vin: vin,
+          q: q,
         );
         final patched = remoteItems.map(_patchMissingLegalInn).toList(growable: false);
-        await _carInventory.replaceAll(patched);
+        if (syncInventory) {
+          await _carInventory.replaceAll(patched);
+        }
         return Right(patched);
       }
       return Right(_carInventory.items);

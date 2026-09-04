@@ -95,7 +95,7 @@
   "tokenType": "Bearer",
   "expiresAt": "2026-05-27T09:00:00.000Z",
   "role": "admin"
-}</pre><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li></ul></div>
+}</pre><p><b>role:</b> <code>user</code> (клиент), <code>admin</code> (legacy в org), <code>svh_manager</code> (менеджер СВХ — отдельный UI в МП).</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/auth/logout</code><span class="desc">Выход из текущей сессии.</span></summary>
@@ -173,13 +173,15 @@
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests</code><span class="desc">Получить список заявок.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Клиент (<code>role=user</code>):</b> только заявки своей организации.</p><p><b>Менеджер СВХ (<code>role=svh_manager</code>):</b> все заявки; поиск по VIN / тексту.</p><p><b>Request:</b></p><pre>{
   "query": {
     "limit": 20,
     "offset": 0,
-    "status": "new"
+    "status": "new",
+    "vin": "LC0FD1C41P1650016",
+    "q": "Song"
   }
-}</pre><p><b>Success:</b></p><pre>{
+}</pre><p><code>vin</code> — подстрока VIN (без учёта регистра). <code>q</code> — VIN / марка / модель / ФИО / ЮЛ (если <code>vin</code> не задан).</p><p><b>Success:</b></p><pre>{
   "items": [
     {
       "id": "1",
@@ -260,6 +262,46 @@
   "appVersion": "1.0.28+28",
   "platform": "android"
 }</pre><p><b>Правила:</b> письмо на <code>info@import-service.su</code>; в теле — учётка (организация / физлицо), данные из последней заявки (ФИО, СНИЛС и т.д. если есть), версия МП. <code>Reply-To</code> = login организации. В 1С не уходит.</p><p><b>Success:</b></p><pre>{ "ok": true }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code> / <code>USER_NOT_FOUND</code></li><li><code>502 EMAIL_SEND_FAILED</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/client-errors</code><span class="desc">Клиентские ошибки МП (мини-Sentry) → хранение на сервере ~14 дней.</span></summary>
+          <div class="body"><p><b>Auth:</b> необязателен. Если есть Bearer accessToken МП — к ошибке привязываются org/login/role.</p><p><b>Request:</b></p><pre>{
+  "message": "Null check operator used on a null value",
+  "stack": "…",
+  "tag": "FlutterError",
+  "platform": "android",
+  "appVersion": "0.1.28",
+  "buildNumber": "28",
+  "fatal": true,
+  "deviceInfo": "Pixel 7 / Android 14"
+}</pre><p><b>Правила:</b> без письма; запись в <code>client_errors</code>; stack до ~16KB; daily purge старше 14 дней. Список — в админке и <code>GET /api/admin/client-errors</code>.</p><p><b>Success:</b></p><pre>{ "ok": true, "id": 123 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>503 CLIENT_ERRORS_STORAGE_NOT_READY</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/client-errors</code><span class="desc">Список клиентских ошибок МП за последние 14 дней.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin JWT</p><p><b>Query:</b> <code>limit</code> (1–200, default 50), <code>offset</code>.</p><p><b>Success:</b></p><pre>{
+  "total": 12,
+  "limit": 50,
+  "offset": 0,
+  "retentionDays": 14,
+  "items": [
+    {
+      "id": 12,
+      "createdAt": "2026-09-04T08:00:00.000Z",
+      "organizationId": 14,
+      "login": "org@example.com",
+      "role": "user",
+      "platform": "android",
+      "appVersion": "0.1.28",
+      "buildNumber": "28",
+      "tag": "FlutterError",
+      "message": "…",
+      "stack": "…",
+      "fatal": true,
+      "deviceInfo": "…",
+      "fingerprint": "abc…"
+    }
+  ]
+}</pre></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/customs-requests/:id</code><span class="desc">Удаление заявки из МП отключено.</span></summary>
@@ -1467,6 +1509,37 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
     "deletedAt": null
   }
 }</pre><p><b>Errors:</b></p><ul><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/svh-managers</code><span class="desc">Список менеджеров СВХ (МП).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Query:</b> <code>limit</code>, <code>offset</code>, <code>includeDisabled=1</code>.</p><p><b>Success:</b></p><pre>{
+  "items": [{ "id": 12, "login": "svh1@site.ru", "fullName": "Иванов И.И.", "phone": "+7999…", "active": true, "createdAt": "…", "updatedAt": "…" }],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}</pre></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/svh-managers</code><span class="desc">Создать менеджера СВХ (вход в МП).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Request:</b></p><pre>{
+  "login": "svh1@site.ru",
+  "password": "secret12",
+  "fullName": "Иванов И.И.",
+  "phone": "+79990001122"
+}</pre><p>Создаёт <code>organizations</code> с <code>role=svh_manager</code>, <code>id_1c=svh:{login}</code>. В 1С не уходит.</p><p><b>Errors:</b> <code>409 LOGIN_ALREADY_EXISTS</code></p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method patch">PATCH</span><code class="path">/api/admin/svh-managers/:id</code><span class="desc">Пароль / ФИО / телефон / active.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Request:</b></p><pre>{
+  "password": "newSecret",
+  "fullName": "…",
+  "phone": "…",
+  "active": false
+}</pre><p><code>active: false</code> — soft-delete + отзыв сессий МП.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/svh-managers/:id</code><span class="desc">Отключить менеджера СВХ (soft-delete).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Success:</b> <code>{ "ok": true }</code></p></div>
         </details>
       </section>
 

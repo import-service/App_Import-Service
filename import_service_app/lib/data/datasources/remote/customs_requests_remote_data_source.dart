@@ -17,26 +17,36 @@ final class CustomsRequestsRemoteDataSource {
 
   final Dio _dio;
 
-  /// [api-app.md]: `GET /api/customs-requests?limit=&offset=&status=`
+  /// [api-app.md]: `GET /api/customs-requests?limit=&offset=&status=&vin=&q=`
   Future<List<CarListItem>> listRequests({
     int? limit,
     int? offset,
     String? status,
+    String? vin,
+    String? q,
   }) async {
     try {
-      final q = <String, dynamic>{};
+      final params = <String, dynamic>{};
       if (limit != null) {
-        q['limit'] = limit;
+        params['limit'] = limit;
       }
       if (offset != null) {
-        q['offset'] = offset;
+        params['offset'] = offset;
       }
       if (status != null && status.isNotEmpty) {
-        q['status'] = status;
+        params['status'] = status;
+      }
+      final vinTrim = vin?.trim() ?? '';
+      if (vinTrim.isNotEmpty) {
+        params['vin'] = vinTrim;
+      }
+      final qTrim = q?.trim() ?? '';
+      if (qTrim.isNotEmpty && vinTrim.isEmpty) {
+        params['q'] = qTrim;
       }
       final response = await _dio.get<dynamic>(
         'customs-requests',
-        queryParameters: q.isEmpty ? null : q,
+        queryParameters: params.isEmpty ? null : params,
       );
       final data = response.data;
       final rawList = _extractList(data);
@@ -64,7 +74,9 @@ final class CustomsRequestsRemoteDataSource {
   }
 
   /// Список файлов комплекта create из формы (первый путь на каждый docType).
-  static List<RequestFileUploadEntry> fileEntriesFromForm(RequestFormModel form) {
+  static List<RequestFileUploadEntry> fileEntriesFromForm(
+    RequestFormModel form,
+  ) {
     final sources = <({String docType, List<String> paths})>[
       (docType: 'passport_front', paths: form.passportFrontPaths),
       (docType: 'passport_registration', paths: form.passportAddressPaths),
@@ -101,10 +113,15 @@ final class CustomsRequestsRemoteDataSource {
     try {
       AppLog.trace('create: POST without files', tag: 'CreateReq');
       final payload = _buildCreateFormPayload(form);
-      final response = await _dio.post<dynamic>('customs-requests', data: payload);
+      final response = await _dio.post<dynamic>(
+        'customs-requests',
+        data: payload,
+      );
       final data = response.data;
       if (data is! Map<String, dynamic>) {
-        throw const UnknownServerException('Invalid customs request response format');
+        throw const UnknownServerException(
+          'Invalid customs request response format',
+        );
       }
       final created = _toCarListItem(data);
       final requestId = created.id.trim();
@@ -174,7 +191,9 @@ final class CustomsRequestsRemoteDataSource {
       for (final key in candidates) {
         final value = data[key];
         if (value is List<dynamic>) {
-          return value.whereType<Map<String, dynamic>>().toList(growable: false);
+          return value.whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          );
         }
       }
     }
@@ -219,11 +238,7 @@ final class CustomsRequestsRemoteDataSource {
     final v1 = (json['vin'] as String?)?.trim() ?? '';
     final v2 = (json['vinFull'] as String?)?.trim() ?? '';
     final legacy = (json['vinMasked'] as String?)?.trim() ?? '';
-    final mergedVin = v1.isNotEmpty
-        ? v1
-        : (v2.isNotEmpty
-            ? v2
-            : legacy);
+    final mergedVin = v1.isNotEmpty ? v1 : (v2.isNotEmpty ? v2 : legacy);
     final owner = (json['ownerFullName'] as String?)?.trim().isNotEmpty == true
         ? (json['ownerFullName'] as String).trim()
         : ((json['individualFullName'] as String?)?.trim() ?? '—');
@@ -234,7 +249,8 @@ final class CustomsRequestsRemoteDataSource {
       'carMake': make,
       'carModel': cModel,
       'vin': mergedVin,
-      'status': (json['status'] as String?) ?? RequestStatus.newRequest.apiValue,
+      'status':
+          (json['status'] as String?) ?? RequestStatus.newRequest.apiValue,
     };
     return CarListItem.fromJson(merged);
   }
@@ -407,10 +423,7 @@ final class CustomsRequestsRemoteDataSource {
     }
 
     latest ??= await _getRequestByIdWithRetry(requestId);
-    return RequestFilesBatchUploadResult(
-      item: latest,
-      failedDocTypes: failed,
-    );
+    return RequestFilesBatchUploadResult(item: latest, failedDocTypes: failed);
   }
 
   /// Подпись / чек: upload 1/1 + GET (вместо устаревшего `POST …/:id/files`).
@@ -489,7 +502,8 @@ final class CustomsRequestsRemoteDataSource {
         fileUrl: nested['fileUrl'] as String? ?? nested['file_url'] as String?,
         previewUrl:
             nested['previewUrl'] as String? ?? nested['preview_url'] as String?,
-        fileName: nested['fileName'] as String? ?? nested['file_name'] as String?,
+        fileName:
+            nested['fileName'] as String? ?? nested['file_name'] as String?,
         mimeType: nested['mimeType'] as String?,
         fileSizeBytes: nested['fileSizeBytes'] is int
             ? nested['fileSizeBytes'] as int
@@ -510,7 +524,8 @@ final class CustomsRequestsRemoteDataSource {
     if (data is Map<String, dynamic>) {
       final direct = data['fileUrl'] ?? data['url'];
       if (direct is String && direct.trim().isNotEmpty) return direct.trim();
-      final nested = data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
+      final nested =
+          data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
       if (nested is Map<String, dynamic>) {
         final v = nested['fileUrl'] ?? nested['url'];
         if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -523,7 +538,8 @@ final class CustomsRequestsRemoteDataSource {
     if (data is Map<String, dynamic>) {
       final direct = data['previewUrl'] ?? data['preview_url'];
       if (direct is String && direct.trim().isNotEmpty) return direct.trim();
-      final nested = data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
+      final nested =
+          data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
       if (nested is Map<String, dynamic>) {
         final v = nested['previewUrl'] ?? nested['preview_url'];
         if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -536,7 +552,8 @@ final class CustomsRequestsRemoteDataSource {
     if (data is Map<String, dynamic>) {
       final direct = data['fileName'] ?? data['file_name'];
       if (direct is String && direct.trim().isNotEmpty) return direct.trim();
-      final nested = data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
+      final nested =
+          data['file'] ?? data['data'] ?? data['item'] ?? data['result'];
       if (nested is Map<String, dynamic>) {
         final v = nested['fileName'] ?? nested['file_name'];
         if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -554,5 +571,4 @@ final class CustomsRequestsRemoteDataSource {
     final idx = normalized.lastIndexOf('/');
     return idx >= 0 ? normalized.substring(idx + 1) : normalized;
   }
-
 }

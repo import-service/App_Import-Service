@@ -10,6 +10,11 @@ alwaysApply: true
 - Сообщай пользователю, **что** запускаешь и **зачем** (кратко); при длительных командах — по возможности показывай результат.
 - Деструктивные действия (`git reset --hard`, удаление без подтверждения и т.п.) — только если пользователь явно попросил или это безопасно следует из задачи.
 
+## Android МП
+
+- Запуск только через `D:\Projects\import_servis\scripts\app-run-android.ps1` (см. `android-fast-run.mdc`).
+- Не Tee-Object, не убивать Gradle mid-build.
+
 ## Деплой `import_service_server` на прод
 
 После правок бэкенда: **сам** `D:\Projects\import_servis\scripts\deploy-server-vps.ps1` (не только `git push`). **Не** просить пользователя выложить на VPS. См. `import_service_server/.cursor/rules/server-deploy-vps.mdc`.

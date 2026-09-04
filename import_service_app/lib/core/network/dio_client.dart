@@ -79,7 +79,9 @@ class _SessionAuthInterceptor extends Interceptor {
     final probe = '$path $uri';
     return probe.contains('auth/login') ||
         probe.contains('registration') ||
-        probe.contains('auth/logout');
+        probe.contains('auth/logout') ||
+        probe.contains('store-versions') ||
+        probe.contains('client-errors');
   }
 
   static String _errorCode(DioException err) {

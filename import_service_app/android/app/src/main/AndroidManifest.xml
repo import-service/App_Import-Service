@@ -51,6 +51,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!--
+          RuStore AppUpdate SDK открывает эту Activity при установке.
+          Без флагов она остаётся в «Недавних» чёрной карточкой с нашим label.
+        -->
+        <activity
+            android:name="ru.rustore.sdk.activitylauncher.RuStoreActivityLauncher"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.ActivityLauncher.Transparent"
+            tools:replace="android:excludeFromRecents,android:noHistory,android:theme" />
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

@@ -147,6 +147,23 @@ async function runDailyStoreVersionScan(fastify) {
   }
 }
 
+async function runDailyClientErrorsPurge(fastify) {
+  try {
+    const { purgeOldClientErrors } = require('./clientErrorsRetention');
+    const result = await purgeOldClientErrors(fastify.pool);
+    if (result.deleted) {
+      fastify.log.info(result, 'client errors retention purge');
+    }
+    return result;
+  } catch (e) {
+    if (e && e.code === 'ER_NO_SUCH_TABLE') {
+      return { deleted: 0, skipped: true };
+    }
+    fastify.log.error({ err: e.message }, 'client errors purge failed');
+    return { deleted: 0, error: e.message };
+  }
+}
+
 async function dirSizeBytes(dirPath) {
   let total = 0;
   let entries;
@@ -221,6 +238,7 @@ function startBackgroundJobs(fastify) {
         fastify.log.info(purge, 'retention purge');
       }
       await runDailyStoreVersionScan(fastify);
+      await runDailyClientErrorsPurge(fastify);
     } catch (e) {
       fastify.log.error({ err: e.message }, 'daily background job failed');
     }
@@ -241,7 +259,7 @@ function startBackgroundJobs(fastify) {
   }, msUntilMidnight());
 
   fastify.log.info(
-    'background jobs: hourly 1C retry, daily retention + outbound alert + store versions',
+    'background jobs: hourly 1C retry, daily retention + outbound alert + store versions + client errors',
   );
 }
 
@@ -251,6 +269,7 @@ module.exports = {
   runDailyOutboundAlert,
   runDailyRetentionPurge,
   runDailyStoreVersionScan,
+  runDailyClientErrorsPurge,
   getStorageStats,
   fetchStaleOutbound,
 };

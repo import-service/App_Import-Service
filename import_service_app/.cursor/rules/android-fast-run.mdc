@@ -1,0 +1,35 @@
+---
+description: Быстрый запуск Flutter МП на Android — без часовых зависаний
+globs: ["import_service_app/**"]
+alwaysApply: false
+---
+
+# Android run (МП)
+
+## Канон
+
+Из корня монорепо:
+
+```powershell
+.\scripts\app-run-android.ps1
+.\scripts\app-run-android.ps1 -NoPub
+.\scripts\app-run-android.ps1 -ShowVersion
+```
+
+Первый раз за сессию (холодный Gradle):
+
+```powershell
+.\scripts\app-run-android.ps1 -WarmGradle
+```
+
+## Запрещено агенту
+
+- Пайпить `flutter run` через `Tee-Object` / `2>&1 | …` (ломает вывод, кажется «зависанием»).
+- `Stop-Process` / kill во время `Running Gradle task 'assembleDebug'`.
+- Считать «запущено», пока в логе нет `Flutter run key commands` / `Syncing files`.
+- Проверять versionCode через догадки — только `-ShowVersion` или `package_info` в UI профиля.
+
+## Апдейт-флоу
+
+Локальный `version` в `pubspec` должен быть **ниже** store `versionCode` (сейчас на проде Play/RuStore = 28).  
+В логах ищи `[AppUpdate]`. Диалог — после логина или на Home/SvhHome.

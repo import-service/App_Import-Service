@@ -9,6 +9,8 @@ extension AppNavigationX on BuildContext {
 
   void pushRequestDetail(String id) => push('/request/$id');
 
+  void pushSvhRequestDetail(String id) => push('/svh-request/$id');
+
   Future<T?> pushRequestChat<T extends Object?>(String id) =>
       push<T>('/request/$id/chat');
 
