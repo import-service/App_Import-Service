@@ -42,6 +42,10 @@ abstract final class AppTheme {
   static Color get cardBackground =>
       isDark ? const Color(0xFF1E1E1E) : white;
 
+  /// Светло-голубой тинт секций заявки (только light; в dark = card).
+  static Color get sectionTint =>
+      isDark ? cardBackground : const Color(0xFFF2F7FD);
+
   /// Кнопка-действие на карточке заявки.
   static Color get requestCardStatusPillBg =>
       isDark ? const Color(0xFF3D2A2A) : const Color(0xFFFFE8E8);

@@ -73,6 +73,36 @@ bool isFinalDocType(String? docType) {
 
 String normalizeDocType(String? raw) => CustomsDocType.normalizeCode(raw);
 
+/// DocType, которые менеджер СВХ может загружать (фото/архив авто), без анкеты/подписей/оплат.
+bool isSvhManagerAllowedDocType(String? docType) {
+  final c = normalizeDocType(docType);
+  if (c.isEmpty) return false;
+  if (c.startsWith('car_')) return true;
+  if (c == 'add_doc1' || c == 'add_doc2') return true;
+  if (c == 'transit_archive_photo' || c == 'transit_archive_video') return true;
+  if (RegExp(r'^transit_archive_photo_\d+$').hasMatch(c)) return true;
+  return false;
+}
+
+/// Слоты загрузки для СВХ в секциях карточки заявки.
+const List<String> kSvhCreationUploadDocTypes = [
+  'car_nameplate_photo',
+  'car_mileage_photo',
+  'car_front_photo',
+  'car_back_photo',
+];
+
+const List<String> kSvhTransitUploadDocTypes = [
+  'transit_archive_photo_1',
+  'transit_archive_photo_2',
+  'transit_archive_photo_3',
+];
+
+const List<String> kSvhOtherUploadDocTypes = [
+  'add_doc1',
+  'add_doc2',
+];
+
 String signedDocType(String baseDocType) {
   final type = CustomsDocType.tryParse(baseDocType);
   if (type == null) return normalizeDocType(baseDocType);

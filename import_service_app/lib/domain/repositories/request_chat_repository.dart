@@ -11,6 +11,8 @@ abstract class RequestChatRepository {
     String requestId, {
     int limit = 50,
     int? beforeId,
+    bool isSvhChat = false,
+    String? svhManagerId,
   });
 
   Future<Either<Failure, ChatMessage>> sendMessage(
@@ -18,16 +20,21 @@ abstract class RequestChatRepository {
     required String text,
     String? clientMessageId,
     List<ChatAttachment> attachments = const <ChatAttachment>[],
+    bool isSvhChat = false,
+    String? svhManagerId,
   });
 
   Future<Either<Failure, void>> markReadUpTo(
     String requestId, {
     required int upToMessageId,
+    bool isSvhChat = false,
+    String? svhManagerId,
   });
 
   Future<Either<Failure, ChatAttachment>> uploadAttachment(
     String requestId, {
     required String filePath,
     String? fileName,
+    bool isSvhChat = false,
   });
 }

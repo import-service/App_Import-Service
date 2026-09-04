@@ -636,9 +636,27 @@ module.exports = async function customsRequestsRoutes(fastify) {
       if (!orgId) {
         return reply.code(401).send({ error: 'UNAUTHORIZED' });
       }
+      const { listSvhChats } = require('../services/svhChatOps');
+      const svh = isSvhManagerRequest(request);
+      if (svh) {
+        const items = await listSvhChats(fastify.pool, {
+          asRole: 'svh',
+          svhManagerId: orgId,
+        });
+        return reply.send({ items });
+      }
       const items = await listChatsForOrganization(fastify.pool, orgId);
+      const svhItems = await listSvhChats(fastify.pool, {
+        asRole: 'client',
+        clientOrgId: orgId,
+      });
       const orgPreview = await getOrgChatListPreview(fastify.pool, orgId);
-      return reply.send({ items: orgPreview ? [orgPreview, ...items] : items });
+      const merged = [
+        ...(orgPreview ? [orgPreview] : []),
+        ...items,
+        ...svhItems,
+      ];
+      return reply.send({ items: merged });
     },
   );
 

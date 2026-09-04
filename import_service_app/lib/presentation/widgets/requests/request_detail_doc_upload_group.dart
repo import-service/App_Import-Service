@@ -26,7 +26,9 @@ class RequestDetailDocUploadGroup extends StatelessWidget {
     final borderColor = highlight
         ? AppTheme.accentRed.withValues(alpha: 0.55)
         : AppTheme.requestCardBorder;
-    final bg = highlight ? AppTheme.accentRed.withValues(alpha: 0.06) : AppTheme.white;
+    final bg = highlight
+        ? AppTheme.accentRed.withValues(alpha: AppTheme.isDark ? 0.16 : 0.06)
+        : AppTheme.cardBackground;
     final showUpload = onUpload != null && (uploadLabel?.isNotEmpty ?? false);
 
     return Container(

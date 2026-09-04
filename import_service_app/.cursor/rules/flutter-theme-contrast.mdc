@@ -1,0 +1,14 @@
+---
+description: Светлая/тёмная тема МП — контраст поверхностей и текста (Material)
+globs: ["import_service_app/lib/**/*.dart"]
+alwaysApply: false
+---
+
+# Темы МП Import Service (contrast)
+
+Светлую тему **не ломать**. В dark запрещены светлые карточки (`#F2F7FD`, `Colors.white` как фон) с `AppTheme.textPrimary` (светлый текст).
+
+Использовать: `AppTheme.cardBackground`, `AppTheme.sectionTint`, `textPrimary` / `textSecondary`.
+`AppTheme.white` — только на primary/accent (кнопки, AppBar бренда).
+
+Полный канон шаблона: `D:\Projects\_my_template\digitalsquare\.cursor\rules\flutter-theme-contrast.mdc`.

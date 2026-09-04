@@ -1,5 +1,15 @@
 import 'package:import_service_admin/domain/entities/svh_manager.dart';
 
+class SvhManagerMutationResult {
+  const SvhManagerMutationResult({
+    required this.item,
+    required this.emailSent,
+  });
+
+  final SvhManager item;
+  final bool emailSent;
+}
+
 abstract class SvhManagersRepository {
   Future<({List<SvhManager> items, int total})> list({
     int limit = 50,
@@ -7,15 +17,18 @@ abstract class SvhManagersRepository {
     bool includeDisabled = true,
   });
 
-  Future<SvhManager> create({
+  Future<SvhManager> getById(int id);
+
+  Future<SvhManagerMutationResult> create({
     required String login,
     required String password,
     String? fullName,
     String? phone,
   });
 
-  Future<SvhManager> update({
+  Future<SvhManagerMutationResult> update({
     required int id,
+    String? login,
     String? password,
     String? fullName,
     String? phone,

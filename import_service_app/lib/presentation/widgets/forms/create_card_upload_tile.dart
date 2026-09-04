@@ -21,7 +21,7 @@ class CreateCardUploadTile extends StatelessWidget {
         Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF7C7C7C),
+                color: AppTheme.textSecondary,
                 fontWeight: FontWeight.w700,
               ),
         ),
@@ -33,7 +33,9 @@ class CreateCardUploadTile extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF7F7),
+              color: AppTheme.isDark
+                  ? AppTheme.requestCardStatusPillBg
+                  : const Color(0xFFFFF7F7),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(

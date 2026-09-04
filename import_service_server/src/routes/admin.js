@@ -23,11 +23,36 @@ const {
 } = require('../services/backgroundJobs');
 const { sendBroadcast } = require('../services/broadcast');
 const { toOrganizationDto } = require('../util/organizationDto');
+const { notifySvhManagerCredentials } = require('../services/emailNotification');
 
 const ORGANIZATION_SELECT =
   'id, id_1c, login, role, org_type, company_name, inn, phone, created_at, updated_at, deleted_at';
 
 const detailDtoOptions = { includeFiles: true, mergeVehicleFiles: true };
+
+const SVH_EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+function isValidSvhLoginEmail(value) {
+  const v = String(value || '').trim();
+  if (!v || v.includes('..')) return false;
+  return SVH_EMAIL_RE.test(v);
+}
+
+function normalizeSvhPhone(raw) {
+  const phone = String(raw || '').trim();
+  if (!phone || phone === '-') return { ok: true, phone: '-' };
+  const digits = phone.replace(/\D/g, '');
+  const normalized =
+    digits.startsWith('8') && digits.length === 11
+      ? `7${digits.slice(1)}`
+      : digits.length === 10
+        ? `7${digits}`
+        : digits;
+  if (!/^7\d{10}$/.test(normalized)) {
+    return { ok: false, error: 'Телефон: формат +7 и 10 цифр' };
+  }
+  return { ok: true, phone: `+${normalized}` };
+}
 
 function maskToken(token) {
   const t = String(token || '').trim();
@@ -1039,6 +1064,25 @@ module.exports = async function adminRoutes(fastify) {
     },
   );
 
+  fastify.get(
+    '/admin/svh-managers/:id',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+      const [rows] = await fastify.pool.query(
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? AND role = 'svh_manager' LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      return reply.send({ item: toSvhManagerDto(rows[0]) });
+    },
+  );
+
   fastify.post(
     '/admin/svh-managers',
     {
@@ -1046,26 +1090,40 @@ module.exports = async function adminRoutes(fastify) {
       schema: {
         body: {
           type: 'object',
-          required: ['login', 'password'],
+          required: ['login', 'password', 'fullName'],
           additionalProperties: false,
           properties: {
             login: { type: 'string', minLength: 1, maxLength: 255 },
             password: { type: 'string', minLength: 6, maxLength: 128 },
-            fullName: { type: 'string', maxLength: 255 },
+            fullName: { type: 'string', minLength: 1, maxLength: 255 },
             phone: { type: 'string', maxLength: 30 },
           },
         },
       },
     },
     async (request, reply) => {
-      const login = String(request.body.login || '').trim();
+      const login = String(request.body.login || '').trim().toLowerCase();
       const password = String(request.body.password || '');
-      const fullName = String(request.body.fullName || '').trim() || login;
-      const phone = String(request.body.phone || '').trim() || '-';
+      const fullName = String(request.body.fullName || '').trim();
+      const phoneRaw = String(request.body.phone || '').trim();
 
-      if (!login) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Логин обязателен' });
+      if (!isValidSvhLoginEmail(login)) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: 'Логин должен быть email (как в МП)',
+        });
       }
+      if (!fullName) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'ФИО обязательно' });
+      }
+      const phoneNorm = normalizeSvhPhone(phoneRaw);
+      if (!phoneNorm.ok) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: phoneNorm.error,
+        });
+      }
+      const phone = phoneNorm.phone;
 
       const [existing] = await fastify.pool.query(
         'SELECT id FROM organizations WHERE login = ? AND deleted_at IS NULL LIMIT 1',
@@ -1098,11 +1156,38 @@ module.exports = async function adminRoutes(fastify) {
         [id1c, login, passwordHash, fullName, phone],
       );
 
+      let emailSent = false;
+      try {
+        const mailResult = await notifySvhManagerCredentials(
+          fastify.config.smtp,
+          {
+            to: login,
+            login,
+            password,
+            fullName,
+            isUpdate: false,
+          },
+          request.log,
+        );
+        emailSent = Boolean(mailResult?.success);
+        if (!emailSent) {
+          request.log.warn(
+            { login, error: mailResult?.error },
+            'svh manager welcome email failed',
+          );
+        }
+      } catch (err) {
+        request.log.error({ err, login }, 'svh manager welcome email failed');
+      }
+
       const [rows] = await fastify.pool.query(
         `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
         [result.insertId],
       );
-      return reply.code(201).send({ item: toSvhManagerDto(rows[0]) });
+      return reply.code(201).send({
+        item: toSvhManagerDto(rows[0]),
+        emailSent,
+      });
     },
   );
 
@@ -1116,6 +1201,7 @@ module.exports = async function adminRoutes(fastify) {
           additionalProperties: false,
           minProperties: 1,
           properties: {
+            login: { type: 'string', minLength: 1, maxLength: 255 },
             password: { type: 'string', minLength: 6, maxLength: 128 },
             fullName: { type: 'string', maxLength: 255 },
             phone: { type: 'string', maxLength: 30 },
@@ -1138,13 +1224,56 @@ module.exports = async function adminRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
 
+      const current = rows[0];
       const fields = [];
       const values = [];
       const body = request.body || {};
+      let nextLogin = String(current.login || '');
+      let passwordPlain = null;
+      let credentialsChanged = false;
+
+      if (body.login != null) {
+        const login = String(body.login).trim().toLowerCase();
+        if (!isValidSvhLoginEmail(login)) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: 'Логин должен быть email (как в МП)',
+          });
+        }
+        if (login !== String(current.login || '').toLowerCase()) {
+          const [existing] = await fastify.pool.query(
+            'SELECT id FROM organizations WHERE login = ? AND deleted_at IS NULL AND id <> ? LIMIT 1',
+            [login, id],
+          );
+          if (existing.length) {
+            return reply.code(409).send({
+              error: 'LOGIN_ALREADY_EXISTS',
+              message: 'Такой логин уже занят',
+            });
+          }
+          const id1c = `svh:${login}`;
+          const [idClash] = await fastify.pool.query(
+            'SELECT id FROM organizations WHERE id_1c = ? AND id <> ? LIMIT 1',
+            [id1c, id],
+          );
+          if (idClash.length) {
+            return reply.code(409).send({
+              error: 'LOGIN_ALREADY_EXISTS',
+              message: 'Менеджер с таким логином уже существует',
+            });
+          }
+          fields.push('login = ?', 'id_1c = ?');
+          values.push(login, id1c);
+          nextLogin = login;
+          credentialsChanged = true;
+        }
+      }
 
       if (body.password != null) {
+        passwordPlain = String(body.password);
         fields.push('password_hash = ?');
-        values.push(await bcrypt.hash(String(body.password), 10));
+        values.push(await bcrypt.hash(passwordPlain, 10));
+        credentialsChanged = true;
       }
       if (body.fullName != null) {
         const name = String(body.fullName).trim();
@@ -1155,8 +1284,15 @@ module.exports = async function adminRoutes(fastify) {
         values.push(name);
       }
       if (body.phone != null) {
+        const phoneNorm = normalizeSvhPhone(body.phone);
+        if (!phoneNorm.ok) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: phoneNorm.error,
+          });
+        }
         fields.push('phone = ?');
-        values.push(String(body.phone).trim() || '-');
+        values.push(phoneNorm.phone);
       }
       if (body.active === false) {
         fields.push('deleted_at = CURRENT_TIMESTAMP(3)');
@@ -1174,7 +1310,7 @@ module.exports = async function adminRoutes(fastify) {
         values,
       );
 
-      if (body.active === false || body.password != null) {
+      if (body.active === false || body.password != null || credentialsChanged) {
         await fastify.pool.query(
           'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
           [id],
@@ -1185,7 +1321,35 @@ module.exports = async function adminRoutes(fastify) {
         `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
         [id],
       );
-      return reply.send({ item: toSvhManagerDto(updated[0]) });
+      const item = toSvhManagerDto(updated[0]);
+
+      let emailSent = false;
+      if (credentialsChanged && item.active) {
+        try {
+          const mailResult = await notifySvhManagerCredentials(
+            fastify.config.smtp,
+            {
+              to: nextLogin,
+              login: nextLogin,
+              password: passwordPlain,
+              fullName: item.fullName,
+              isUpdate: true,
+            },
+            request.log,
+          );
+          emailSent = Boolean(mailResult?.success);
+          if (!emailSent) {
+            request.log.warn(
+              { id, login: nextLogin, error: mailResult?.error },
+              'svh manager credentials email failed',
+            );
+          }
+        } catch (err) {
+          request.log.error({ err, id }, 'svh manager credentials email failed');
+        }
+      }
+
+      return reply.send({ item, emailSent });
     },
   );
 
@@ -1199,7 +1363,7 @@ module.exports = async function adminRoutes(fastify) {
       }
 
       const [rows] = await fastify.pool.query(
-        `SELECT id FROM organizations WHERE id = ? AND role = 'svh_manager' AND deleted_at IS NULL LIMIT 1`,
+        `SELECT id FROM organizations WHERE id = ? AND role = 'svh_manager' LIMIT 1`,
         [id],
       );
       if (!rows.length) {
@@ -1207,16 +1371,14 @@ module.exports = async function adminRoutes(fastify) {
       }
 
       await fastify.pool.query(
-        `UPDATE organizations
-         SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
-         WHERE id = ?`,
-        [id],
-      );
-      await fastify.pool.query(
         'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
         [id],
       );
-      return reply.send({ ok: true });
+      await fastify.pool.query('DELETE FROM organizations WHERE id = ? AND role = ?', [
+        id,
+        'svh_manager',
+      ]);
+      return reply.send({ ok: true, deleted: true });
     },
   );
 

@@ -67,18 +67,33 @@ class ChatsTabView extends StatelessWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final item = listState.items[index];
-        final hasUnread = unreadState.has(item.requestId) || item.unread;
+        final hasUnread = unreadState.has(item.listKey) || item.unread;
         return ChatListCard(
           item: item,
           hasUnread: hasUnread,
           noPreviewText: strings.chatsNoPreview,
           pinned: item.isOrgChat,
-          title: item.isOrgChat ? strings.orgChatTitle : null,
-          subtitle: item.isOrgChat ? strings.orgChatSubtitle : null,
+          title: item.isOrgChat
+              ? strings.orgChatTitle
+              : item.isSvhChat
+                  ? (item.managerFullName?.trim().isNotEmpty == true
+                      ? item.managerFullName!.trim()
+                      : item.displayCarLine)
+                  : null,
+          subtitle: item.isOrgChat
+              ? strings.orgChatSubtitle
+              : item.isSvhChat
+                  ? item.displayCarLine
+                  : null,
           onTap: () async {
-            sl<RequestChatUnreadCubit>().clearUnread(item.requestId);
+            sl<RequestChatUnreadCubit>().clearUnread(item.listKey);
             if (item.isOrgChat) {
               await context.pushOrgChat();
+            } else if (item.isSvhChat) {
+              await context.pushSvhRequestChat(
+                item.requestId,
+                svhManagerId: item.svhManagerId,
+              );
             } else {
               await context.pushRequestChat(item.requestId);
             }

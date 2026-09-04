@@ -3,6 +3,7 @@ import 'package:import_service_admin/core/error/error_handler.dart';
 import 'package:import_service_admin/core/error/exceptions.dart';
 import 'package:import_service_admin/data/models/svh_manager_model.dart';
 import 'package:import_service_admin/domain/entities/svh_manager.dart';
+import 'package:import_service_admin/domain/repositories/svh_managers_repository.dart';
 
 class SvhManagersRemoteDataSource {
   SvhManagersRemoteDataSource(this._dio);
@@ -44,7 +45,16 @@ class SvhManagersRemoteDataSource {
     }
   }
 
-  Future<SvhManager> create({
+  Future<SvhManager> getById(int id) async {
+    try {
+      final response = await _dio.get<dynamic>('admin/svh-managers/$id');
+      return _parseItem(response.data, 'загрузке менеджера').item;
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<SvhManagerMutationResult> create({
     required String login,
     required String password,
     String? fullName,
@@ -67,8 +77,9 @@ class SvhManagersRemoteDataSource {
     }
   }
 
-  Future<SvhManager> update({
+  Future<SvhManagerMutationResult> update({
     required int id,
+    String? login,
     String? password,
     String? fullName,
     String? phone,
@@ -76,6 +87,7 @@ class SvhManagersRemoteDataSource {
   }) async {
     try {
       final body = <String, dynamic>{};
+      if (login != null) body['login'] = login;
       if (password != null) body['password'] = password;
       if (fullName != null) body['fullName'] = fullName;
       if (phone != null) body['phone'] = phone;
@@ -96,7 +108,7 @@ class SvhManagersRemoteDataSource {
     }
   }
 
-  SvhManager _parseItem(dynamic data, String action) {
+  SvhManagerMutationResult _parseItem(dynamic data, String action) {
     if (data is! Map<String, dynamic>) {
       throw UnknownServerException('Некорректный ответ при $action');
     }
@@ -104,6 +116,9 @@ class SvhManagersRemoteDataSource {
     if (item is! Map<String, dynamic>) {
       throw UnknownServerException('Некорректный ответ при $action');
     }
-    return SvhManagerModel.fromJson(item).toEntity();
+    return SvhManagerMutationResult(
+      item: SvhManagerModel.fromJson(item).toEntity(),
+      emailSent: data['emailSent'] == true,
+    );
   }
 }

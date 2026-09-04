@@ -16,13 +16,13 @@ class RequestDetailFinancesBlock extends StatelessWidget {
     required this.requestId,
     required this.item,
     required this.strings,
-    required this.onUploadReceipt,
+    this.onUploadReceipt,
   });
 
   final String requestId;
   final CarListItem item;
   final JsonStringsService strings;
-  final void Function(String docType) onUploadReceipt;
+  final void Function(String docType)? onUploadReceipt;
 
   static bool shouldShow(CarListItem item) {
     return RequestDetailFinancesBlock._hasAmounts(item) || item.financeItems.isNotEmpty;
@@ -77,15 +77,19 @@ class RequestDetailFinancesBlock extends StatelessWidget {
             line: line,
             label: financeItemLabel(line, strings),
             receiptCaption: strings.requestDetailReceiptCaption,
-            uploadLabel: (line.receiptUrl != null && line.receiptUrl!.trim().isNotEmpty)
-                ? strings.requestDetailUploadReceiptAgain
-                : strings.requestDetailUploadReceipt,
+            uploadLabel: onUploadReceipt == null
+                ? null
+                : ((line.receiptUrl != null && line.receiptUrl!.trim().isNotEmpty)
+                    ? strings.requestDetailUploadReceiptAgain
+                    : strings.requestDetailUploadReceipt),
             openReceiptLabel: strings.requestDetailOpenReceipt,
-            onUploadTap: () {
-              final docType = receiptDocTypeForFinanceLineType(line.lineType);
-              if (docType == null) return;
-              onUploadReceipt(docType);
-            },
+            onUploadTap: onUploadReceipt == null
+                ? null
+                : () {
+                    final docType = receiptDocTypeForFinanceLineType(line.lineType);
+                    if (docType == null) return;
+                    onUploadReceipt!(docType);
+                  },
           ),
         );
         if (i < item.financeItems.length - 1) {
@@ -141,7 +145,7 @@ class _FinancesRefundOnlyShell extends StatelessWidget {
     const radius = 14.0;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F7FD),
+        color: AppTheme.sectionTint,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: AppTheme.primaryBlue.withValues(alpha: 0.6)),
       ),

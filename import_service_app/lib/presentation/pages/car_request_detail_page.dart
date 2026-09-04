@@ -6,6 +6,7 @@ import 'package:gap/gap.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/auth/session_role.dart';
 import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
@@ -119,6 +120,14 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   Future<void> _attachDocType(String docType, CarListItem item) async {
     if (item.isArchivedOffline) return;
     if (_uploadingDocType != null) return;
+    final svh = isSvhManagerSession(sl<AuthSessionController>());
+    if (svh && !isSvhManagerAllowedDocType(docType)) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('svhUploadNotAllowed'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
     final path = await pickRequestDocumentPath(context);
     if (!mounted || path == null || path.isEmpty) return;
     final s = sl<JsonStringsService>();
@@ -494,6 +503,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       out.add(const Gap(20));
     }
 
+    final svh = isSvhManagerSession(sl<AuthSessionController>());
+
     out
       ..add(RequestDetailOwnerSection(
         requestId: widget.requestId,
@@ -509,13 +520,15 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             requestId: widget.requestId,
             item: item,
             strings: s,
-            onUploadReceipt: (docType) => _attachDocType(docType, item),
+            onUploadReceipt: svh
+                ? null
+                : (docType) => _attachDocType(docType, item),
           ),
         )
         ..add(const Gap(16));
     }
 
-    if (requestDetailShouldShowDocumentsBlock(item, s)) {
+    if (svh || requestDetailShouldShowDocumentsBlock(item, s)) {
       out
         ..add(const Gap(8))
         ..add(
@@ -537,6 +550,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             item: item,
             highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
             uploadingDocType: _uploadingDocType,
+            svhUploadMode: svh,
             onUploadDocType: (docType) => _attachDocType(docType, item),
             onTransitPhotoTap: (url) => _openExternalUrl(url),
             buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
@@ -668,7 +682,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         ),
       );
     }
-    if (prepared.isEmpty) return;
+    if (prepared.isEmpty) {
+      _onDocumentOpenFailed();
+      return;
+    }
     var startIndex = 0;
     for (var i = 0; i < prepared.length; i++) {
       if (prepared[i].sourceIndex == selectedIndex) {
@@ -718,7 +735,12 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       external1cId: item.external1cId,
       managerFullName: item.managerFullName,
       isArchivedOffline: item.isArchivedOffline,
+      forSvhManager: isSvhManagerSession(sl<AuthSessionController>()),
     );
+    final isSvhViewer = isSvhManagerSession(sl<AuthSessionController>());
+    final chatUnreadKey = isSvhViewer
+        ? 'svh:${item.id}:${sl<AuthSessionController>().userId ?? ''}'
+        : item.id;
     final sub = RequestStatusSubType.tryParse(item.statusSubType);
     final shouldFocusDocs = sub == RequestStatusSubType.primaryDocumentsSent ||
         sub == RequestStatusSubType.signatureRevisionRequired;
@@ -732,15 +754,19 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       builder: (context, attentionState) => BlocBuilder<RequestChatUnreadCubit, RequestChatUnreadState>(
         bloc: sl<RequestChatUnreadCubit>(),
         builder: (context, unreadState) {
-          final hasUnreadChat = unreadState.has(item.id);
+          final hasUnreadChat = unreadState.has(chatUnreadKey);
           return Scaffold(
       backgroundColor: AppTheme.pageBackground,
       appBar: BrandPrimaryAppBar(title: title),
       floatingActionButton: showChatFab
           ? FloatingActionButton(
               onPressed: () {
-                sl<RequestChatUnreadCubit>().clearUnread(item.id);
-                context.pushRequestChat(item.id);
+                sl<RequestChatUnreadCubit>().clearUnread(chatUnreadKey);
+                if (isSvhViewer) {
+                  context.pushSvhRequestChat(item.id);
+                } else {
+                  context.pushRequestChat(item.id);
+                }
               },
               backgroundColor: AppTheme.accentRed,
               foregroundColor: AppTheme.white,
@@ -899,10 +925,27 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                       item.fullUrl,
                       headers: headers,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.broken_image_outlined,
-                        color: Colors.white70,
-                        size: 56,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(
+                          child: CircularProgressIndicator(color: Colors.white70),
+                        );
+                      },
+                      errorBuilder: (_, _, _) => const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.white70,
+                            size: 56,
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'Не удалось загрузить изображение',
+                            style: TextStyle(color: Colors.white70),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
                   ),

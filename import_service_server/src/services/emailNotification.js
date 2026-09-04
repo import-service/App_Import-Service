@@ -520,6 +520,69 @@ async function notifyAppFeedback(
   );
 }
 
+/**
+ * Письмо менеджеру СВХ с данными для входа в МП.
+ * @returns {Promise<{ success: boolean, messageId?: string, error?: string }>}
+ */
+async function notifySvhManagerCredentials(
+  smtpConfig,
+  { to, login, password = null, fullName = '', isUpdate = false },
+  log,
+) {
+  const appName = smtpConfig.appName || 'Импорт Сервис';
+  const name = normalize(fullName);
+  const loginNorm = normalize(login);
+  const passwordNorm = password != null ? String(password) : null;
+  const subject = isUpdate
+    ? `${appName}: обновлены данные для входа (менеджер СВХ)`
+    : `${appName}: доступ в приложение (менеджер СВХ)`;
+
+  const greeting = name ? `Здравствуйте, ${name}!` : 'Здравствуйте!';
+  const intro = isUpdate
+    ? 'Данные для входа в мобильное приложение Импорт Сервис обновлены.'
+    : 'Вам создан доступ менеджера СВХ в мобильном приложении Импорт Сервис.';
+
+  const lines = [
+    greeting,
+    '',
+    intro,
+    '',
+    `Логин: ${loginNorm}`,
+  ];
+  if (passwordNorm) {
+    lines.push(`Пароль: ${passwordNorm}`);
+  } else if (isUpdate) {
+    lines.push('Пароль: без изменений');
+  }
+  lines.push('', 'Войдите в приложение с этими данными.', '', `— ${appName}`);
+
+  const passwordHtml = passwordNorm
+    ? `<p><b>Пароль:</b> ${escapeHtml(passwordNorm)}</p>`
+    : isUpdate
+      ? '<p><b>Пароль:</b> без изменений</p>'
+      : '';
+
+  const html = `
+    <p>${escapeHtml(greeting)}</p>
+    <p>${escapeHtml(intro)}</p>
+    <p><b>Логин:</b> ${escapeHtml(loginNorm)}</p>
+    ${passwordHtml}
+    <p>Войдите в приложение с этими данными.</p>
+    <p>— ${escapeHtml(appName)}</p>
+  `.trim();
+
+  return sendPlainEmail(
+    smtpConfig,
+    {
+      to,
+      subject,
+      html,
+      text: lines.join('\n'),
+    },
+    log,
+  );
+}
+
 module.exports = {
   NEW_CUSTOMS_REQUEST_SUBJECT,
   CLIENT_REQUEST_ACCEPTED_SUBJECT,
@@ -531,5 +594,6 @@ module.exports = {
   notifyClientCustomsRequestAccepted,
   notifyClientRequestRating,
   notifyAppFeedback,
+  notifySvhManagerCredentials,
   escapeHtml,
 };

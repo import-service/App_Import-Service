@@ -105,9 +105,13 @@ class _AddPhotoTile extends StatelessWidget {
       child: Container(
         width: 140,
         decoration: BoxDecoration(
-          color: const Color(0xFFF2F7FD),
+          color: AppTheme.sectionTint,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFD7E6F6)),
+          border: Border.all(
+            color: AppTheme.isDark
+                ? AppTheme.requestCardBorder
+                : const Color(0xFFD7E6F6),
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

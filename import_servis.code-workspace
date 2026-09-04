@@ -25,14 +25,19 @@
     "files.exclude": {
       "**/node_modules": true,
       "**/.dart_tool": true,
-      "**/build": true
+      "**/build": true,
+      "flutter_unified_image_picker": true
     },
     "search.exclude": {
       "**/node_modules": true,
       "**/.dart_tool": true,
       "**/build": true,
-      "**/uploads": true
+      "**/uploads": true,
+      "flutter_unified_image_picker": true
     },
+    "dart.analysisExcludedFolders": [
+      "flutter_unified_image_picker"
+    ],
     "java.configuration.updateBuildConfiguration": "interactive"
   },
   "launch": {

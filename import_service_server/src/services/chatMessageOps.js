@@ -623,14 +623,21 @@ function lastMessagePreviewText(textContent, attachmentsJson) {
 }
 
 /**
- * Список чатов организации для МП: заявки с external1cId, превью, непрочитанные from_1c.
+ * Список чатов для МП.
  * @param {import('mysql2/promise').Pool} pool
- * @param {number} organizationId
+ * @param {number|null} organizationId — id организации клиента; `null` = все (СВХ-менеджер)
  */
 async function listChatsForOrganization(pool, organizationId) {
-  const orgId = Number(organizationId);
-  if (!Number.isFinite(orgId) || orgId <= 0) {
+  const orgId =
+    organizationId == null ? null : Number(organizationId);
+  if (orgId != null && (!Number.isFinite(orgId) || orgId <= 0)) {
     return [];
+  }
+  const args = [];
+  let orgFilter = '';
+  if (orgId != null) {
+    orgFilter = 'AND r.organization_id = ?';
+    args.push(orgId);
   }
   const [rows] = await pool.query(
     `SELECT
@@ -661,12 +668,12 @@ async function listChatsForOrganization(pool, organizationId) {
          AND read_by_user_at IS NULL
        GROUP BY request_id
      ) u ON u.request_id = r.id
-     WHERE r.organization_id = ?
-       AND r.deleted_at IS NULL
+     WHERE r.deleted_at IS NULL
        AND r.external_1c_id IS NOT NULL
        AND r.external_1c_id <> ''
+       ${orgFilter}
      ORDER BY COALESCE(lm.id, 0) DESC, r.id DESC`,
-    [orgId],
+    args,
   );
   return rows.map((row) => {
     const unreadCount = Number(row.unread_count) || 0;

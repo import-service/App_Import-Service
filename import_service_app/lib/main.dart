@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:import_service_app/core/app_update/app_update_bootstrap.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
@@ -23,6 +24,7 @@ import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/ui/app_phone_width_scope.dart';
 import 'package:import_service_app/core/ui/app_scaffold_messenger_key.dart';
 import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
+import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 import 'package:import_service_app/presentation/router/app_router.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/chat_push_go_bottom_sheet.dart';
@@ -31,6 +33,10 @@ import 'package:intl/date_symbol_data_local.dart';
 Future<void> main() async {
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     bootstrapLogger();
 
     FlutterError.onError = (details) {
@@ -126,6 +132,12 @@ class _MyAppState extends State<MyApp> {
       if (target.kind == PushOpenKind.orgChat) {
         sl<RequestChatUnreadCubit>().clearUnread(target.requestId);
         appRouter.push('/org/chat');
+      } else if (target.kind == PushOpenKind.svhChat) {
+        final mid = target.svhManagerId?.trim();
+        final key = 'svh:${target.requestId}:${mid ?? ''}';
+        sl<RequestChatUnreadCubit>().clearUnread(key);
+        final q = (mid != null && mid.isNotEmpty) ? '?svhManagerId=$mid' : '';
+        appRouter.push('/request/$encodedId/svh-chat$q');
       } else if (target.kind == PushOpenKind.requestChat) {
         sl<RequestChatUnreadCubit>().clearUnread(target.requestId);
         appRouter.push('/request/$encodedId/chat');
@@ -142,15 +154,21 @@ class _MyAppState extends State<MyApp> {
     _pushForegroundSub = sl<PushNotificationsService>().foregroundTargetStream
         .listen((target) {
           if (target.kind == PushOpenKind.orgChat ||
-              target.kind == PushOpenKind.requestChat) {
+              target.kind == PushOpenKind.requestChat ||
+              target.kind == PushOpenKind.svhChat) {
             if (target.kind == PushOpenKind.orgChat) {
               unawaited(handleOrgChatRemoteUpdate());
+            } else {
+              unawaited(sl<ChatListCubit>().load());
             }
-            if (sl<ChatScreenPresence>().isOpen(target.requestId)) {
-              sl<ChatScreenPresence>().notifyLiveUpdate(target.requestId);
+            final presenceKey = target.kind == PushOpenKind.svhChat
+                ? 'svh:${target.requestId}:${target.svhManagerId ?? ''}'
+                : target.requestId;
+            if (sl<ChatScreenPresence>().isOpen(presenceKey)) {
+              sl<ChatScreenPresence>().notifyLiveUpdate(presenceKey);
               return;
             }
-            sl<RequestChatUnreadCubit>().markUnread(target.requestId);
+            sl<RequestChatUnreadCubit>().markUnread(presenceKey);
             unawaited(_showChatPushGo(target));
           } else {
             sl<RequestAttentionCubit>().markStatusUpdated(target.requestId);
@@ -174,9 +192,17 @@ class _MyAppState extends State<MyApp> {
     }
     final go = await ChatPushGoBottomSheet.show(ctx);
     if (go == true) {
-      sl<RequestChatUnreadCubit>().clearUnread(target.requestId);
+      final unreadKey = target.kind == PushOpenKind.svhChat
+          ? 'svh:${target.requestId}:${target.svhManagerId ?? ''}'
+          : target.requestId;
+      sl<RequestChatUnreadCubit>().clearUnread(unreadKey);
       if (target.kind == PushOpenKind.orgChat) {
         appRouter.push('/org/chat');
+      } else if (target.kind == PushOpenKind.svhChat) {
+        final encodedId = Uri.encodeComponent(target.requestId);
+        final mid = target.svhManagerId?.trim();
+        final q = (mid != null && mid.isNotEmpty) ? '?svhManagerId=$mid' : '';
+        appRouter.push('/request/$encodedId/svh-chat$q');
       } else {
         final encodedId = Uri.encodeComponent(target.requestId);
         appRouter.push('/request/$encodedId/chat');

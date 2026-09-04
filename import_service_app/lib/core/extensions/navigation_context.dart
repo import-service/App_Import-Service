@@ -14,6 +14,15 @@ extension AppNavigationX on BuildContext {
   Future<T?> pushRequestChat<T extends Object?>(String id) =>
       push<T>('/request/$id/chat');
 
+  Future<T?> pushSvhRequestChat<T extends Object?>(
+    String id, {
+    String? svhManagerId,
+  }) {
+    final mid = svhManagerId?.trim();
+    final q = (mid != null && mid.isNotEmpty) ? '?svhManagerId=$mid' : '';
+    return push<T>('/request/$id/svh-chat$q');
+  }
+
   Future<T?> pushOrgChat<T extends Object?>() => push<T>('/org/chat');
 
   /// Пример: после добавления маршрута `/login`

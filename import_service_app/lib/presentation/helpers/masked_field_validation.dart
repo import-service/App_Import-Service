@@ -103,11 +103,12 @@ String? validateRuPhoneValue(
   JsonStringsService strings, {
   bool required = true,
 }) {
-  final phone = value?.trim() ?? '';
-  if (phone.isEmpty) {
+  final digits = ruPhoneDigitsOnly(value ?? '');
+  // Только «+7» / пусто — считаем незаполненным.
+  if (digits.isEmpty || digits == '7') {
     return required ? strings.fieldRequiredError : null;
   }
-  final normalized = normalizeRuPhoneForApi(phone);
+  final normalized = normalizeRuPhoneForApi(value ?? '');
   if (!isValidRuPhoneApi(normalized)) {
     return strings.phoneFormatError;
   }

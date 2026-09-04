@@ -20,7 +20,10 @@ class SvhManagersRepositoryImpl implements SvhManagersRepository {
       );
 
   @override
-  Future<SvhManager> create({
+  Future<SvhManager> getById(int id) => _remote.getById(id);
+
+  @override
+  Future<SvhManagerMutationResult> create({
     required String login,
     required String password,
     String? fullName,
@@ -34,8 +37,9 @@ class SvhManagersRepositoryImpl implements SvhManagersRepository {
       );
 
   @override
-  Future<SvhManager> update({
+  Future<SvhManagerMutationResult> update({
     required int id,
+    String? login,
     String? password,
     String? fullName,
     String? phone,
@@ -43,6 +47,7 @@ class SvhManagersRepositoryImpl implements SvhManagersRepository {
   }) =>
       _remote.update(
         id: id,
+        login: login,
         password: password,
         fullName: fullName,
         phone: phone,

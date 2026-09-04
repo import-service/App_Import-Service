@@ -1,5 +1,8 @@
 const { verifyIntegrationBearer, authenticateUserOrIntegrationBearer } = require('../util/integrationAuth');
-const { mpOrganizationId } = require('../util/requestOrganizationAccess');
+const {
+  mpOrganizationId,
+  isSvhManagerRequest,
+} = require('../util/requestOrganizationAccess');
 const { integrationFileUploadPayload } = require('../util/integrationFileUrl');
 const { serveRequestOrChatFile, serveChatFileLegacyAlias, UPLOAD_ROOT } = require('../services/requestFileDownload');
 const {
@@ -18,7 +21,7 @@ const {
 } = require('../services/chatAttachmentStorage');
 const { parseChatAttachmentJsonBody } = require('../util/uploadBase64');
 
-async function assertRequestChatAvailable(pool, requestId, orgId = null) {
+async function assertRequestChatAvailable(pool, requestId, orgId = null, { allowSvh = false } = {}) {
   const [rows] = await pool.query(
     `SELECT id, external_1c_id, deleted_at, organization_id
      FROM customs_requests
@@ -29,7 +32,7 @@ async function assertRequestChatAvailable(pool, requestId, orgId = null) {
   if (!rows.length || rows[0].deleted_at) {
     return { ok: false, error: 'NOT_FOUND' };
   }
-  if (orgId != null && Number(rows[0].organization_id) !== orgId) {
+  if (!allowSvh && orgId != null && Number(rows[0].organization_id) !== orgId) {
     return { ok: false, error: 'NOT_FOUND' };
   }
   if (!rows[0].external_1c_id) {
@@ -49,7 +52,9 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       }
 
       const orgId = mpOrganizationId(request);
-      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId);
+      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
+        allowSvh: isSvhManagerRequest(request),
+      });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
           return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });
@@ -119,7 +124,9 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       }
 
       const orgId = mpOrganizationId(request);
-      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId);
+      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
+        allowSvh: isSvhManagerRequest(request),
+      });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
           return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });
@@ -177,7 +184,9 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       }
 
       const orgId = mpOrganizationId(request);
-      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId);
+      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
+        allowSvh: isSvhManagerRequest(request),
+      });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
           return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });
@@ -357,7 +366,9 @@ module.exports = async function customsRequestChatRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
       const orgId = mpOrganizationId(request);
-      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId);
+      const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
+        allowSvh: isSvhManagerRequest(request),
+      });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
           return reply.code(409).send({ error: 'CHAT_NOT_AVAILABLE' });

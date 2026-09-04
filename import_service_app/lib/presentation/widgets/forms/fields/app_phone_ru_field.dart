@@ -38,7 +38,7 @@ class AppPhoneRuField extends StatelessWidget {
       label: label,
       hintText: _hint,
       controller: controller,
-      keyboardType: TextInputType.phone,
+      keyboardType: TextInputType.number,
       textInputAction: textInputAction,
       markRequired: markRequired,
       density: density,

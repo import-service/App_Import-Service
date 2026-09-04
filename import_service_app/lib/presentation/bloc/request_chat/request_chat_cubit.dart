@@ -23,6 +23,8 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
     required AuthSessionController session,
     required JsonStringsService strings,
     required ChatBroadcastWssClient wss,
+    this.isSvhChat = false,
+    this.svhManagerId,
   })  : _repo = repository,
         _session = session,
         _strings = strings,
@@ -32,6 +34,8 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
   }
 
   final String requestId;
+  final bool isSvhChat;
+  final String? svhManagerId;
   final RequestChatRepository _repo;
   final AuthSessionController _session;
   final JsonStringsService _strings;
@@ -80,7 +84,12 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
       return;
     }
     emit(state.copyWith(isLoading: true, error: null, isUnavailable: false));
-    final r = await _repo.loadMessages(requestId, limit: 100);
+    final r = await _repo.loadMessages(
+      requestId,
+      limit: 100,
+      isSvhChat: isSvhChat,
+      svhManagerId: svhManagerId,
+    );
     r.fold(
       (f) {
         if (f is ChatNotAvailableFailure) {
@@ -105,7 +114,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
   }
 
   void _connectWss() {
-    if (_session.isDemo) return;
+    if (_session.isDemo || isSvhChat) return;
     final t = _session.accessToken;
     if (t == null || t.isEmpty) return;
     if (_wss.isActive) return;
@@ -155,7 +164,12 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
     if (_session.isDemo || isClosed || _softRefreshInFlight) return;
     _softRefreshInFlight = true;
     try {
-      final r = await _repo.loadMessages(requestId, limit: 100);
+      final r = await _repo.loadMessages(
+        requestId,
+        limit: 100,
+        isSvhChat: isSvhChat,
+        svhManagerId: svhManagerId,
+      );
       if (isClosed) return;
       r.fold((_) {}, (raw) {
         final merged = _sortAndDedupe(<ChatMessage>[...state.messages, ...raw]);
@@ -224,7 +238,12 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
         // fallback HTTP
       }
     }
-    await _repo.markReadUpTo(requestId, upToMessageId: maxId);
+    await _repo.markReadUpTo(
+      requestId,
+      upToMessageId: maxId,
+      isSvhChat: isSvhChat,
+      svhManagerId: svhManagerId,
+    );
   }
 
   Future<void> send(String text) async {
@@ -279,6 +298,8 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
         text: t,
         clientMessageId: clientId,
         attachments: atts,
+        isSvhChat: isSvhChat,
+        svhManagerId: svhManagerId,
       );
       r.fold((f) => err = f, (s) {
         server = s;
@@ -336,6 +357,7 @@ final class RequestChatCubit extends Cubit<RequestChatState> {
       requestId,
       filePath: filePath,
       fileName: fileName,
+      isSvhChat: isSvhChat,
     );
     if (isClosed) return;
     r.fold(

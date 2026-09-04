@@ -64,23 +64,27 @@ class RequestDetailOwnerSection extends StatelessWidget {
           label: strings.requestDetailVehicle,
           value: item.displayCarLine,
           theme: theme,
+          emphasize: true,
         ),
       );
 
-    if ((item.engineSpec != null && item.engineSpec!.trim().isNotEmpty) ||
-        (item.engineVolume != null && item.engineVolume!.trim().isNotEmpty)) {
+    final engineSpec = item.engineSpec?.trim();
+    final engineVolume = item.engineVolume?.trim();
+    final hasSpec = engineSpec != null && engineSpec.isNotEmpty;
+    // «0» / «0.0» без спека — мусор в UI (часто приходит из 1С).
+    final hasVolume = engineVolume != null &&
+        engineVolume.isNotEmpty &&
+        engineVolume != '0' &&
+        engineVolume != '0.0' &&
+        engineVolume != '0,0';
+    if (hasSpec || hasVolume) {
       rows
         ..add(const Gap(14))
         ..add(
           _EngineLabeled(
             label: strings.requestDetailEngine,
-            specLine: item.engineSpec != null && item.engineSpec!.trim().isNotEmpty
-                ? item.engineSpec!.trim()
-                : null,
-            volumeLine:
-                item.engineVolume != null && item.engineVolume!.trim().isNotEmpty
-                    ? item.engineVolume!.trim()
-                    : null,
+            specLine: hasSpec ? engineSpec : null,
+            volumeLine: hasVolume ? engineVolume : null,
             theme: theme,
           ),
         );
@@ -111,30 +115,40 @@ class _LabeledValue extends StatelessWidget {
     required this.label,
     required this.value,
     required this.theme,
+    this.emphasize = false,
   });
 
   final String label;
   final String value;
   final ThemeData theme;
+  final bool emphasize;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-        ),
-        const Gap(4),
-        Text(
-          value,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w600,
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            textAlign: TextAlign.start,
+            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
           ),
-        ),
-      ],
+          const Gap(4),
+          Text(
+            value,
+            textAlign: TextAlign.start,
+            style: (emphasize
+                    ? theme.textTheme.titleMedium
+                    : theme.textTheme.bodyLarge)
+                ?.copyWith(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -155,8 +169,8 @@ class _EngineLabeled extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final parts = <String>[
-      if (specLine != null) specLine!,
-      if (volumeLine != null) volumeLine!,
+      ?specLine,
+      ?volumeLine,
     ];
     return _LabeledValue(
       label: label,

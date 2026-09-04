@@ -395,12 +395,54 @@ async function notifyOrgMessageFrom1C(fastify, dto) {
   });
 }
 
+/**
+ * Пуш по чату СВХ ↔ клиент.
+ * fromSvh=true → пуш клиенту; иначе → пуш СВХ-менеджеру.
+ */
+async function notifySvhChatMessage(fastify, dto) {
+  const requestId = String(dto.requestId || '');
+  const svhManagerId = String(dto.svhManagerId || '');
+  const req = requestRef(requestId);
+  const car = [dto.carMake, dto.carModel].map((x) => String(x || '').trim()).filter(Boolean).join(' ');
+  const bodyHint = clipText(dto.text || `${req}: новое сообщение`);
+  if (dto.fromSvh) {
+    const clientOrgId = Number(dto.clientOrgId);
+    return sendPushToOrganization(fastify, clientOrgId, {
+      title: 'Сообщение от менеджера СВХ',
+      body: bodyHint,
+      data: {
+        type: 'new_svh_message',
+        chatKind: 'svh',
+        requestId,
+        request_id: requestId,
+        id: requestId,
+        svhManagerId,
+        messageId: dto.messageId,
+      },
+    });
+  }
+  return sendPushToOrganization(fastify, Number(dto.svhManagerId), {
+    title: car ? `Ответ: ${car}` : 'Ответ клиента',
+    body: bodyHint,
+    data: {
+      type: 'new_svh_message',
+      chatKind: 'svh',
+      requestId,
+      request_id: requestId,
+      id: requestId,
+      svhManagerId,
+      messageId: dto.messageId,
+    },
+  });
+}
+
 module.exports = {
   sendPushToOrganization,
   notifyStateChangedFrom1C,
   notifyFilesChangedFrom1C,
   notifyMessageFrom1C,
   notifyOrgMessageFrom1C,
+  notifySvhChatMessage,
   buildStateChangeSummary,
   buildFilesChangeSummary,
   buildStatePushTitle,

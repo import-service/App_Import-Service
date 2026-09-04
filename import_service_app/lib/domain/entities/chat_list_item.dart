@@ -1,7 +1,9 @@
 import 'package:equatable/equatable.dart';
 
-/// Строка вкладки «Чаты»: заявка с доступным чатом (`external1cId`)
-/// или закреплённый общий чат организации (`kind == org`).
+/// Строка вкладки «Чаты»:
+/// - `org` — общий чат с 1С
+/// - `request` — чат заявки с менеджером 1С
+/// - `svh` — чат заявки с менеджером СВХ
 final class ChatListItem extends Equatable {
   const ChatListItem({
     required this.requestId,
@@ -9,6 +11,7 @@ final class ChatListItem extends Equatable {
     required this.carModel,
     required this.vin,
     this.kind = 'request',
+    this.svhManagerId,
     this.managerFullName,
     this.external1cId,
     this.lastText,
@@ -21,8 +24,10 @@ final class ChatListItem extends Equatable {
   static const String orgChatId = 'org';
 
   final String requestId;
-  /// `org` | `request`.
+  /// `org` | `request` | `svh`.
   final String kind;
+  /// Для `kind == svh` — organizations.id менеджера СВХ.
+  final String? svhManagerId;
   final String carMake;
   final String carModel;
   final String vin;
@@ -34,6 +39,17 @@ final class ChatListItem extends Equatable {
   final int unreadCount;
 
   bool get isOrgChat => kind == 'org' || requestId == orgChatId;
+  bool get isSvhChat => kind == 'svh';
+
+  /// Ключ непрочитанных / presence (у СВХ не пересекается с чатом 1С).
+  String get listKey {
+    if (isOrgChat) return orgChatId;
+    if (isSvhChat) {
+      final mid = (svhManagerId ?? '').trim();
+      return mid.isEmpty ? 'svh:$requestId' : 'svh:$requestId:$mid';
+    }
+    return requestId;
+  }
 
   String get displayCarLine {
     final a = carMake.trim();
@@ -55,9 +71,16 @@ final class ChatListItem extends Equatable {
     final id = idRaw == null ? '' : idRaw.toString();
     final kindRaw = _str(json, 'kind', 'kind').toLowerCase();
     final isOrg = kindRaw == 'org' || id == orgChatId;
+    final isSvh = kindRaw == 'svh';
+    final svhRaw = json['svhManagerId'] ?? json['svh_manager_id'];
     return ChatListItem(
       requestId: isOrg ? orgChatId : id,
-      kind: isOrg ? 'org' : (kindRaw.isEmpty ? 'request' : kindRaw),
+      kind: isOrg
+          ? 'org'
+          : isSvh
+              ? 'svh'
+              : (kindRaw.isEmpty ? 'request' : kindRaw),
+      svhManagerId: svhRaw == null ? null : svhRaw.toString(),
       carMake: _str(json, 'carMake', 'car_make'),
       carModel: _str(json, 'carModel', 'car_model'),
       vin: _str(json, 'vin', 'vin'),
@@ -65,7 +88,8 @@ final class ChatListItem extends Equatable {
       external1cId: _opt(json, 'external1cId', 'external_1c_id'),
       lastText: _opt(json, 'lastText', 'last_text'),
       lastAt: _dt(json['lastAt'] ?? json['last_at']),
-      unread: json['unread'] == true || _int(json['unreadCount'] ?? json['unread_count']) > 0,
+      unread: json['unread'] == true ||
+          _int(json['unreadCount'] ?? json['unread_count']) > 0,
       unreadCount: _int(json['unreadCount'] ?? json['unread_count']),
     );
   }
@@ -94,6 +118,7 @@ final class ChatListItem extends Equatable {
   List<Object?> get props => [
         requestId,
         kind,
+        svhManagerId,
         carMake,
         carModel,
         vin,

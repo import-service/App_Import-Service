@@ -28,28 +28,48 @@ import 'package:import_service_app/presentation/bloc/request_chat_unread/request
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 import 'package:intl/intl.dart';
 
-/// Маршрут: `/request/:id/chat` или `/org/chat` — REST+WSS; в демо: автоответ.
+/// Маршрут: `/request/:id/chat`, `/request/:id/svh-chat` или `/org/chat`.
 class RequestChatPage extends StatelessWidget {
   const RequestChatPage({
     super.key,
     required this.requestId,
     this.isOrgChat = false,
+    this.isSvhChat = false,
+    this.svhManagerId,
   });
 
   final String requestId;
   final bool isOrgChat;
+  final bool isSvhChat;
+  final String? svhManagerId;
 
   @override
   Widget build(BuildContext context) {
+    final session = sl<AuthSessionController>();
+    final resolvedSvhManagerId = isSvhChat
+        ? (svhManagerId?.trim().isNotEmpty == true
+            ? svhManagerId!.trim()
+            : (session.userId?.toString() ?? ''))
+        : null;
+    final presenceKey = isSvhChat
+        ? 'svh:$requestId:${resolvedSvhManagerId ?? ''}'
+        : requestId;
     return BlocProvider(
       create: (_) => RequestChatCubit(
         requestId: requestId,
+        isSvhChat: isSvhChat,
+        svhManagerId: resolvedSvhManagerId,
         repository: sl<RequestChatRepository>(),
-        session: sl<AuthSessionController>(),
+        session: session,
         strings: sl<JsonStringsService>(),
         wss: ChatBroadcastWssClient(),
       ),
-      child: _RequestChatView(requestId: requestId, isOrgChat: isOrgChat),
+      child: _RequestChatView(
+        requestId: requestId,
+        presenceKey: presenceKey,
+        isOrgChat: isOrgChat,
+        isSvhChat: isSvhChat,
+      ),
     );
   }
 }
@@ -57,11 +77,15 @@ class RequestChatPage extends StatelessWidget {
 class _RequestChatView extends StatefulWidget {
   const _RequestChatView({
     required this.requestId,
+    required this.presenceKey,
     this.isOrgChat = false,
+    this.isSvhChat = false,
   });
 
   final String requestId;
+  final String presenceKey;
   final bool isOrgChat;
+  final bool isSvhChat;
 
   @override
   State<_RequestChatView> createState() => _RequestChatViewState();
@@ -78,16 +102,16 @@ class _RequestChatViewState extends State<_RequestChatView> {
       if (!mounted) return;
       final cubit = context.read<RequestChatCubit>();
       sl<ChatScreenPresence>().enter(
-        widget.requestId,
+        widget.presenceKey,
         onLiveUpdate: () => unawaited(cubit.softRefreshFromServer()),
       );
     });
-    sl<RequestChatUnreadCubit>().clearUnread(widget.requestId);
+    sl<RequestChatUnreadCubit>().clearUnread(widget.presenceKey);
   }
 
   @override
   void dispose() {
-    sl<ChatScreenPresence>().leave(widget.requestId);
+    sl<ChatScreenPresence>().leave(widget.presenceKey);
     _controller.dispose();
     _scroll.dispose();
     super.dispose();
@@ -124,7 +148,11 @@ class _RequestChatViewState extends State<_RequestChatView> {
         }
       },
       builder: (context, cstate) {
-        final title = widget.isOrgChat ? s.orgChatTitle : s.chatPageTitle;
+        final title = widget.isOrgChat
+            ? s.orgChatTitle
+            : widget.isSvhChat
+                ? s.text('svhChatPageTitle')
+                : s.chatPageTitle;
         if (cstate.isLoading) {
           return Scaffold(
             backgroundColor: AppTheme.pageBackground,
@@ -459,7 +487,9 @@ class _RequestChatViewState extends State<_RequestChatView> {
                 color: AppTheme.textSecondary,
               ),
             ),
-            if (car.managerFullName != null && car.managerFullName!.trim().isNotEmpty) ...[
+            if (!widget.isSvhChat &&
+                car.managerFullName != null &&
+                car.managerFullName!.trim().isNotEmpty) ...[
               const Gap(4),
               Text(
                 '${s.requestDetailManager}: ${car.managerFullName!.trim()}',

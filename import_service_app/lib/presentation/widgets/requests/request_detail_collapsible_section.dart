@@ -93,9 +93,10 @@ class _RequestDetailCollapsibleSectionState
     final theme = Theme.of(context);
     const radius = 14.0;
     final urgent = widget.needsAction;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final sectionBg = urgent
-        ? AppTheme.accentRed.withValues(alpha: 0.06)
-        : const Color(0xFFF2F7FD);
+        ? AppTheme.accentRed.withValues(alpha: isDark ? 0.16 : 0.06)
+        : AppTheme.sectionTint;
     final borderColor = urgent
         ? AppTheme.accentRed.withValues(alpha: 0.55)
         : AppTheme.primaryBlue.withValues(alpha: 0.6);
@@ -133,6 +134,8 @@ class _RequestDetailCollapsibleSectionState
           onExpansionChanged: _onExpansionChanged,
           tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+          expandedAlignment: Alignment.centerLeft,
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
           shape: roundedClip,
           collapsedShape: roundedClip,
           leading: urgent

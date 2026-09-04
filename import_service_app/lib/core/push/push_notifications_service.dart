@@ -30,16 +30,18 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 }
 
-enum PushOpenKind { requestDetail, requestChat, orgChat }
+enum PushOpenKind { requestDetail, requestChat, orgChat, svhChat }
 
 final class PushOpenTarget {
   const PushOpenTarget({
     required this.requestId,
     required this.kind,
+    this.svhManagerId,
   });
 
   final String requestId;
   final PushOpenKind kind;
+  final String? svhManagerId;
 }
 
 /// FCM: auto-init выключен в манифесте; getToken — после GMS + повторы.
@@ -408,6 +410,9 @@ final class PushNotificationsService {
     final type = (data['type']?.trim().toLowerCase() ?? '');
     final event = (data['event']?.trim().toLowerCase() ?? '');
     final action = (data['action']?.trim().toLowerCase() ?? '');
+    final chatKind = (data['chatKind']?.trim().toLowerCase() ??
+        data['chat_kind']?.trim().toLowerCase() ??
+        '');
     if (_isOrgChatPushData(data)) {
       return const PushOpenTarget(
         requestId: ChatListItem.orgChatId,
@@ -416,6 +421,20 @@ final class PushNotificationsService {
     }
     final requestId = _readRequestId(data);
     if (requestId == null) return null;
+    final svhManagerId = (data['svhManagerId'] ?? data['svh_manager_id'])
+        ?.toString()
+        .trim();
+    if (type == 'new_svh_message' ||
+        event == 'new_svh_message' ||
+        chatKind == 'svh') {
+      return PushOpenTarget(
+        requestId: requestId,
+        kind: PushOpenKind.svhChat,
+        svhManagerId: (svhManagerId != null && svhManagerId.isNotEmpty)
+            ? svhManagerId
+            : null,
+      );
+    }
     final openChat = type == 'new_message' ||
         type == 'chat_message' ||
         event == 'new_message' ||

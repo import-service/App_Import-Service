@@ -41,8 +41,13 @@ bool requestChatAvailable({
   required String? external1cId,
   required String? managerFullName,
   bool isArchivedOffline = false,
+  bool forSvhManager = false,
 }) {
   if (isArchivedOffline) return false;
+  if (forSvhManager) {
+    // СВХ пишет в чат заявки напрямую; не ждём «менеджера клиента».
+    return status != RequestStatus.newRequest;
+  }
   if (status == RequestStatus.newRequest) return false;
   final hasExternal1c = external1cId != null && external1cId.trim().isNotEmpty;
   final hasManager = managerFullName != null && managerFullName.trim().isNotEmpty;

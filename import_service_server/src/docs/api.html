@@ -327,6 +327,20 @@
       </section>
 
       <section class="group">
+        <h2>Чат СВХ ↔ клиент</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/:id/svh-messages</code><span class="desc">История чата СВХ по заявке (отдельно от чата 1С).</span></summary>
+          <div class="body">
+            <p><b>Auth:</b> Bearer accessToken (клиент организации заявки или <code>role=svh_manager</code>).</p>
+            <p>Тред привязан к паре <code>requestId</code> + <code>svhManagerId</code> (id организации-менеджера СВХ). СВХ-менеджер видит/пишет только <b>свои</b> треды.</p>
+            <p>Клиент передаёт query <code>svhManagerId</code>. СВХ — без query (берётся из JWT <code>sub</code>).</p>
+            <p>Список на вкладке «Чаты»: у СВХ — только его треды (<code>kind: "svh"</code>); у клиента — вместе с чатами 1С, элементы <code>kind: "svh"</code>.</p>
+            <p>Связанные: <code>POST …/svh-messages</code>, <code>POST …/svh-messages/read</code>, <code>POST …/svh-messages/attachments</code>. Пуш: <code>type=new_svh_message</code>, <code>chatKind=svh</code>.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="group">
         <h2>Чат по заявке</h2>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/chats</code><span class="desc">Список чатов организации (МП, вкладка «Чаты»).</span></summary>
@@ -1520,26 +1534,31 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
 }</pre></div>
         </details>
         <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/svh-managers/:id</code><span class="desc">Карточка менеджера СВХ.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Success:</b> <code>{ "item": { … } }</code></p><p><b>Errors:</b> <code>404 NOT_FOUND</code></p></div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/svh-managers</code><span class="desc">Создать менеджера СВХ (вход в МП).</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Request:</b></p><pre>{
   "login": "svh1@site.ru",
   "password": "secret12",
   "fullName": "Иванов И.И.",
   "phone": "+79990001122"
-}</pre><p>Создаёт <code>organizations</code> с <code>role=svh_manager</code>, <code>id_1c=svh:{login}</code>. В 1С не уходит.</p><p><b>Errors:</b> <code>409 LOGIN_ALREADY_EXISTS</code></p></div>
+}</pre><p><code>login</code> — email (как в МП). Создаёт <code>organizations</code> с <code>role=svh_manager</code>, <code>id_1c=svh:{login}</code>. Письмо с логином/паролем на этот email. В 1С не уходит.</p><p><b>Success:</b> <code>{ "item": {…}, "emailSent": true }</code></p><p><b>Errors:</b> <code>409 LOGIN_ALREADY_EXISTS</code></p></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method patch">PATCH</span><code class="path">/api/admin/svh-managers/:id</code><span class="desc">Пароль / ФИО / телефон / active.</span></summary>
+          <summary class="summary"><span class="method patch">PATCH</span><code class="path">/api/admin/svh-managers/:id</code><span class="desc">Логин / пароль / ФИО / телефон / active.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Request:</b></p><pre>{
+  "login": "new@site.ru",
   "password": "newSecret",
   "fullName": "…",
   "phone": "…",
   "active": false
-}</pre><p><code>active: false</code> — soft-delete + отзыв сессий МП.</p></div>
+}</pre><p>При смене логина или пароля — письмо на актуальный email + отзыв сессий МП. <code>active: false</code> — soft-delete.</p><p><b>Success:</b> <code>{ "item": {…}, "emailSent": true|false }</code></p></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/svh-managers/:id</code><span class="desc">Отключить менеджера СВХ (soft-delete).</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Success:</b> <code>{ "ok": true }</code></p></div>
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/svh-managers/:id</code><span class="desc">Удалить менеджера СВХ из БД (hard-delete).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Физическое удаление строки <code>organizations</code> (сессии каскадом). Для отключения без удаления — <code>PATCH active: false</code>.</p><p><b>Success:</b> <code>{ "ok": true, "deleted": true }</code></p></div>
         </details>
       </section>
 

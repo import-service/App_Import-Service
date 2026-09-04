@@ -8,6 +8,7 @@ import 'package:import_service_app/data/local/request_detail_section_prefs.dart'
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/delivered_vehicle_document.dart';
+import 'package:import_service_app/domain/services/request_files_grouper.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/signing_upload_action_label.dart';
@@ -38,6 +39,7 @@ class RequestDetailFilesSections extends StatelessWidget {
     this.uploadReceiptLabel,
     this.onTransitPhotoTap,
     this.highlightedDocTypes = const {},
+    this.svhUploadMode = false,
   });
 
   final String requestId;
@@ -50,6 +52,8 @@ class RequestDetailFilesSections extends StatelessWidget {
   final String? uploadReceiptLabel;
   final void Function(String url)? onTransitPhotoTap;
   final Set<String> highlightedDocTypes;
+  /// Менеджер СВХ: загрузка car_*/transit_archive_*/add_doc*, без подписей/оплат.
+  final bool svhUploadMode;
 
   bool _isHighlighted(CustomsRequestFile file) {
     final code = normalizeDocType(file.docType ?? '');
@@ -97,15 +101,18 @@ class RequestDetailFilesSections extends StatelessWidget {
       sectionKey: RequestDetailSectionKeys.filesCreation,
       title: s.requestFilesSectionCreation,
       needsAction: false,
-      rows: grouped.creation
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-          .toList(),
+      rows: _buildCreationRows(
+        grouped: grouped,
+        s: s,
+        theme: theme,
+      ),
     );
 
     final signingRows = <Widget>[];
     for (final pair in grouped.signingPairs) {
       final targetType = pair.baseDocType.signedApiCode;
-      final canUpload = pair.canUploadSigned && onUploadDocType != null;
+      final canUpload =
+          !svhUploadMode && pair.canUploadSigned && onUploadDocType != null;
       final hasSigned = pair.signed != null;
       final hasOriginal = pair.original != null;
       final uploadLabel = signingUploadActionLabel(
@@ -285,7 +292,7 @@ class RequestDetailFilesSections extends StatelessWidget {
       buildFileRow: buildFileRow,
       strings: s,
       isHighlighted: _isHighlighted,
-      onUploadDocType: onUploadDocType,
+      onUploadDocType: svhUploadMode ? null : onUploadDocType,
       uploadingDocType: uploadingDocType,
       uploadReceiptLabelOverride: uploadReceiptLabel,
     );
@@ -293,7 +300,7 @@ class RequestDetailFilesSections extends StatelessWidget {
     addSection(
       sectionKey: RequestDetailSectionKeys.filesPayment,
       title: s.requestFilesSectionPayment,
-      needsAction: paymentSectionNeedsAction(item, grouped),
+      needsAction: svhUploadMode ? false : paymentSectionNeedsAction(item, grouped),
       rows: paymentRows,
     );
 
@@ -301,9 +308,11 @@ class RequestDetailFilesSections extends StatelessWidget {
       sectionKey: RequestDetailSectionKeys.filesTransit,
       title: s.requestFilesSectionTransitArchive,
       needsAction: false,
-      rows: grouped.transitArchive
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-          .toList(),
+      rows: _buildTransitRows(
+        grouped: grouped,
+        s: s,
+        theme: theme,
+      ),
     );
 
     addSection(
@@ -315,14 +324,17 @@ class RequestDetailFilesSections extends StatelessWidget {
           .toList(),
     );
 
-    if (grouped.other.isNotEmpty) {
+    final otherRows = _buildOtherRows(
+      grouped: grouped,
+      s: s,
+      theme: theme,
+    );
+    if (otherRows.isNotEmpty) {
       addSection(
         sectionKey: RequestDetailSectionKeys.filesOther,
         title: s.requestFilesSectionOther,
         needsAction: false,
-        rows: grouped.other
-            .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-            .toList(),
+        rows: otherRows,
       );
     }
 
@@ -331,6 +343,170 @@ class RequestDetailFilesSections extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
+    );
+  }
+
+  List<Widget> _buildCreationRows({
+    required RequestFilesGrouped grouped,
+    required JsonStringsService s,
+    required ThemeData theme,
+  }) {
+    if (!svhUploadMode || onUploadDocType == null) {
+      return grouped.creation
+          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
+          .toList();
+    }
+
+    final byCode = <String, CustomsRequestFile>{};
+    for (final f in grouped.creation) {
+      final code = normalizeDocType(f.docType);
+      byCode.putIfAbsent(code, () => f);
+    }
+
+    final rows = <Widget>[];
+    final used = <String>{};
+
+    for (final code in kSvhCreationUploadDocTypes) {
+      used.add(code);
+      final file = byCode[code];
+      rows.add(
+        _svhSlotGroup(
+          label: docTypeLabelForCode(code, s),
+          file: file,
+          docType: code,
+          s: s,
+          theme: theme,
+        ),
+      );
+    }
+
+    for (final f in grouped.creation) {
+      final code = normalizeDocType(f.docType);
+      if (used.contains(code)) continue;
+      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+    }
+    return rows;
+  }
+
+  List<Widget> _buildTransitRows({
+    required RequestFilesGrouped grouped,
+    required JsonStringsService s,
+    required ThemeData theme,
+  }) {
+    if (!svhUploadMode || onUploadDocType == null) {
+      return grouped.transitArchive
+          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
+          .toList();
+    }
+
+    final byCode = <String, CustomsRequestFile>{};
+    for (final f in grouped.transitArchive) {
+      final code = normalizeDocType(f.docType);
+      byCode.putIfAbsent(code, () => f);
+    }
+
+    final rows = <Widget>[];
+    final used = <String>{};
+    for (final code in kSvhTransitUploadDocTypes) {
+      used.add(code);
+      rows.add(
+        _svhSlotGroup(
+          label: '${s.text('docTransitArchivePhoto')} ${code.split('_').last}',
+          file: byCode[code],
+          docType: code,
+          s: s,
+          theme: theme,
+        ),
+      );
+    }
+    for (final f in grouped.transitArchive) {
+      final code = normalizeDocType(f.docType);
+      if (used.contains(code)) continue;
+      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+    }
+    return rows;
+  }
+
+  List<Widget> _buildOtherRows({
+    required RequestFilesGrouped grouped,
+    required JsonStringsService s,
+    required ThemeData theme,
+  }) {
+    if (!svhUploadMode || onUploadDocType == null) {
+      return grouped.other
+          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
+          .toList();
+    }
+
+    final byCode = <String, CustomsRequestFile>{};
+    for (final f in grouped.other) {
+      final code = normalizeDocType(f.docType);
+      byCode.putIfAbsent(code, () => f);
+    }
+
+    final rows = <Widget>[];
+    final used = <String>{};
+    for (final code in kSvhOtherUploadDocTypes) {
+      used.add(code);
+      rows.add(
+        _svhSlotGroup(
+          label: docTypeLabelForCode(code, s),
+          file: byCode[code],
+          docType: code,
+          s: s,
+          theme: theme,
+        ),
+      );
+    }
+    for (final f in grouped.other) {
+      final code = normalizeDocType(f.docType);
+      if (used.contains(code)) continue;
+      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+    }
+    return rows;
+  }
+
+  Widget _svhSlotGroup({
+    required String label,
+    required CustomsRequestFile? file,
+    required String docType,
+    required JsonStringsService s,
+    required ThemeData theme,
+  }) {
+    final uploadLabel = file == null
+        ? s.requestUploadDocFile(label)
+        : s.requestUploadDocAgain;
+    return RequestDetailDocUploadGroup(
+      highlight: file == null,
+      uploadLabel: uploadLabel,
+      uploadBusy: uploadingDocType == docType,
+      onUpload: () => onUploadDocType!(docType),
+      children: [
+        if (file != null)
+          buildFileRow(file, highlight: _isHighlighted(file), embedded: true)
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.photo_camera_outlined,
+                  color: AppTheme.primaryBlue,
+                  size: 22,
+                ),
+                const Gap(10),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

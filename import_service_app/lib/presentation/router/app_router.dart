@@ -10,7 +10,6 @@ import 'package:import_service_app/presentation/pages/request_chat_page.dart';
 import 'package:import_service_app/presentation/pages/home_page.dart';
 import 'package:import_service_app/presentation/pages/login_page.dart';
 import 'package:import_service_app/presentation/pages/svh_home_page.dart';
-import 'package:import_service_app/presentation/pages/svh_request_detail_page.dart';
 
 /// Корневой роутер. Новые маршруты добавляй в [routes].
 final GoRouter appRouter = GoRouter(
@@ -39,7 +38,10 @@ final GoRouter appRouter = GoRouter(
     }
     if (loggedIn &&
         isSvhManagerSession(session) &&
-        (path.startsWith('/request/') || path == '/org/chat')) {
+        path.startsWith('/request/') &&
+        !path.endsWith('/chat') &&
+        !path.contains('/chat') &&
+        !path.contains('/svh-chat')) {
       return '/svh-home';
     }
     return null;
@@ -71,7 +73,7 @@ final GoRouter appRouter = GoRouter(
       name: 'svhRequestDetail',
       builder: (BuildContext context, GoRouterState state) {
         final id = state.pathParameters['id'] ?? '';
-        return SvhRequestDetailPage(requestId: id);
+        return CarRequestDetailPage(requestId: id);
       },
     ),
     GoRoute(
@@ -81,6 +83,19 @@ final GoRouter appRouter = GoRouter(
         return const RequestChatPage(
           requestId: ChatListItem.orgChatId,
           isOrgChat: true,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/request/:id/svh-chat',
+      name: 'svhRequestChat',
+      builder: (BuildContext context, GoRouterState state) {
+        final id = state.pathParameters['id'] ?? '';
+        final mid = state.uri.queryParameters['svhManagerId'];
+        return RequestChatPage(
+          requestId: id,
+          isSvhChat: true,
+          svhManagerId: mid,
         );
       },
     ),

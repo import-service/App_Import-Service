@@ -6,8 +6,8 @@ import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 import 'package:uuid/uuid.dart';
 
-/// REST по чату: список `GET /customs-requests/chats`, история/отправка `…/:id/messages`
-/// или общий чат `org-chat/messages`.
+/// REST по чату: список `GET /customs-requests/chats`, история/отправка
+/// `…/:id/messages` | `…/:id/svh-messages` | `org-chat/messages`.
 final class RequestChatRemoteDataSource {
   RequestChatRemoteDataSource(this._dio);
 
@@ -16,19 +16,35 @@ final class RequestChatRemoteDataSource {
 
   static bool _isOrg(String requestId) => requestId == ChatListItem.orgChatId;
 
-  static String _messagesPath(String requestId) {
+  static String _messagesPath(
+    String requestId, {
+    required bool isSvhChat,
+  }) {
     if (_isOrg(requestId)) return 'org-chat/messages';
+    if (isSvhChat) {
+      return 'customs-requests/${Uri.encodeComponent(requestId)}/svh-messages';
+    }
     return 'customs-requests/${Uri.encodeComponent(requestId)}/messages';
   }
 
-  static String _readPath(String requestId) => '${_messagesPath(requestId)}/read';
+  static String _readPath(
+    String requestId, {
+    required bool isSvhChat,
+  }) =>
+      '${_messagesPath(requestId, isSvhChat: isSvhChat)}/read';
 
-  static String _attachPath(String requestId) =>
-      '${_messagesPath(requestId)}/attachments';
+  static String _attachPath(
+    String requestId, {
+    required bool isSvhChat,
+  }) =>
+      '${_messagesPath(requestId, isSvhChat: isSvhChat)}/attachments';
 
   static List<Map<String, dynamic>> _messageItemsFromResponse(dynamic data) {
     if (data is List<dynamic>) {
-      return data.map((e) => e is Map<String, dynamic> ? e : null).whereType<Map<String, dynamic>>().toList();
+      return data
+          .map((e) => e is Map<String, dynamic> ? e : null)
+          .whereType<Map<String, dynamic>>()
+          .toList();
     }
     if (data is! Map<String, dynamic>) {
       return <Map<String, dynamic>>[];
@@ -36,7 +52,10 @@ final class RequestChatRemoteDataSource {
     for (final key in <String>['items', 'data', 'results', 'messages', 'rows']) {
       final v = data[key];
       if (v is List<dynamic>) {
-        return v.map((e) => e is Map<String, dynamic> ? e : null).whereType<Map<String, dynamic>>().toList();
+        return v
+            .map((e) => e is Map<String, dynamic> ? e : null)
+            .whereType<Map<String, dynamic>>()
+            .toList();
       }
     }
     return <Map<String, dynamic>>[];
@@ -64,17 +83,24 @@ final class RequestChatRemoteDataSource {
     }
   }
 
-  /// Последние сверху — превращаем в список для сортировки `createdAt` ↓/↑.
   Future<List<ChatMessage>> getMessages(
     String requestId, {
     int limit = 50,
     int? beforeId,
+    bool isSvhChat = false,
+    String? svhManagerId,
   }) async {
-    final path = _messagesPath(requestId);
+    final path = _messagesPath(requestId, isSvhChat: isSvhChat);
     try {
       final q = <String, dynamic>{'limit': limit};
       if (beforeId != null) {
         q['beforeId'] = beforeId;
+      }
+      if (isSvhChat) {
+        final mid = svhManagerId?.trim();
+        if (mid != null && mid.isNotEmpty) {
+          q['svhManagerId'] = mid;
+        }
       }
       final response = await _dio.get<dynamic>(path, queryParameters: q);
       final data = response.data;
@@ -97,8 +123,10 @@ final class RequestChatRemoteDataSource {
     required String text,
     String? clientMessageId,
     List<ChatAttachment> attachments = const <ChatAttachment>[],
+    bool isSvhChat = false,
+    String? svhManagerId,
   }) async {
-    final path = _messagesPath(requestId);
+    final path = _messagesPath(requestId, isSvhChat: isSvhChat);
     final id = (clientMessageId != null && clientMessageId.isNotEmpty)
         ? clientMessageId
         : _uuid.v4();
@@ -106,6 +134,10 @@ final class RequestChatRemoteDataSource {
       final payload = <String, dynamic>{
         'text': text,
         'clientMessageId': id,
+        if (isSvhChat &&
+            svhManagerId != null &&
+            svhManagerId.trim().isNotEmpty)
+          'svhManagerId': int.tryParse(svhManagerId.trim()) ?? svhManagerId,
         if (attachments.isNotEmpty)
           'attachments': attachments
               .map(
@@ -152,12 +184,20 @@ final class RequestChatRemoteDataSource {
   Future<void> markRead(
     String requestId, {
     required int upToMessageId,
+    bool isSvhChat = false,
+    String? svhManagerId,
   }) async {
-    final path = _readPath(requestId);
+    final path = _readPath(requestId, isSvhChat: isSvhChat);
     try {
       await _dio.post<dynamic>(
         path,
-        data: <String, dynamic>{'upToMessageId': upToMessageId},
+        data: <String, dynamic>{
+          'upToMessageId': upToMessageId,
+          if (isSvhChat &&
+              svhManagerId != null &&
+              svhManagerId.trim().isNotEmpty)
+            'svhManagerId': int.tryParse(svhManagerId.trim()) ?? svhManagerId,
+        },
       );
     } on DioException catch (e, st) {
       final mapped = ErrorHandler.handle(e);
@@ -174,8 +214,9 @@ final class RequestChatRemoteDataSource {
     String requestId, {
     required String filePath,
     String? fileName,
+    bool isSvhChat = false,
   }) async {
-    final path = _attachPath(requestId);
+    final path = _attachPath(requestId, isSvhChat: isSvhChat);
     final name = (fileName != null && fileName.trim().isNotEmpty)
         ? fileName.trim()
         : filePath.split(RegExp(r'[\\/]')).last;

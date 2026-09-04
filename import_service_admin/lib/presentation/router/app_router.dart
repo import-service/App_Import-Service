@@ -1,8 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:import_service_admin/core/auth/auth_session_controller.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/navigation/router_keys.dart';
 import 'package:import_service_admin/presentation/pages/admins_page.dart';
+import 'package:import_service_admin/presentation/pages/svh_manager_detail_page.dart';
 import 'package:import_service_admin/presentation/pages/svh_managers_page.dart';
 import 'package:import_service_admin/presentation/pages/broadcast_page.dart';
 import 'package:import_service_admin/presentation/pages/client_errors_page.dart';
@@ -99,6 +101,21 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/svh-managers',
               builder: (context, state) => const SvhManagersPage(),
+              routes: [
+                GoRoute(
+                  path: ':id',
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (context, state) {
+                    final id = int.tryParse(state.pathParameters['id'] ?? '');
+                    if (id == null || id <= 0) {
+                      return const Scaffold(
+                        body: Center(child: Text('Некорректный id')),
+                      );
+                    }
+                    return SvhManagerDetailPage(managerId: id);
+                  },
+                ),
+              ],
             ),
           ],
         ),

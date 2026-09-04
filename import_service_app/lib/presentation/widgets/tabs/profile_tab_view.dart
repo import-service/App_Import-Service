@@ -30,6 +30,9 @@ class ProfileTabView extends StatefulWidget {
     required this.logoutLabel,
     required this.onLogout,
     this.isPersonApplicant = false,
+    this.showInn = true,
+    this.showManager = true,
+    this.showCompany = true,
     this.companyName,
     this.inn,
     this.phone,
@@ -49,6 +52,12 @@ class ProfileTabView extends StatefulWidget {
   final VoidCallback onLogout;
   /// Заявитель — физическое лицо: без строки «Название компании».
   final bool isPersonApplicant;
+  /// Скрыть ИНН (профиль менеджера СВХ).
+  final bool showInn;
+  /// Скрыть строку менеджера 1С.
+  final bool showManager;
+  /// Показать название компании (для юрлица клиента).
+  final bool showCompany;
   final String? companyName;
   final String? inn;
   final String? phone;
@@ -141,13 +150,15 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (!widget.isPersonApplicant &&
+                          if (widget.showCompany &&
+                              !widget.isPersonApplicant &&
                               (widget.companyName ?? '').trim().isNotEmpty)
                             ProfileMetaRow(
                               label: widget.companyLabel,
                               value: widget.companyName!.trim(),
                             ),
-                          if ((widget.inn ?? '').trim().isNotEmpty)
+                          if (widget.showInn &&
+                              (widget.inn ?? '').trim().isNotEmpty)
                             ProfileMetaRow(
                               label: widget.innLabel,
                               value: InnInputFormatter.formatDigits(
@@ -156,12 +167,14 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                                     widget.inn!.trim().length == 12 ? 12 : 10,
                               ),
                             ),
-                          if ((widget.managerName ?? '').trim().isNotEmpty)
+                          if (widget.showManager &&
+                              (widget.managerName ?? '').trim().isNotEmpty)
                             ProfileMetaRow(
                               label: widget.managerLabel,
                               value: widget.managerName!.trim(),
                             ),
-                          if ((widget.phone ?? '').trim().isNotEmpty)
+                          if ((widget.phone ?? '').trim().isNotEmpty &&
+                              widget.phone!.trim() != '-')
                             ProfileMetaRow(
                               label: widget.phoneLabel,
                               value: PhoneRuInputFormatter.formatDisplay(

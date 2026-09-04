@@ -129,6 +129,7 @@ async function buildApp() {
     await instance.register(require('./routes/registration'));
     await instance.register(require('./routes/customsRequests'));
     await instance.register(require('./routes/customsRequestChat'));
+    await instance.register(require('./routes/svhChat'));
     await instance.register(require('./routes/orgChat'));
     await instance.register(require('./routes/push'));
     await instance.register(require('./routes/storeVersions'));

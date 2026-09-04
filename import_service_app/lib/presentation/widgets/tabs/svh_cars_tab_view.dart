@@ -86,11 +86,12 @@ class SvhCarsTabViewState extends State<SvhCarsTabView> {
     final s = sl<JsonStringsService>();
     final raw = _searchController.text.trim();
     final vinHint = extractVinFromScanPayload(raw);
+    // Скан/вставка: сначала точный VIN, иначе полный текст в q (как в строке поиска).
     final result = await sl<CarsRepository>().listVehicles(
       limit: _pageSize,
       offset: reset ? 0 : _items.length,
-      vin: vinHint,
-      q: vinHint == null && raw.isNotEmpty ? raw : null,
+      vin: vinHint ?? (raw.length >= 8 ? raw : null),
+      q: vinHint == null && raw.isNotEmpty && raw.length < 8 ? raw : null,
       syncInventory: false,
     );
 
@@ -152,6 +153,7 @@ class SvhCarsTabViewState extends State<SvhCarsTabView> {
           child: AppSearchBarField(
             controller: _searchController,
             hintText: strings.text('svhCarsSearchHint'),
+            clearTooltip: strings.carsSearchClearA11y,
             onChanged: _onSearchChanged,
           ),
         ),

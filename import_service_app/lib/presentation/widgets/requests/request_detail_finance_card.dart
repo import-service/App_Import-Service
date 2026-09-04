@@ -12,17 +12,17 @@ class RequestDetailFinanceCard extends StatelessWidget {
     required this.line,
     required this.label,
     required this.receiptCaption,
-    required this.uploadLabel,
+    this.uploadLabel,
     this.openReceiptLabel = 'Чек',
-    required this.onUploadTap,
+    this.onUploadTap,
   });
 
   final VehicleFinanceItem line;
   final String label;
   final String receiptCaption;
-  final String uploadLabel;
+  final String? uploadLabel;
   final String openReceiptLabel;
-  final VoidCallback onUploadTap;
+  final VoidCallback? onUploadTap;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +160,9 @@ class RequestDetailFinanceCard extends StatelessWidget {
                 ),
               ),
             ),
-          ] else
+          ] else if (onUploadTap != null &&
+              uploadLabel != null &&
+              uploadLabel!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Material(
@@ -181,7 +183,7 @@ class RequestDetailFinanceCard extends StatelessWidget {
                         ),
                         const Gap(6),
                         Text(
-                          uploadLabel,
+                          uploadLabel!,
                           style: t.textTheme.labelLarge?.copyWith(
                             color: AppTheme.textPrimary,
                             fontWeight: FontWeight.w600,
