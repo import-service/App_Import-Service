@@ -4,22 +4,34 @@ import 'package:import_service_app/presentation/bloc/request_chat_unread/request
 final class RequestChatUnreadCubit extends Cubit<RequestChatUnreadState> {
   RequestChatUnreadCubit() : super(const RequestChatUnreadState(requestIds: {}));
 
+  /// Локально прочитанные: не возвращать точку из `replaceFromServer`, пока не придёт
+  /// новый `markUnread` (push / новое сообщение).
+  final Set<String> _clearedSuppress = {};
+
   void markUnread(String requestId) {
     final id = requestId.trim();
-    if (id.isEmpty || state.requestIds.contains(id)) return;
+    if (id.isEmpty) return;
+    _clearedSuppress.remove(id);
+    if (state.requestIds.contains(id)) return;
     emit(RequestChatUnreadState(requestIds: {...state.requestIds, id}));
   }
 
   void clearUnread(String requestId) {
     final id = requestId.trim();
-    if (id.isEmpty || !state.requestIds.contains(id)) return;
+    if (id.isEmpty) return;
+    _clearedSuppress.add(id);
+    if (!state.requestIds.contains(id)) return;
     final next = {...state.requestIds}..remove(id);
     emit(RequestChatUnreadState(requestIds: next));
   }
 
   /// Источник правды с сервера (`GET /customs-requests/chats`).
+  /// Не реанимирует id из [_clearedSuppress] (открыли чат, markRead ещё не догнал).
   void replaceFromServer(Set<String> requestIds) {
-    final next = requestIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    final fromServer =
+        requestIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    _clearedSuppress.removeWhere((id) => !fromServer.contains(id));
+    final next = fromServer.difference(_clearedSuppress);
     if (next.length == state.requestIds.length &&
         next.containsAll(state.requestIds)) {
       return;
@@ -28,6 +40,7 @@ final class RequestChatUnreadCubit extends Cubit<RequestChatUnreadState> {
   }
 
   void clearAll() {
+    _clearedSuppress.clear();
     if (state.requestIds.isEmpty) return;
     emit(const RequestChatUnreadState(requestIds: {}));
   }

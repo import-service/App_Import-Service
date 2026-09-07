@@ -2,7 +2,7 @@ name: import_service_app
 description: "A new Flutter project."
 publish_to: 'none'
 # com.importservice.app
-version: 1.0.31+31
+version: 1.0.32+32
 
 environment:
   sdk: ^3.11.1
@@ -49,6 +49,7 @@ dependencies:
   google_api_availability: ^5.0.1
   package_info_plus: ^9.0.1
   mobile_scanner: ^7.4.0
+  pdf: ^3.13.0
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +63,7 @@ flutter:
     - assets/logo.png
     - assets/i18n/
     - assets/images/
+    - assets/fonts/Roboto-Regular.ttf
 
 flutter_launcher_icons:
   android: true

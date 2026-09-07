@@ -303,7 +303,7 @@ final class CarsRepositoryImpl implements CarsRepository {
       return const Right(null);
     }
     try {
-      const seed = DefaultCarsSeed.items;
+      final seed = DefaultCarsSeed.items;
       await _carInventory.replaceAll(List<CarListItem>.from(seed));
       return const Right(null);
     } catch (e) {

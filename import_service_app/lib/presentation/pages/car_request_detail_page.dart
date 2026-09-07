@@ -18,6 +18,8 @@ import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/themes/request_status_list_style.dart';
+import 'package:import_service_app/data/demo/demo_pdf_factory.dart';
+import 'package:import_service_app/data/demo/demo_seed_files.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
@@ -556,7 +558,21 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
               title: d.title,
               downloadUrl: d.downloadUrl,
-              onOpenFailed: () async => _onDocumentOpenFailed(),
+              onOpenFailed: () async {
+                if (sl<AuthSessionController>().isDemo ||
+                    isDemoRequestFileUrl(d.downloadUrl)) {
+                  await _openDemoGeneratedPdf(
+                    CustomsRequestFile(
+                      docType: 'epts',
+                      fileName: '${d.title}.pdf',
+                      mimeType: 'application/pdf',
+                      fileUrl: d.downloadUrl,
+                    ),
+                  );
+                  return;
+                }
+                _onDocumentOpenFailed();
+              },
             ),
             buildFileRow: (f, {required highlight, badge, embedded = false}) {
               return _buildServerFileRow(
@@ -604,6 +620,13 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   }
 
   Future<void> _openRequestFile(CustomsRequestFile file) async {
+    final demoMode = sl<AuthSessionController>().isDemo ||
+        isDemoRequestFileUrl(file.fileUrl);
+    if (demoMode) {
+      await _openDemoGeneratedPdf(file);
+      return;
+    }
+
     final resolved = _resolveFileUrl(requestFileFullUrl(file));
     if (resolved == null || resolved.isEmpty) {
       _onDocumentOpenFailed();
@@ -663,6 +686,35 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     }
 
     _onDocumentOpenFailed();
+  }
+
+  Future<void> _openDemoGeneratedPdf(CustomsRequestFile file) async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final title = docTypeLabel(file, sl<JsonStringsService>());
+      final path = await buildDemoPlaceholderPdf(
+        docType: file.docType ?? 'document',
+        title: title,
+      );
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => RequestPdfViewerPage(
+            filePath: path,
+            title: title,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) _onDocumentOpenFailed();
+    }
   }
 
   void _openImageCarousel(List<CustomsRequestFile> images, int selectedIndex) {

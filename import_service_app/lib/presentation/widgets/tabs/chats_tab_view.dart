@@ -67,7 +67,7 @@ class ChatsTabView extends StatelessWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final item = listState.items[index];
-        final hasUnread = unreadState.has(item.listKey) || item.unread;
+        final hasUnread = unreadState.has(item.listKey);
         return ChatListCard(
           item: item,
           hasUnread: hasUnread,
