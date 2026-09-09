@@ -368,14 +368,14 @@ final class CarsRepositoryImpl implements CarsRepository {
       );
       await _carInventory.upsertItem(updated);
       final refreshed = await getVehicle(requestId);
-      return refreshed.fold(
+      return refreshed.fold<Either<Failure, CarListItem>>(
         (_) => Right(updated),
         (item) => Right(item),
       );
     } on ServerException catch (e) {
       AppLog.error('attachRequestFile', error: e, tag: 'CarsRepo');
       final recovered = await getVehicle(requestId);
-      return recovered.fold(
+      return recovered.fold<Either<Failure, CarListItem>>(
         (_) => Left(ServerFailure(e.message)),
         (item) {
           if (_itemHasDocType(item, normalized)) {
@@ -386,6 +386,83 @@ final class CarsRepositoryImpl implements CarsRepository {
       );
     } catch (e, st) {
       AppLog.error('attachRequestFile', error: e, stackTrace: st, tag: 'CarsRepo');
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, CarListItem>> attachRequestFiles({
+    required String requestId,
+    required List<RequestFileUploadEntry> items,
+  }) async {
+    if (items.isEmpty) {
+      return const Left(CacheFailure('Нет файлов для загрузки'));
+    }
+    try {
+      if (_session.isDemo) {
+        await Future<void>.delayed(_networkLatency);
+        CarListItem? current;
+        for (final e in _carInventory.items) {
+          if (e.id == requestId) {
+            current = e;
+            break;
+          }
+        }
+        if (current == null) {
+          return const Left(CacheFailure('Заявка не найдена'));
+        }
+        var updated = current;
+        for (final entry in items) {
+          final normalized = normalizeDocType(entry.docType);
+          if (normalized.isEmpty) continue;
+          final sizeKey = requestFileSizeLimitMessageKey(
+            entry.localPath,
+            docType: normalized,
+          );
+          if (sizeKey != null) {
+            return Left(CacheFailure(sizeKey));
+          }
+          updated = _demoAttachFile(
+            item: updated,
+            docType: normalized,
+            localPath: entry.localPath,
+            fileName: p.basename(entry.localPath),
+          );
+        }
+        await _carInventory.upsertItem(updated);
+        return Right(updated);
+      }
+      final normalizedItems = <RequestFileUploadEntry>[];
+      for (final entry in items) {
+        final normalized = normalizeDocType(entry.docType);
+        if (normalized.isEmpty) continue;
+        final sizeKey = requestFileSizeLimitMessageKey(
+          entry.localPath,
+          docType: normalized,
+        );
+        if (sizeKey != null) {
+          return Left(CacheFailure(sizeKey));
+        }
+        normalizedItems.add((docType: normalized, localPath: entry.localPath));
+      }
+      if (normalizedItems.isEmpty) {
+        return const Left(CacheFailure('Нет файлов для загрузки'));
+      }
+      final updated = await _remoteDataSource.attachRequestFiles(
+        requestId: requestId,
+        items: normalizedItems,
+      );
+      await _carInventory.upsertItem(updated);
+      final refreshed = await getVehicle(requestId);
+      return refreshed.fold<Either<Failure, CarListItem>>(
+        (_) => Right(updated),
+        (item) => Right(item),
+      );
+    } on ServerException catch (e) {
+      AppLog.error('attachRequestFiles', error: e, tag: 'CarsRepo');
+      return Left(ServerFailure(e.message));
+    } catch (e, st) {
+      AppLog.error('attachRequestFiles', error: e, stackTrace: st, tag: 'CarsRepo');
       return Left(CacheFailure(e.toString()));
     }
   }

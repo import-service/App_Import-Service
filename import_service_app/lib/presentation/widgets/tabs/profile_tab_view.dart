@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
@@ -38,6 +39,7 @@ class ProfileTabView extends StatefulWidget {
     this.phone,
     this.email,
     this.managerName,
+    this.onProfileUpdated,
   });
 
   final bool isDemo;
@@ -63,6 +65,7 @@ class ProfileTabView extends StatefulWidget {
   final String? phone;
   final String? email;
   final String? managerName;
+  final VoidCallback? onProfileUpdated;
 
   @override
   State<ProfileTabView> createState() => _ProfileTabViewState();
@@ -70,6 +73,7 @@ class ProfileTabView extends StatefulWidget {
 
 class _ProfileTabViewState extends State<ProfileTabView> {
   String? _versionLabel;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -84,8 +88,113 @@ class _ProfileTabViewState extends State<ProfileTabView> {
       setState(() {
         _versionLabel = '${info.version}+${info.buildNumber}';
       });
-    } catch (_) {
-      // версия опциональна
+    } catch (_) {}
+  }
+
+  String _displayOrEmpty(String? raw, JsonStringsService s) {
+    final v = (raw ?? '').trim();
+    if (v.isEmpty || v == '-') return s.text('profileEmptyValue');
+    return v;
+  }
+
+  Future<void> _openEditSheet() async {
+    if (widget.isDemo || _saving) return;
+    final s = sl<JsonStringsService>();
+    final companyCtrl = TextEditingController(text: (widget.companyName ?? '').trim());
+    final innCtrl = TextEditingController(text: (widget.inn ?? '').trim());
+    final phoneCtrl = TextEditingController(text: (widget.phone ?? '').trim());
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 8,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                s.text('profileEditTitle'),
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              if (widget.showCompany && !widget.isPersonApplicant) ...[
+                TextField(
+                  controller: companyCtrl,
+                  decoration: InputDecoration(labelText: widget.companyLabel),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (widget.showInn) ...[
+                TextField(
+                  controller: innCtrl,
+                  decoration: InputDecoration(labelText: widget.innLabel),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [InnInputFormatter(maxDigits: 12)],
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+              ],
+              TextField(
+                controller: phoneCtrl,
+                decoration: InputDecoration(labelText: widget.phoneLabel),
+                keyboardType: TextInputType.phone,
+                inputFormatters: [PhoneRuInputFormatter()],
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(s.text('profileSaveButton')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (saved != true || !mounted) {
+      companyCtrl.dispose();
+      innCtrl.dispose();
+      phoneCtrl.dispose();
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await sl<AuthService>().updateProfile(
+        companyName: widget.showCompany && !widget.isPersonApplicant
+            ? companyCtrl.text.trim()
+            : null,
+        inn: widget.showInn ? innCtrl.text.replaceAll(RegExp(r'\D'), '') : null,
+        phone: phoneCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      sl<AppFeedbackService>().show(
+        s.text('profileSaved'),
+        kind: AppFeedbackKind.success,
+      );
+      widget.onProfileUpdated?.call();
+    } catch (e) {
+      if (!mounted) return;
+      sl<AppFeedbackService>().show(
+        e.toString(),
+        kind: AppFeedbackKind.error,
+      );
+    } finally {
+      companyCtrl.dispose();
+      innCtrl.dispose();
+      phoneCtrl.dispose();
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -150,22 +259,24 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (widget.showCompany &&
-                              !widget.isPersonApplicant &&
-                              (widget.companyName ?? '').trim().isNotEmpty)
+                          if (widget.showCompany && !widget.isPersonApplicant)
                             ProfileMetaRow(
                               label: widget.companyLabel,
-                              value: widget.companyName!.trim(),
+                              value: _displayOrEmpty(widget.companyName, s),
                             ),
-                          if (widget.showInn &&
-                              (widget.inn ?? '').trim().isNotEmpty)
+                          if (widget.showInn)
                             ProfileMetaRow(
                               label: widget.innLabel,
-                              value: InnInputFormatter.formatDigits(
-                                widget.inn!.trim(),
-                                maxDigits:
-                                    widget.inn!.trim().length == 12 ? 12 : 10,
-                              ),
+                              value: () {
+                                final inn = (widget.inn ?? '').trim();
+                                if (inn.isEmpty) {
+                                  return s.text('profileEmptyValue');
+                                }
+                                return InnInputFormatter.formatDigits(
+                                  inn,
+                                  maxDigits: inn.length == 12 ? 12 : 10,
+                                );
+                              }(),
                             ),
                           if (widget.showManager &&
                               (widget.managerName ?? '').trim().isNotEmpty)
@@ -173,19 +284,26 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                               label: widget.managerLabel,
                               value: widget.managerName!.trim(),
                             ),
-                          if ((widget.phone ?? '').trim().isNotEmpty &&
-                              widget.phone!.trim() != '-')
-                            ProfileMetaRow(
-                              label: widget.phoneLabel,
-                              value: PhoneRuInputFormatter.formatDisplay(
-                                widget.phone,
-                              ),
-                            ),
+                          ProfileMetaRow(
+                            label: widget.phoneLabel,
+                            value: () {
+                              final phone = (widget.phone ?? '').trim();
+                              if (phone.isEmpty || phone == '-') {
+                                return s.text('profileEmptyValue');
+                              }
+                              return PhoneRuInputFormatter.formatDisplay(phone);
+                            }(),
+                          ),
                           if ((widget.email ?? '').trim().isNotEmpty)
                             ProfileMetaRow(
                               label: widget.emailLabel,
                               value: widget.email!.trim(),
                             ),
+                          const SizedBox(height: 12),
+                          AppPrimaryOutlinedWideButton(
+                            label: s.text('profileEditButton'),
+                            onPressed: _saving ? null : _openEditSheet,
+                          ),
                         ],
                       ),
               ),

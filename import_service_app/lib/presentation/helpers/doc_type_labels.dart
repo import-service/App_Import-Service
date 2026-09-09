@@ -1,8 +1,19 @@
+import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
-import 'package:import_service_app/domain/entities/customs_doc_type.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 
+String? _svhCarGalleryLabel(String? rawDocType, JsonStringsService s) {
+  final c = normalizeDocType(rawDocType);
+  final m = RegExp(r'^svh_car_photo_(\d+)$').firstMatch(c);
+  if (m == null) return null;
+  return s
+      .text('requestFilesSectionSvhCarGalleryItem')
+      .replaceAll('{n}', m.group(1)!);
+}
+
 String docTypeLabel(CustomsRequestFile file, JsonStringsService s) {
+  final gallery = _svhCarGalleryLabel(file.docType, s);
+  if (gallery != null) return gallery;
   final (type, signed) = CustomsDocType.parseWithSign(file.docType);
   if (type == null) {
     final name = file.fileName?.trim() ?? '';
@@ -15,6 +26,8 @@ String docTypeLabel(CustomsRequestFile file, JsonStringsService s) {
 }
 
 String docTypeLabelForCode(String code, JsonStringsService s, {String? fileName}) {
+  final gallery = _svhCarGalleryLabel(code, s);
+  if (gallery != null) return gallery;
   final (type, signed) = CustomsDocType.parseWithSign(code);
   if (type == null) {
     final name = fileName?.trim() ?? '';

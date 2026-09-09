@@ -86,3 +86,24 @@ Future<String?> pickRequestDocumentPath(BuildContext context) async {
     ),
   );
 }
+
+/// Мультивыбор фото из галереи устройства (для СВХ «Фото машины»).
+Future<List<String>> pickMultipleImagePaths({
+  required int maxCount,
+}) async {
+  if (maxCount <= 0) return const [];
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.image,
+    allowMultiple: true,
+    withData: false,
+  );
+  if (result == null || result.files.isEmpty) return const [];
+  final paths = <String>[];
+  for (final f in result.files) {
+    final p = f.path;
+    if (p == null || p.isEmpty) continue;
+    paths.add(p);
+    if (paths.length >= maxCount) break;
+  }
+  return paths;
+}

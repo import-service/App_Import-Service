@@ -17,7 +17,8 @@ import 'package:import_service_app/presentation/helpers/request_status_labels.da
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/chips/request_status_pill.dart';
 
-/// Карточка заявки для менеджера СВХ: просмотр + upload фото/архива (без правки полей).
+/// Устаревшая карточка СВХ (роутер ведёт на [CarRequestDetailPage]).
+/// Оставлена для совместимости: галерея + архив, без слотов «спереди/сзади».
 class SvhRequestDetailPage extends StatefulWidget {
   const SvhRequestDetailPage({super.key, required this.requestId});
 
@@ -28,11 +29,7 @@ class SvhRequestDetailPage extends StatefulWidget {
 }
 
 class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
-  static const _uploadSlots = <({String docType, String labelRu})>[
-    (docType: 'car_nameplate_photo', labelRu: 'Фото шильдика (VIN)'),
-    (docType: 'car_mileage_photo', labelRu: 'Фото пробега'),
-    (docType: 'car_front_photo', labelRu: 'Фото спереди'),
-    (docType: 'car_back_photo', labelRu: 'Фото сзади'),
+  static const _archiveSlots = <({String docType, String labelRu})>[
     (docType: 'transit_archive_photo_1', labelRu: 'Архив фото 1'),
     (docType: 'transit_archive_photo_2', labelRu: 'Архив фото 2'),
     (docType: 'transit_archive_photo_3', labelRu: 'Архив фото 3'),
@@ -44,6 +41,7 @@ class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
   bool _loading = true;
   String? _error;
   String? _uploadingDocType;
+  bool _uploadingGallery = false;
 
   @override
   void initState() {
@@ -71,9 +69,75 @@ class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
     );
   }
 
+  int get _galleryCount =>
+      _item?.files.where((f) => isSvhCarGalleryDocType(f.docType)).length ?? 0;
+
+  Future<void> _attachGallery() async {
+    final item = _item;
+    if (item == null || _uploadingDocType != null || _uploadingGallery) return;
+    final remaining = kSvhCarGalleryMaxPhotos - _galleryCount;
+    if (remaining <= 0) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('requestFilesSectionSvhCarGalleryFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+    final paths = await pickMultipleImagePaths(maxCount: remaining);
+    if (!mounted || paths.isEmpty) return;
+    final s = sl<JsonStringsService>();
+    final indices = nextSvhCarGalleryIndices(
+      existingDocTypes: item.files.map((f) => f.docType),
+      count: paths.length,
+    );
+    if (indices.isEmpty) {
+      sl<AppFeedbackService>().show(
+        s.text('requestFilesSectionSvhCarGalleryFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+    final entries = <({String docType, String localPath})>[];
+    for (var i = 0; i < indices.length && i < paths.length; i++) {
+      final docType = svhCarGalleryDocType(indices[i]);
+      final path = paths[i];
+      final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
+      if (sizeKey != null) {
+        sl<AppFeedbackService>().show(s.text(sizeKey), kind: AppFeedbackKind.warning);
+        return;
+      }
+      entries.add((docType: docType, localPath: path));
+    }
+    if (entries.isEmpty) return;
+    setState(() => _uploadingGallery = true);
+    final result = await sl<CarsRepository>().attachRequestFiles(
+      requestId: item.id,
+      items: entries,
+    );
+    if (!mounted) return;
+    setState(() => _uploadingGallery = false);
+    await result.fold(
+      (failure) async {
+        final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
+        sl<AppFeedbackService>().show(
+          sizeMsg ?? requestAttachFailureMessage(failure.message, s),
+          kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+        );
+        await _load();
+      },
+      (_) async {
+        sl<AppFeedbackService>().show(
+          s.requestFileAttachSuccess,
+          kind: AppFeedbackKind.success,
+        );
+        await _load();
+      },
+    );
+  }
+
   Future<void> _attach(String docType) async {
     final item = _item;
-    if (item == null || _uploadingDocType != null) return;
+    if (item == null || _uploadingDocType != null || _uploadingGallery) return;
     final path = await pickRequestDocumentPath(context);
     if (!mounted || path == null || path.isEmpty) return;
     final s = sl<JsonStringsService>();
@@ -142,6 +206,8 @@ class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
   Widget _buildContent(JsonStringsService s) {
     final item = _item!;
     final theme = Theme.of(context);
+    final galleryCount = _galleryCount;
+    final galleryFull = galleryCount >= kSvhCarGalleryMaxPhotos;
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -179,6 +245,33 @@ class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
           ],
           const Gap(24),
           Text(
+            s.requestFilesSectionSvhCarGallery,
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const Gap(4),
+          Text(
+            s
+                .text('requestFilesSectionSvhCarGalleryCount')
+                .replaceAll('{count}', '$galleryCount')
+                .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
+            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+          ),
+          const Gap(8),
+          OutlinedButton.icon(
+            onPressed: galleryFull || _uploadingGallery || _uploadingDocType != null
+                ? null
+                : _attachGallery,
+            icon: _uploadingGallery
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_a_photo_outlined),
+            label: Text(s.text('requestFilesSectionSvhCarGalleryAdd')),
+          ),
+          const Gap(24),
+          Text(
             s.text('svhRequestUploadSection'),
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
@@ -188,12 +281,12 @@ class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
             style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
           ),
           const Gap(12),
-          for (final slot in _uploadSlots) ...[
+          for (final slot in _archiveSlots) ...[
             _UploadSlotTile(
               label: slot.labelRu,
               hasFile: _hasFile(slot.docType),
               uploading: _uploadingDocType == slot.docType,
-              enabled: _uploadingDocType == null,
+              enabled: _uploadingDocType == null && !_uploadingGallery,
               onAdd: () => _attach(slot.docType),
             ),
             const Gap(8),

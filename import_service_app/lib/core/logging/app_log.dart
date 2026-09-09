@@ -25,11 +25,13 @@ abstract final class AppLog {
   }
 
   /// Ошибки, сбои, `catch` в data/domain - через easylogger.
+  /// [reportRemote]: false — не слать в client-errors (ожидаемые 401 логина и т.п.).
   static void error(
     Object? message, {
     String? tag,
     Object? error,
     StackTrace? stackTrace,
+    bool reportRemote = true,
   }) {
     final b = StringBuffer(message ?? 'Error');
     if (error != null) {
@@ -39,6 +41,7 @@ abstract final class AppLog {
       b.write('\n$stackTrace');
     }
     Logger.e(b.toString(), tag: tag);
+    if (!reportRemote) return;
     try {
       remoteErrorSink?.call(
         message: '${message ?? 'Error'}',

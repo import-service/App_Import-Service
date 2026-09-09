@@ -73,25 +73,50 @@ bool isFinalDocType(String? docType) {
 
 String normalizeDocType(String? raw) => CustomsDocType.normalizeCode(raw);
 
-/// DocType, которые менеджер СВХ может загружать (фото/архив авто), без анкеты/подписей/оплат.
+/// DocType, которые менеджер СВХ может загружать (галерея / архив), без анкеты/подписей/оплат.
 bool isSvhManagerAllowedDocType(String? docType) {
   final c = normalizeDocType(docType);
   if (c.isEmpty) return false;
-  if (c.startsWith('car_')) return true;
+  if (isSvhCarGalleryDocType(c)) return true;
   if (c == 'add_doc1' || c == 'add_doc2') return true;
   if (c == 'transit_archive_photo' || c == 'transit_archive_video') return true;
   if (RegExp(r'^transit_archive_photo_\d+$').hasMatch(c)) return true;
   return false;
 }
 
-/// Слоты загрузки для СВХ в секциях карточки заявки.
-const List<String> kSvhCreationUploadDocTypes = [
-  'car_nameplate_photo',
-  'car_mileage_photo',
-  'car_front_photo',
-  'car_back_photo',
-];
+/// Галерея «Фото машины» от СВХ: `svh_car_photo_1` … `svh_car_photo_80`.
+const int kSvhCarGalleryMaxPhotos = 80;
 
+bool isSvhCarGalleryDocType(String? docType) {
+  final c = normalizeDocType(docType);
+  return RegExp(r'^svh_car_photo_\d+$').hasMatch(c);
+}
+
+String svhCarGalleryDocType(int index) => 'svh_car_photo_$index';
+
+/// Свободные индексы 1…[kSvhCarGalleryMaxPhotos] под новые фото.
+List<int> nextSvhCarGalleryIndices({
+  required Iterable<String?> existingDocTypes,
+  required int count,
+}) {
+  final used = <int>{};
+  final re = RegExp(r'^svh_car_photo_(\d+)$');
+  for (final raw in existingDocTypes) {
+    final m = re.firstMatch(normalizeDocType(raw));
+    if (m == null) continue;
+    final n = int.tryParse(m.group(1)!);
+    if (n != null) used.add(n);
+  }
+  final out = <int>[];
+  for (var i = 1;
+      i <= kSvhCarGalleryMaxPhotos && out.length < count;
+      i++) {
+    if (!used.contains(i)) out.add(i);
+  }
+  return out;
+}
+
+/// Слоты архива перед транзитом (опционально для СВХ в «к выдаче»).
 const List<String> kSvhTransitUploadDocTypes = [
   'transit_archive_photo_1',
   'transit_archive_photo_2',

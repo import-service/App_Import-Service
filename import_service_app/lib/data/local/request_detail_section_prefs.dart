@@ -37,5 +37,8 @@ abstract final class RequestDetailSectionKeys {
   static const filesPayment = 'files_payment';
   static const filesTransit = 'files_transit';
   static const filesFinal = 'files_final';
+  /// Фото авто + архив СВХ + итоговые (СБКТС/ЭПТС).
+  static const filesIssueHandover = 'files_issue_handover';
+  static const filesSvhCarGallery = 'files_svh_car_gallery';
   static const filesOther = 'files_other';
 }

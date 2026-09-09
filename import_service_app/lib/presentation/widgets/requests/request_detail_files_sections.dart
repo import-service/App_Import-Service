@@ -8,6 +8,7 @@ import 'package:import_service_app/data/local/request_detail_section_prefs.dart'
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/delivered_vehicle_document.dart';
+import 'package:import_service_app/domain/entities/request_status.dart';
 import 'package:import_service_app/domain/services/request_files_grouper.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
@@ -34,7 +35,9 @@ class RequestDetailFilesSections extends StatelessWidget {
     required this.buildFileRow,
     required this.buildDeliverableRow,
     this.onUploadDocType,
+    this.onUploadSvhCarGallery,
     this.uploadingDocType,
+    this.uploadingSvhCarGallery = false,
     this.uploadSignedLabel,
     this.uploadReceiptLabel,
     this.onTransitPhotoTap,
@@ -47,12 +50,15 @@ class RequestDetailFilesSections extends StatelessWidget {
   final RequestFileRowBuilder buildFileRow;
   final RequestDeliverableRowBuilder buildDeliverableRow;
   final void Function(String docType)? onUploadDocType;
+  /// Мультизагрузка в галерею «Фото машины» (СВХ).
+  final VoidCallback? onUploadSvhCarGallery;
   final String? uploadingDocType;
+  final bool uploadingSvhCarGallery;
   final String? uploadSignedLabel;
   final String? uploadReceiptLabel;
   final void Function(String url)? onTransitPhotoTap;
   final Set<String> highlightedDocTypes;
-  /// Менеджер СВХ: загрузка car_*/transit_archive_*/add_doc*, без подписей/оплат.
+  /// Менеджер СВХ: галерея / архив, без подписей/оплат.
   final bool svhUploadMode;
 
   bool _isHighlighted(CustomsRequestFile file) {
@@ -304,24 +310,28 @@ class RequestDetailFilesSections extends StatelessWidget {
       rows: paymentRows,
     );
 
+    if (_shouldShowSvhCarGallery(item, grouped)) {
+      addSection(
+        sectionKey: RequestDetailSectionKeys.filesSvhCarGallery,
+        title: s.requestFilesSectionSvhCarGallery,
+        needsAction: false,
+        rows: _buildSvhCarGalleryRows(
+          grouped: grouped,
+          s: s,
+          theme: theme,
+        ),
+      );
+    }
+
     addSection(
-      sectionKey: RequestDetailSectionKeys.filesTransit,
-      title: s.requestFilesSectionTransitArchive,
+      sectionKey: RequestDetailSectionKeys.filesIssueHandover,
+      title: s.requestFilesSectionIssueHandover,
       needsAction: false,
-      rows: _buildTransitRows(
+      rows: _buildIssueHandoverRows(
         grouped: grouped,
         s: s,
         theme: theme,
       ),
-    );
-
-    addSection(
-      sectionKey: RequestDetailSectionKeys.filesFinal,
-      title: s.requestFilesSectionFinal,
-      needsAction: false,
-      rows: grouped.finalDocs
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-          .toList(),
     );
 
     final otherRows = _buildOtherRows(
@@ -351,56 +361,90 @@ class RequestDetailFilesSections extends StatelessWidget {
     required JsonStringsService s,
     required ThemeData theme,
   }) {
-    if (!svhUploadMode || onUploadDocType == null) {
-      return grouped.creation
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-          .toList();
-    }
+    return grouped.creation
+        .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
+        .toList();
+  }
 
-    final byCode = <String, CustomsRequestFile>{};
-    for (final f in grouped.creation) {
-      final code = normalizeDocType(f.docType);
-      byCode.putIfAbsent(code, () => f);
-    }
+  bool _shouldShowSvhCarGallery(CarListItem item, RequestFilesGrouped grouped) {
+    if (grouped.svhCarGallery.isNotEmpty) return true;
+    if (!svhUploadMode) return false;
+    return item.status == RequestStatus.inTransit ||
+        item.status == RequestStatus.delivered;
+  }
 
-    final rows = <Widget>[];
-    final used = <String>{};
+  List<Widget> _buildSvhCarGalleryRows({
+    required RequestFilesGrouped grouped,
+    required JsonStringsService s,
+    required ThemeData theme,
+  }) {
+    final count = grouped.svhCarGallery.length;
+    final rows = <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          s
+              .text('requestFilesSectionSvhCarGalleryCount')
+              .replaceAll('{count}', '$count')
+              .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
+          style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+        ),
+      ),
+    ];
 
-    for (final code in kSvhCreationUploadDocTypes) {
-      used.add(code);
-      final file = byCode[code];
+    if (svhUploadMode && onUploadSvhCarGallery != null) {
+      final full = count >= kSvhCarGalleryMaxPhotos;
       rows.add(
-        _svhSlotGroup(
-          label: docTypeLabelForCode(code, s),
-          file: file,
-          docType: code,
-          s: s,
-          theme: theme,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            full
+                ? s.text('requestFilesSectionSvhCarGalleryFull')
+                : s.text('requestFilesSectionSvhCarGalleryHint'),
+            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+          ),
         ),
       );
+      rows.add(
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: full || uploadingSvhCarGallery
+                ? null
+                : onUploadSvhCarGallery,
+            icon: uploadingSvhCarGallery
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_a_photo_outlined),
+            label: Text(s.text('requestFilesSectionSvhCarGalleryAdd')),
+          ),
+        ),
+      );
+      rows.add(const Gap(8));
     }
 
-    for (final f in grouped.creation) {
-      final code = normalizeDocType(f.docType);
-      if (used.contains(code)) continue;
+    for (final f in grouped.svhCarGallery) {
       rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
     }
     return rows;
   }
 
-  List<Widget> _buildTransitRows({
+  List<Widget> _buildIssueHandoverRows({
     required RequestFilesGrouped grouped,
     required JsonStringsService s,
     required ThemeData theme,
   }) {
     if (!svhUploadMode || onUploadDocType == null) {
-      return grouped.transitArchive
+      return grouped.issueHandover
           .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
           .toList();
     }
 
     final byCode = <String, CustomsRequestFile>{};
-    for (final f in grouped.transitArchive) {
+    for (final f in grouped.issueHandover) {
       final code = normalizeDocType(f.docType);
       byCode.putIfAbsent(code, () => f);
     }
@@ -419,7 +463,7 @@ class RequestDetailFilesSections extends StatelessWidget {
         ),
       );
     }
-    for (final f in grouped.transitArchive) {
+    for (final f in grouped.issueHandover) {
       final code = normalizeDocType(f.docType);
       if (used.contains(code)) continue;
       rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));

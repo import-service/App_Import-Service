@@ -113,6 +113,26 @@ class AuthService {
     }
   }
 
+  /// Правка данных организации из профиля МП (ИНН/телефон/название необязательны при создании из 1С).
+  Future<void> updateProfile({
+    String? companyName,
+    String? inn,
+    String? phone,
+    String? orgType,
+  }) async {
+    final profile = await _remote.updateMe(
+      companyName: companyName,
+      inn: inn,
+      phone: phone,
+      orgType: orgType,
+    );
+    _applyProfile(profile);
+    await _prefs.setString(
+      SessionPreferencesKeys.authProfileCache,
+      jsonEncode(profile.toJson()),
+    );
+  }
+
   void _applyProfile(AuthMeResponseModel profile) {
     _session.setProfile(
       userId: profile.id,

@@ -69,6 +69,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _documentsAnchorKey = GlobalKey();
   String? _uploadingDocType;
+  bool _uploadingSvhCarGallery = false;
   bool _documentsFocused = false;
 
   @override
@@ -121,7 +122,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
 
   Future<void> _attachDocType(String docType, CarListItem item) async {
     if (item.isArchivedOffline) return;
-    if (_uploadingDocType != null) return;
+    if (_uploadingDocType != null || _uploadingSvhCarGallery) return;
     final svh = isSvhManagerSession(sl<AuthSessionController>());
     if (svh && !isSvhManagerAllowedDocType(docType)) {
       sl<AppFeedbackService>().show(
@@ -171,6 +172,85 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       },
       (_) async {
         await _onAttachSucceeded(docType: docType, itemId: item.id);
+      },
+    );
+  }
+
+  Future<void> _attachSvhCarGallery(CarListItem item) async {
+    if (item.isArchivedOffline) return;
+    if (_uploadingDocType != null || _uploadingSvhCarGallery) return;
+    if (!isSvhManagerSession(sl<AuthSessionController>())) return;
+
+    final existing = item.files
+        .map((f) => f.docType)
+        .where(isSvhCarGalleryDocType)
+        .length;
+    final remaining = kSvhCarGalleryMaxPhotos - existing;
+    if (remaining <= 0) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('requestFilesSectionSvhCarGalleryFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    final paths = await pickMultipleImagePaths(maxCount: remaining);
+    if (!mounted || paths.isEmpty) return;
+
+    final s = sl<JsonStringsService>();
+    final indices = nextSvhCarGalleryIndices(
+      existingDocTypes: item.files.map((f) => f.docType),
+      count: paths.length,
+    );
+    if (indices.isEmpty) {
+      sl<AppFeedbackService>().show(
+        s.text('requestFilesSectionSvhCarGalleryFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    final entries = <({String docType, String localPath})>[];
+    for (var i = 0; i < indices.length && i < paths.length; i++) {
+      final docType = svhCarGalleryDocType(indices[i]);
+      final path = paths[i];
+      final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
+      if (sizeKey != null) {
+        sl<AppFeedbackService>().show(
+          s.text(sizeKey),
+          kind: AppFeedbackKind.warning,
+        );
+        return;
+      }
+      entries.add((docType: docType, localPath: path));
+    }
+    if (entries.isEmpty) return;
+
+    setState(() => _uploadingSvhCarGallery = true);
+    final result = await sl<CarsRepository>().attachRequestFiles(
+      requestId: item.id,
+      items: entries,
+    );
+    if (!mounted) return;
+    setState(() => _uploadingSvhCarGallery = false);
+
+    final feedback = sl<AppFeedbackService>();
+    await result.fold(
+      (failure) async {
+        await sl<CarsRepository>().getVehicle(item.id);
+        if (!mounted) return;
+        setState(() {});
+        final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
+        feedback.show(
+          sizeMsg ?? requestAttachFailureMessage(failure.message, s),
+          kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+        );
+      },
+      (_) async {
+        await _onAttachSucceeded(
+          docType: entries.first.docType,
+          itemId: item.id,
+        );
       },
     );
   }
@@ -552,8 +632,11 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             item: item,
             highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
             uploadingDocType: _uploadingDocType,
+            uploadingSvhCarGallery: _uploadingSvhCarGallery,
             svhUploadMode: svh,
             onUploadDocType: (docType) => _attachDocType(docType, item),
+            onUploadSvhCarGallery:
+                svh ? () => _attachSvhCarGallery(item) : null,
             onTransitPhotoTap: (url) => _openExternalUrl(url),
             buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
               title: d.title,

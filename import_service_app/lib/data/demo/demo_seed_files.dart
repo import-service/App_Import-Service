@@ -79,6 +79,20 @@ List<CustomsRequestFile> demoTransitArchiveFiles() => [
       demoSeedFile(CustomsDocType.transitArchiveVideo.apiCode),
     ];
 
+/// Галерея «Фото машины» (СВХ), demo.
+List<CustomsRequestFile> demoSvhCarGalleryFiles({int count = 3}) {
+  final n = count.clamp(1, kSvhCarGalleryMaxPhotos);
+  return [
+    for (var i = 1; i <= n; i++)
+      CustomsRequestFile(
+        docType: svhCarGalleryDocType(i),
+        fileName: 'svh_car_photo_$i.jpg',
+        mimeType: 'image/jpeg',
+        fileUrl: '$kDemoFileUrlScheme${svhCarGalleryDocType(i)}',
+      ),
+  ];
+}
+
 List<CustomsRequestFile> demoFinalFiles() => [
       for (final t in CustomsDocType.finalTypes) demoSeedFile(t.apiCode),
     ];

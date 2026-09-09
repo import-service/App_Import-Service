@@ -142,6 +142,7 @@ final class DefaultCarsSeed {
       demoSigningFiles(DealType.bilateral, includeSigned: true),
       demoPaymentFiles(withReceipts: true),
       demoTransitArchiveFiles(),
+      demoSvhCarGalleryFiles(),
     ]),
   );
 
@@ -165,6 +166,7 @@ final class DefaultCarsSeed {
       demoSigningFiles(DealType.tripartite, includeSigned: true),
       demoPaymentFiles(withReceipts: true),
       demoTransitArchiveFiles(),
+      demoSvhCarGalleryFiles(count: 4),
       demoFinalFiles(),
     ]),
   );

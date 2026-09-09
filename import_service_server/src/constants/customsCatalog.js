@@ -236,6 +236,10 @@ function isKnownDocType(docType) {
     return DOCUMENT_TYPE_CODES.includes(base);
   }
   if (/^transit_archive_photo_\d+$/.test(code)) return true;
+  if (/^svh_car_photo_\d+$/.test(code)) {
+    const n = Number(code.replace(/^svh_car_photo_/, ''));
+    return Number.isInteger(n) && n >= 1 && n <= 80;
+  }
   return false;
 }
 
@@ -275,6 +279,9 @@ function docTypeLabel(code) {
   if (/^transit_archive_photo_\d+$/.test(c)) {
     return 'Фото архива перед транзитом';
   }
+  if (/^svh_car_photo_\d+$/.test(c)) {
+    return 'Фото машины (СВХ)';
+  }
   return c;
 }
 
@@ -301,6 +308,7 @@ function docTypeCategory(code) {
   if (c.endsWith('_sign')) return 'signing';
   if (/^transit_archive_photo_\d+$/.test(c)) return 'transit_archive';
   if (c === 'transit_archive_video') return 'transit_archive';
+  if (/^svh_car_photo_\d+$/.test(c)) return 'svh_car_gallery';
   if (c.startsWith('payment_')) return 'payment';
   return 'other';
 }
@@ -312,11 +320,14 @@ function signedDocType(baseDocType) {
   return `${base}_sign`;
 }
 
-/** DocType, которые менеджер СВХ может загружать (фото/архив авто), без анкеты/подписей/оплат. */
+/** DocType, которые менеджер СВХ может загружать (галерея авто / архив), без анкеты/подписей/оплат. */
 function isSvhManagerAllowedDocType(docType) {
   const c = normalizeDocType(docType);
   if (!c) return false;
-  if (c.startsWith('car_')) return true;
+  if (/^svh_car_photo_\d+$/.test(c)) {
+    const n = Number(c.replace(/^svh_car_photo_/, ''));
+    return Number.isInteger(n) && n >= 1 && n <= 80;
+  }
   if (c === 'add_doc1' || c === 'add_doc2') return true;
   if (c === 'transit_archive_photo' || c === 'transit_archive_video') return true;
   if (/^transit_archive_photo_\d+$/.test(c)) return true;

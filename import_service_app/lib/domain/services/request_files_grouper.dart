@@ -28,6 +28,8 @@ final class RequestFilesGrouped {
     this.payment = const [],
     this.transitArchive = const [],
     this.finalDocs = const [],
+    this.issueHandover = const [],
+    this.svhCarGallery = const [],
     this.other = const [],
   });
 
@@ -36,6 +38,10 @@ final class RequestFilesGrouped {
   final List<CustomsRequestFile> payment;
   final List<CustomsRequestFile> transitArchive;
   final List<CustomsRequestFile> finalDocs;
+  /// «Документы к выдаче»: архив СВХ + итоговые (СБКТС/ЭПТС…).
+  final List<CustomsRequestFile> issueHandover;
+  /// Галерея «Фото машины» (СВХ): `svh_car_photo_N`.
+  final List<CustomsRequestFile> svhCarGallery;
   final List<CustomsRequestFile> other;
 }
 
@@ -177,12 +183,29 @@ RequestFilesGrouped groupRequestFiles({
     if (list != null) finalDocs.addAll(list);
   }
 
+  final svhCarGallery = <CustomsRequestFile>[];
+  for (final f in files) {
+    if (isSvhCarGalleryDocType(f.docType)) {
+      svhCarGallery.add(f);
+    }
+  }
+  svhCarGallery.sort((a, b) {
+    final ai = _svhGalleryIndex(a.docType);
+    final bi = _svhGalleryIndex(b.docType);
+    return ai.compareTo(bi);
+  });
+
+  final issueHandover = <CustomsRequestFile>[
+    ...transitArchive,
+    ...finalDocs,
+  ];
+
   final used = <String>{
     ...creation.map((e) => CustomsDocType.normalizeCode(e.docType)),
     ...signingPairs.expand((p) => [p.baseDocType.apiCode, p.baseDocType.signedApiCode]),
     ...payment.map((e) => CustomsDocType.normalizeCode(e.docType)),
-    ...transitArchive.map((e) => CustomsDocType.normalizeCode(e.docType)),
-    ...finalDocs.map((e) => CustomsDocType.normalizeCode(e.docType)),
+    ...issueHandover.map((e) => CustomsDocType.normalizeCode(e.docType)),
+    ...svhCarGallery.map((e) => CustomsDocType.normalizeCode(e.docType)),
   };
 
   final other = <CustomsRequestFile>[];
@@ -201,8 +224,15 @@ RequestFilesGrouped groupRequestFiles({
     payment: payment,
     transitArchive: transitArchive,
     finalDocs: finalDocs,
+    issueHandover: issueHandover,
+    svhCarGallery: svhCarGallery,
     other: other,
   );
+}
+
+int _svhGalleryIndex(String? docType) {
+  final m = RegExp(r'^svh_car_photo_(\d+)$').firstMatch(normalizeDocType(docType));
+  return int.tryParse(m?.group(1) ?? '') ?? 0;
 }
 
 bool _shouldShowSigningRow({

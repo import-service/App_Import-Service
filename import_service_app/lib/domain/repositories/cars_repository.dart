@@ -51,6 +51,12 @@ abstract class CarsRepository {
     required String localFilePath,
   });
 
+  /// Несколько файлов одним батчем (галерея СВХ и т.п.).
+  Future<Either<Failure, CarListItem>> attachRequestFiles({
+    required String requestId,
+    required List<RequestFileUploadEntry> items,
+  });
+
   /// Оценка заявки 1–5 (только `delivered`/`closed`, один раз).
   Future<Either<Failure, CarListItem>> submitRequestRating({
     required String requestId,

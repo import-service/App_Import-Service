@@ -130,6 +130,10 @@ final class JsonStringsService {
   String get requestFilesSectionPayment => text('requestFilesSectionPayment');
   String get requestFilesSectionTransitArchive => text('requestFilesSectionTransitArchive');
   String get requestFilesSectionFinal => text('requestFilesSectionFinal');
+  String get requestFilesSectionIssueHandover =>
+      text('requestFilesSectionIssueHandover');
+  String get requestFilesSectionSvhCarGallery =>
+      text('requestFilesSectionSvhCarGallery');
   String get requestFilesSectionOther => text('requestFilesSectionOther');
   String get requestDetailDocumentsTitle => text('requestDetailDocumentsTitle');
   String get requestFileNeedsSignature => text('requestFileNeedsSignature');

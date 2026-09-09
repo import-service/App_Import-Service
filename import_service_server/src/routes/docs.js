@@ -5,6 +5,8 @@ const registerAdminWebRoutes = require('./adminWeb');
 
 const DOCS_HTML_PATH = path.join(__dirname, '..', 'docs', 'api.html');
 const DOCS_FAVICON_PATH = path.join(__dirname, '..', 'docs', 'favicon.png');
+const PRIVACY_HTML_PATH = path.join(__dirname, '..', 'docs', 'privacy.html');
+const TERMS_HTML_PATH = path.join(__dirname, '..', 'docs', 'terms.html');
 
 function buildWsBaseUrl(apiBase) {
   try {
@@ -16,12 +18,40 @@ function buildWsBaseUrl(apiBase) {
   }
 }
 
+async function sendStaticHtml(reply, filePath) {
+  const html = await fs.readFile(filePath, 'utf8');
+  reply
+    .header('Cache-Control', 'public, max-age=300')
+    .type('text/html; charset=utf-8')
+    .send(html);
+}
+
 module.exports = async function docsRoutes(fastify) {
   await registerAdminWebRoutes(fastify);
 
   fastify.get('/docs/favicon.png', async (_request, reply) => {
     const buf = await fs.readFile(DOCS_FAVICON_PATH);
     reply.header('Cache-Control', 'public, max-age=86400').type('image/png').send(buf);
+  });
+
+  /** Публичные страницы для Google Play / RuStore / App Store (без авторизации). */
+  fastify.get('/privacy', async (_request, reply) => {
+    await sendStaticHtml(reply, PRIVACY_HTML_PATH);
+  });
+  fastify.get('/privacy/', async (_request, reply) => {
+    reply.redirect('/privacy', 302);
+  });
+  fastify.get('/terms', async (_request, reply) => {
+    await sendStaticHtml(reply, TERMS_HTML_PATH);
+  });
+  fastify.get('/terms/', async (_request, reply) => {
+    reply.redirect('/terms', 302);
+  });
+  fastify.get('/agreement', async (_request, reply) => {
+    reply.redirect('/terms', 302);
+  });
+  fastify.get('/agreement/', async (_request, reply) => {
+    reply.redirect('/terms', 302);
   });
 
   const CREATE_FIELDS_HTML_PATH = path.join(__dirname, '..', 'docs', '1c-create-fields.html');

@@ -62,6 +62,23 @@ List<String> requestDetailUrgentActionHints(
 String? sectionKeyForUploadedDocType(String docType) {
   final code = docType.trim().toLowerCase();
   if (code.endsWith('_sign')) return RequestDetailSectionKeys.filesSigning;
-  if (code.contains('receipt')) return RequestDetailSectionKeys.filesPayment;
+  if (code.contains('receipt') || code.startsWith('payment_')) {
+    return RequestDetailSectionKeys.filesPayment;
+  }
+  if (code.startsWith('car_') ||
+      code.startsWith('transit_archive') ||
+      code.startsWith('svh_car_photo_') ||
+      code == 'epts' ||
+      code == 'sbkts' ||
+      code == 'tpo' ||
+      code == 'ptd') {
+    if (code.startsWith('svh_car_photo_')) {
+      return RequestDetailSectionKeys.filesSvhCarGallery;
+    }
+    if (code.startsWith('car_')) {
+      return RequestDetailSectionKeys.filesCreation;
+    }
+    return RequestDetailSectionKeys.filesIssueHandover;
+  }
   return null;
 }

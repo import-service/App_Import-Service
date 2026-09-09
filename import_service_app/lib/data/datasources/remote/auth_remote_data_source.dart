@@ -24,11 +24,14 @@ class AuthRemoteDataSource {
       return AuthLoginResponseModel.fromJson(data);
     } on DioException catch (e, st) {
       final mapped = ErrorHandler.handle(e);
+      final isExpectedAuth = mapped is UnauthorizedException ||
+          e.response?.statusCode == 401;
       AppLog.error(
         'Login failed: /api/auth/login',
         tag: 'AuthRemoteDataSource',
         error: e,
         stackTrace: st,
+        reportRemote: !isExpectedAuth,
       );
       throw mapped;
     } on ServerException {
@@ -96,6 +99,46 @@ class AuthRemoteDataSource {
         stackTrace: st,
       );
       throw const UnknownServerException('Не удалось получить профиль');
+    }
+  }
+
+  Future<AuthMeResponseModel> updateMe({
+    String? companyName,
+    String? inn,
+    String? phone,
+    String? orgType,
+  }) async {
+    try {
+      final data = <String, dynamic>{};
+      if (companyName != null) data['companyName'] = companyName;
+      if (inn != null) data['inn'] = inn;
+      if (phone != null) data['phone'] = phone;
+      if (orgType != null) data['orgType'] = orgType;
+      final response = await _dio.patch<dynamic>('auth/me', data: data);
+      final body = response.data;
+      if (body is! Map<String, dynamic>) {
+        throw const UnknownServerException('Invalid profile update response');
+      }
+      return AuthMeResponseModel.fromJson(body);
+    } on DioException catch (e, st) {
+      final mapped = ErrorHandler.handle(e);
+      AppLog.error(
+        'Profile update failed: PATCH /api/auth/me',
+        tag: 'AuthRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw mapped;
+    } on ServerException {
+      rethrow;
+    } catch (e, st) {
+      AppLog.error(
+        'Unexpected profile update failure',
+        tag: 'AuthRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw const UnknownServerException('Не удалось обновить профиль');
     }
   }
 }
