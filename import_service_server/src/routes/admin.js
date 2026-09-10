@@ -24,6 +24,16 @@ const {
 const { sendBroadcast } = require('../services/broadcast');
 const { toOrganizationDto } = require('../util/organizationDto');
 const { notifySvhManagerCredentials } = require('../services/emailNotification');
+const {
+  buildSvhCarPhotosZipBuffer,
+  rebuildAndStoreSvhCarPhotosZip,
+  SVH_CAR_PHOTOS_ZIP_DOC_TYPE,
+} = require('../services/svhCarPhotosZip');
+const {
+  buildTransitArchivePhotosZipBuffer,
+  rebuildAndStoreTransitArchivePhotosZip,
+  TRANSIT_ARCHIVE_PHOTOS_ZIP_DOC_TYPE,
+} = require('../services/transitArchivePhotosZip');
 
 const ORGANIZATION_SELECT =
   'id, id_1c, login, role, org_type, company_name, inn, phone, created_at, updated_at, deleted_at';
@@ -61,7 +71,13 @@ function maskToken(token) {
   return `…${t.slice(-4)}`;
 }
 
+const ADMIN_LOGIN_RATE_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_LOGIN_RATE_MAX = 20;
+
 module.exports = async function adminRoutes(fastify) {
+  /** IP → timestamps неудачных/любых попыток входа (ограничение подбора пароля). */
+  const adminLoginBuckets = new Map();
+
   fastify.post(
     '/admin/auth/login',
     {
@@ -77,22 +93,42 @@ module.exports = async function adminRoutes(fastify) {
       },
     },
     async (request, reply) => {
+      const ip = request.ip || request.headers['x-real-ip'] || 'unknown';
+      const now = Date.now();
+      const current = adminLoginBuckets.get(ip) || [];
+      const fresh = current.filter((ts) => now - ts < ADMIN_LOGIN_RATE_WINDOW_MS);
+      if (fresh.length >= ADMIN_LOGIN_RATE_MAX) {
+        adminLoginBuckets.set(ip, fresh);
+        return reply.code(429).send({
+          error: 'TOO_MANY_REQUESTS',
+          message: 'Слишком много попыток входа, попробуйте позже',
+        });
+      }
+
       const login = String(request.body.login || '').trim();
       const password = request.body.password;
+
+      const fail = async () => {
+        fresh.push(now);
+        adminLoginBuckets.set(ip, fresh);
+        return reply.code(401).send({ error: 'INVALID_CREDENTIALS' });
+      };
 
       const [rows] = await fastify.pool.query(
         'SELECT id, password_hash FROM admin_users WHERE login = ? LIMIT 1',
         [login],
       );
       if (!rows.length) {
-        return reply.code(401).send({ error: 'INVALID_CREDENTIALS' });
+        return fail();
       }
 
       const user = rows[0];
       const match = await bcrypt.compare(password, user.password_hash);
       if (!match) {
-        return reply.code(401).send({ error: 'INVALID_CREDENTIALS' });
+        return fail();
       }
+
+      adminLoginBuckets.set(ip, []);
 
       const adminUserId = user.id;
       await fastify.pool.query(
@@ -228,6 +264,119 @@ module.exports = async function adminRoutes(fastify) {
       );
 
       return reply.code(201).send({ item: toAdminUserDto(rows[0]) });
+    },
+  );
+
+  fastify.patch(
+    '/admin/users/:id',
+    {
+      onRequest: [fastify.authenticateAdmin],
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          minProperties: 1,
+          properties: {
+            login: { type: 'string', minLength: 1, maxLength: 255 },
+            password: { type: 'string', minLength: 6, maxLength: 128 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      const [rows] = await fastify.pool.query(
+        'SELECT id, login, created_at FROM admin_users WHERE id = ? LIMIT 1',
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      const current = rows[0];
+      const body = request.body || {};
+      const fields = [];
+      const values = [];
+      let nextLogin = String(current.login || '');
+      let passwordChanged = false;
+
+      if (body.login != null) {
+        const login = String(body.login || '').trim();
+        if (!login) {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Логин обязателен' });
+        }
+        if (login !== String(current.login || '')) {
+          const [existing] = await fastify.pool.query(
+            'SELECT id FROM admin_users WHERE login = ? AND id <> ? LIMIT 1',
+            [login, id],
+          );
+          if (existing.length) {
+            return reply.code(409).send({
+              error: 'LOGIN_ALREADY_EXISTS',
+              message: 'Такой логин уже занят',
+            });
+          }
+          fields.push('login = ?');
+          values.push(login);
+          nextLogin = login;
+        }
+      }
+
+      if (body.password != null) {
+        const password = String(body.password || '');
+        if (password.length < 6) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: 'Пароль минимум 6 символов',
+          });
+        }
+        const passwordHash = await bcrypt.hash(password, 10);
+        fields.push('password_hash = ?');
+        values.push(passwordHash);
+        passwordChanged = true;
+      }
+
+      if (!fields.length) {
+        return reply.send({ item: toAdminUserDto(current) });
+      }
+
+      values.push(id);
+      await fastify.pool.query(
+        `UPDATE admin_users SET ${fields.join(', ')} WHERE id = ?`,
+        values,
+      );
+
+      if (passwordChanged) {
+        const selfId = Number(request.user.sub);
+        const selfJti = request.user.jti;
+        if (id === selfId && selfJti) {
+          await fastify.pool.query(
+            `UPDATE admin_sessions
+             SET revoked_at = CURRENT_TIMESTAMP(3)
+             WHERE admin_user_id = ? AND revoked_at IS NULL AND jti <> ?`,
+            [id, selfJti],
+          );
+        } else {
+          await fastify.pool.query(
+            `UPDATE admin_sessions
+             SET revoked_at = CURRENT_TIMESTAMP(3)
+             WHERE admin_user_id = ? AND revoked_at IS NULL`,
+            [id],
+          );
+        }
+      }
+
+      const [updatedRows] = await fastify.pool.query(
+        'SELECT id, login, created_at FROM admin_users WHERE id = ? LIMIT 1',
+        [id],
+      );
+      return reply.send({
+        item: toAdminUserDto(updatedRows[0] || { ...current, login: nextLogin }),
+      });
     },
   );
 
@@ -634,6 +783,186 @@ module.exports = async function adminRoutes(fastify) {
           response: result.oneCResponse || null,
         },
         item: toCustomsRequestDto(fastify, request, updatedRows[0], fileRows, detailDtoOptions),
+      });
+    },
+  );
+
+  /** Скачать ZIP фото машины (СВХ), собранный из svh_car_photo_*. */
+  fastify.get(
+    '/admin/customs-requests/:id/svh-car-photos-zip',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+      const [rows] = await fastify.pool.query(
+        `SELECT id FROM customs_requests WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      const packed = await buildSvhCarPhotosZipBuffer(fastify.pool, id);
+      if (!packed.buffer || packed.count < 1) {
+        return reply.code(404).send({
+          error: 'NOT_FOUND',
+          message: 'Нет фото/видео машины (svh_car_photo_* / svh_car_video_*) для архива',
+        });
+      }
+      const fileName = `svh_car_media_${id}.zip`;
+      return reply
+        .header('Content-Type', 'application/zip')
+        .header('Content-Disposition', `attachment; filename="${fileName}"`)
+        .header('X-Svh-Car-Photos-Count', String(packed.count))
+        .send(packed.buffer);
+    },
+  );
+
+  /** Пересобрать ZIP фото+видео и отправить в 1С (docType svh_car_photos_zip). */
+  fastify.post(
+    '/admin/customs-requests/:id/svh-car-photos-zip/send-to-1c',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+      const [rows] = await fastify.pool.query(
+        `SELECT id, external_1c_id FROM customs_requests WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      if (!rows[0].external_1c_id) {
+        return reply.code(409).send({
+          error: 'CONFLICT',
+          message: 'Заявка ещё не привязана к 1С (нет external1cId)',
+        });
+      }
+      const zipResult = await rebuildAndStoreSvhCarPhotosZip(fastify, id);
+      if (!zipResult.ok) {
+        return reply.code(404).send({ error: zipResult.error || 'NOT_FOUND' });
+      }
+      if (!zipResult.file) {
+        return reply.code(404).send({
+          error: 'NOT_FOUND',
+          message: 'Нет фото/видео машины для архива',
+        });
+      }
+      const result = await pushCustomsRequestUpdateTo1C(fastify, id, {
+        files: [zipResult.file],
+      });
+      if (result.skipped) {
+        return reply.code(503).send({
+          error: 'ONE_C_URL_NOT_CONFIGURED',
+          message: 'URL исходящих вызовов в 1С не задан в настройках админки',
+        });
+      }
+      if (!result.ok) {
+        return reply.code(502).send({
+          error: 'ONE_C_UPDATE_FAILED',
+          message: result.message || result.error || 'Ошибка при отправке ZIP в 1С',
+          oneC: result.oneC || null,
+        });
+      }
+      return reply.send({
+        ok: true,
+        docType: SVH_CAR_PHOTOS_ZIP_DOC_TYPE,
+        count: zipResult.count,
+        file: zipResult.file,
+        oneC: { response: result.oneCResponse || null },
+      });
+    },
+  );
+
+  /** Скачать ZIP архива транзита (transit_archive_photo_*). */
+  fastify.get(
+    '/admin/customs-requests/:id/transit-archive-photos-zip',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+      const [rows] = await fastify.pool.query(
+        `SELECT id FROM customs_requests WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      const packed = await buildTransitArchivePhotosZipBuffer(fastify.pool, id);
+      if (!packed.buffer || packed.count < 1) {
+        return reply.code(404).send({
+          error: 'NOT_FOUND',
+          message: 'Нет фото архива транзита (transit_archive_photo_*)',
+        });
+      }
+      const fileName = `transit_archive_photos_${id}.zip`;
+      return reply
+        .header('Content-Type', 'application/zip')
+        .header('Content-Disposition', `attachment; filename="${fileName}"`)
+        .header('X-Transit-Archive-Photos-Count', String(packed.count))
+        .send(packed.buffer);
+    },
+  );
+
+  /** Пересобрать ZIP архива транзита и отправить в 1С. */
+  fastify.post(
+    '/admin/customs-requests/:id/transit-archive-photos-zip/send-to-1c',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+      const [rows] = await fastify.pool.query(
+        `SELECT id, external_1c_id FROM customs_requests WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      if (!rows[0].external_1c_id) {
+        return reply.code(409).send({
+          error: 'CONFLICT',
+          message: 'Заявка ещё не привязана к 1С (нет external1cId)',
+        });
+      }
+      const zipResult = await rebuildAndStoreTransitArchivePhotosZip(fastify, id);
+      if (!zipResult.ok) {
+        return reply.code(404).send({ error: zipResult.error || 'NOT_FOUND' });
+      }
+      if (!zipResult.file) {
+        return reply.code(404).send({
+          error: 'NOT_FOUND',
+          message: 'Нет фото архива транзита для ZIP',
+        });
+      }
+      const result = await pushCustomsRequestUpdateTo1C(fastify, id, {
+        files: [zipResult.file],
+      });
+      if (result.skipped) {
+        return reply.code(503).send({
+          error: 'ONE_C_URL_NOT_CONFIGURED',
+          message: 'URL исходящих вызовов в 1С не задан в настройках админки',
+        });
+      }
+      if (!result.ok) {
+        return reply.code(502).send({
+          error: 'ONE_C_UPDATE_FAILED',
+          message: result.message || result.error || 'Ошибка при отправке ZIP в 1С',
+          oneC: result.oneC || null,
+        });
+      }
+      return reply.send({
+        ok: true,
+        docType: TRANSIT_ARCHIVE_PHOTOS_ZIP_DOC_TYPE,
+        count: zipResult.count,
+        file: zipResult.file,
+        oneC: { response: result.oneCResponse || null },
       });
     },
   );

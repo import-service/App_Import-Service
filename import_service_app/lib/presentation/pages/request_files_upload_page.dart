@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_unified_image_picker/flutter_unified_image_picker.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/util/single_file_path_list.dart';
 import 'package:import_service_app/data/local/request_draft_attachments_space.dart';
+import 'package:import_service_app/presentation/helpers/request_file_picker.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/request_files_exit_confirm_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_filled_wide_button.dart';
@@ -146,32 +146,14 @@ class _RequestFilesUploadPageState extends State<RequestFilesUploadPage> {
 
   Future<void> _addPhotoTo(List<String> target) async {
     if (target.isNotEmpty) return;
-    final path = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(
-        builder: (ctx) => Theme(
-          data: Theme.of(ctx).copyWith(
-            splashFactory: NoSplash.splashFactory,
-            highlightColor: Colors.transparent,
-            iconButtonTheme: IconButtonThemeData(
-              style: ButtonStyle(
-                padding: WidgetStateProperty.all(EdgeInsets.zero),
-                overlayColor: WidgetStateProperty.all(Colors.transparent),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ),
-          child: const CameraView(
-            hideGalleryInSheet: false,
-            galleryMultiPick: false,
-          ),
-        ),
-      ),
+    final paths = await pickMultipleImagePaths(
+      context: context,
+      maxCount: 1,
     );
-    if (!mounted || path == null || path.isEmpty) return;
+    if (!mounted || paths.isEmpty) return;
     final stored = await RequestDraftAttachmentsSpace.ingestPickedFile(
       draftId: widget.draftId,
-      sourcePath: path,
+      sourcePath: paths.first,
     );
     if (!mounted || stored.isEmpty) return;
     setState(() => target.add(stored));

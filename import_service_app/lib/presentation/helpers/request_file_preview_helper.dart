@@ -16,6 +16,7 @@ bool isRequestFileVideo(CustomsRequestFile file) {
   final code = CustomsDocType.normalizeCode(file.docType ?? '');
   if (code == CustomsDocType.transitArchiveVideo.apiCode) return true;
   if (code.endsWith('_video')) return true;
+  if (RegExp(r'^svh_car_video_\d+$').hasMatch(code)) return true;
   final probe = '${file.fileName ?? ''} ${file.fileUrl ?? ''}'.toLowerCase();
   return RegExp(r'\.(mp4|mov|webm|mkv|avi|m4v)$').hasMatch(probe);
 }

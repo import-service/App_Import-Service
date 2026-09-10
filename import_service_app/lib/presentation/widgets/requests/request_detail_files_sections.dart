@@ -8,7 +8,6 @@ import 'package:import_service_app/data/local/request_detail_section_prefs.dart'
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/delivered_vehicle_document.dart';
-import 'package:import_service_app/domain/entities/request_status.dart';
 import 'package:import_service_app/domain/services/request_files_grouper.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
@@ -36,8 +35,14 @@ class RequestDetailFilesSections extends StatelessWidget {
     required this.buildDeliverableRow,
     this.onUploadDocType,
     this.onUploadSvhCarGallery,
+    this.onUploadSvhCarVideos,
+    this.onUploadTransitArchiveGallery,
+    this.onUploadOtherDocsGallery,
     this.uploadingDocType,
     this.uploadingSvhCarGallery = false,
+    this.uploadingSvhCarVideos = false,
+    this.uploadingTransitArchiveGallery = false,
+    this.uploadingOtherDocsGallery = false,
     this.uploadSignedLabel,
     this.uploadReceiptLabel,
     this.onTransitPhotoTap,
@@ -50,10 +55,19 @@ class RequestDetailFilesSections extends StatelessWidget {
   final RequestFileRowBuilder buildFileRow;
   final RequestDeliverableRowBuilder buildDeliverableRow;
   final void Function(String docType)? onUploadDocType;
-  /// Мультизагрузка в галерею «Фото машины» (СВХ).
+  /// Мультизагрузка фото в галерею «Фото и видео машины» (СВХ).
   final VoidCallback? onUploadSvhCarGallery;
+  /// Мультизагрузка видео в ту же галерею (до 3).
+  final VoidCallback? onUploadSvhCarVideos;
+  /// Галерея архива транзита: загруженные + «Добавить» (лимит 3).
+  final VoidCallback? onUploadTransitArchiveGallery;
+  /// Галерея прочих файлов: загруженные + «Добавить» (лимит 2).
+  final VoidCallback? onUploadOtherDocsGallery;
   final String? uploadingDocType;
   final bool uploadingSvhCarGallery;
+  final bool uploadingSvhCarVideos;
+  final bool uploadingTransitArchiveGallery;
+  final bool uploadingOtherDocsGallery;
   final String? uploadSignedLabel;
   final String? uploadReceiptLabel;
   final void Function(String url)? onTransitPhotoTap;
@@ -368,9 +382,8 @@ class RequestDetailFilesSections extends StatelessWidget {
 
   bool _shouldShowSvhCarGallery(CarListItem item, RequestFilesGrouped grouped) {
     if (grouped.svhCarGallery.isNotEmpty) return true;
-    if (!svhUploadMode) return false;
-    return item.status == RequestStatus.inTransit ||
-        item.status == RequestStatus.delivered;
+    // Менеджер СВХ: галерея на любом этапе заявки.
+    return svhUploadMode;
   }
 
   List<Widget> _buildSvhCarGalleryRows({
@@ -378,22 +391,39 @@ class RequestDetailFilesSections extends StatelessWidget {
     required JsonStringsService s,
     required ThemeData theme,
   }) {
-    final count = grouped.svhCarGallery.length;
+    final photos = grouped.svhCarGallery
+        .where((f) => isSvhCarGalleryDocType(f.docType))
+        .toList();
+    final videos = grouped.svhCarGallery
+        .where((f) => isSvhCarVideoDocType(f.docType))
+        .toList();
+    final photoCount = photos.length;
+    final videoCount = videos.length;
     final rows = <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(
+          s
+              .text('requestFilesSectionSvhCarGalleryCount')
+              .replaceAll('{count}', '$photoCount')
+              .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
+          style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+        ),
+      ),
       Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
           s
-              .text('requestFilesSectionSvhCarGalleryCount')
-              .replaceAll('{count}', '$count')
-              .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
+              .text('requestFilesSectionSvhCarVideoCount')
+              .replaceAll('{count}', '$videoCount')
+              .replaceAll('{max}', '$kSvhCarGalleryMaxVideos'),
           style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
         ),
       ),
     ];
 
     if (svhUploadMode && onUploadSvhCarGallery != null) {
-      final full = count >= kSvhCarGalleryMaxPhotos;
+      final full = photoCount >= kSvhCarGalleryMaxPhotos;
       rows.add(
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -409,7 +439,7 @@ class RequestDetailFilesSections extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: full || uploadingSvhCarGallery
+            onPressed: full || uploadingSvhCarGallery || uploadingSvhCarVideos
                 ? null
                 : onUploadSvhCarGallery,
             icon: uploadingSvhCarGallery
@@ -420,6 +450,40 @@ class RequestDetailFilesSections extends StatelessWidget {
                   )
                 : const Icon(Icons.add_a_photo_outlined),
             label: Text(s.text('requestFilesSectionSvhCarGalleryAdd')),
+          ),
+        ),
+      );
+      rows.add(const Gap(8));
+    }
+
+    if (svhUploadMode && onUploadSvhCarVideos != null) {
+      final full = videoCount >= kSvhCarGalleryMaxVideos;
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            full
+                ? s.text('requestFilesSectionSvhCarVideoFull')
+                : s.text('requestFilesSectionSvhCarVideoHint'),
+            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+          ),
+        ),
+      );
+      rows.add(
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: full || uploadingSvhCarGallery || uploadingSvhCarVideos
+                ? null
+                : onUploadSvhCarVideos,
+            icon: uploadingSvhCarVideos
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.videocam_outlined),
+            label: Text(s.text('requestFilesSectionSvhCarVideoAdd')),
           ),
         ),
       );
@@ -437,35 +501,77 @@ class RequestDetailFilesSections extends StatelessWidget {
     required JsonStringsService s,
     required ThemeData theme,
   }) {
-    if (!svhUploadMode || onUploadDocType == null) {
-      return grouped.issueHandover
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-          .toList();
-    }
+    final transitFiles = grouped.transitArchive;
+    final finalFiles = grouped.finalDocs;
+    final canUpload = onUploadTransitArchiveGallery != null;
+    final count = occupiedUploadSlotCount(
+      slots: kSvhTransitUploadDocTypes,
+      existingDocTypes: item.files.map((f) => f.docType),
+    );
 
-    final byCode = <String, CustomsRequestFile>{};
-    for (final f in grouped.issueHandover) {
-      final code = normalizeDocType(f.docType);
-      byCode.putIfAbsent(code, () => f);
+    if (!canUpload && transitFiles.isEmpty && finalFiles.isEmpty) {
+      return const [];
     }
 
     final rows = <Widget>[];
-    final used = <String>{};
-    for (final code in kSvhTransitUploadDocTypes) {
-      used.add(code);
+
+    if (canUpload || transitFiles.isNotEmpty) {
       rows.add(
-        _svhSlotGroup(
-          label: '${s.text('docTransitArchivePhoto')} ${code.split('_').last}',
-          file: byCode[code],
-          docType: code,
-          s: s,
-          theme: theme,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            s
+                .text('requestFilesSectionTransitGalleryCount')
+                .replaceAll('{count}', '$count')
+                .replaceAll('{max}', '$kTransitArchiveMaxPhotos'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
         ),
       );
     }
-    for (final f in grouped.issueHandover) {
-      final code = normalizeDocType(f.docType);
-      if (used.contains(code)) continue;
+
+    if (canUpload) {
+      final full = count >= kTransitArchiveMaxPhotos;
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            full
+                ? s.text('requestFilesSectionTransitGalleryFull')
+                : s.text('requestFilesSectionTransitGalleryHint'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ),
+      );
+      rows.add(
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: full || uploadingTransitArchiveGallery
+                ? null
+                : onUploadTransitArchiveGallery,
+            icon: uploadingTransitArchiveGallery
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_a_photo_outlined),
+            label: Text(s.text('requestFilesSectionTransitGalleryAdd')),
+          ),
+        ),
+      );
+      rows.add(const Gap(8));
+    }
+
+    for (final f in transitFiles) {
+      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+    }
+    for (final f in finalFiles) {
       rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
     }
     return rows;
@@ -476,82 +582,83 @@ class RequestDetailFilesSections extends StatelessWidget {
     required JsonStringsService s,
     required ThemeData theme,
   }) {
-    if (!svhUploadMode || onUploadDocType == null) {
-      return grouped.other
-          .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-          .toList();
-    }
+    final otherFiles = grouped.other;
+    final slotFiles = otherFiles
+        .where((f) => isOtherUploadDocType(f.docType))
+        .toList();
+    final restFiles = otherFiles
+        .where((f) => !isOtherUploadDocType(f.docType))
+        .toList();
+    final canUpload = onUploadOtherDocsGallery != null;
+    final count = occupiedUploadSlotCount(
+      slots: kSvhOtherUploadDocTypes,
+      existingDocTypes: item.files.map((f) => f.docType),
+    );
 
-    final byCode = <String, CustomsRequestFile>{};
-    for (final f in grouped.other) {
-      final code = normalizeDocType(f.docType);
-      byCode.putIfAbsent(code, () => f);
-    }
+    if (!canUpload && otherFiles.isEmpty) return const [];
 
     final rows = <Widget>[];
-    final used = <String>{};
-    for (final code in kSvhOtherUploadDocTypes) {
-      used.add(code);
+
+    if (canUpload || slotFiles.isNotEmpty) {
       rows.add(
-        _svhSlotGroup(
-          label: docTypeLabelForCode(code, s),
-          file: byCode[code],
-          docType: code,
-          s: s,
-          theme: theme,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            s
+                .text('requestFilesSectionOtherGalleryCount')
+                .replaceAll('{count}', '$count')
+                .replaceAll('{max}', '$kOtherDocsMaxFiles'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
         ),
       );
     }
-    for (final f in grouped.other) {
-      final code = normalizeDocType(f.docType);
-      if (used.contains(code)) continue;
+
+    if (canUpload) {
+      final full = count >= kOtherDocsMaxFiles;
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            full
+                ? s.text('requestFilesSectionOtherGalleryFull')
+                : s.text('requestFilesSectionOtherGalleryHint'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ),
+      );
+      rows.add(
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: full || uploadingOtherDocsGallery
+                ? null
+                : onUploadOtherDocsGallery,
+            icon: uploadingOtherDocsGallery
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.attach_file),
+            label: Text(s.text('requestFilesSectionOtherGalleryAdd')),
+          ),
+        ),
+      );
+      rows.add(const Gap(8));
+    }
+
+    for (final f in slotFiles) {
+      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+    }
+    for (final f in restFiles) {
       rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
     }
     return rows;
-  }
-
-  Widget _svhSlotGroup({
-    required String label,
-    required CustomsRequestFile? file,
-    required String docType,
-    required JsonStringsService s,
-    required ThemeData theme,
-  }) {
-    final uploadLabel = file == null
-        ? s.requestUploadDocFile(label)
-        : s.requestUploadDocAgain;
-    return RequestDetailDocUploadGroup(
-      highlight: file == null,
-      uploadLabel: uploadLabel,
-      uploadBusy: uploadingDocType == docType,
-      onUpload: () => onUploadDocType!(docType),
-      children: [
-        if (file != null)
-          buildFileRow(file, highlight: _isHighlighted(file), embedded: true)
-        else
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.photo_camera_outlined,
-                  color: AppTheme.primaryBlue,
-                  size: 22,
-                ),
-                const Gap(10),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
   }
 }
 

@@ -789,10 +789,13 @@
               <tr><td><code>transit_archive_photo_1</code></td><td>Фото авто №1 (при нескольких — <code>_2</code>, <code>_3</code>, …)</td></tr>
               <tr><td><code>transit_archive_video</code></td><td>Видео перед транзитом</td></tr>
             </table>
-            <p><b>Галерея «Фото машины» (менеджер СВХ → сервер, в статусах <code>in_transit</code> / <code>delivered</code>):</b></p>
+            <p><b>Галерея «Фото машины» (менеджер СВХ → сервер, <b>на любом статусе</b>):</b></p>
             <table class="enum">
               <tr><th>docType</th><th>Что это</th></tr>
               <tr><td><code>svh_car_photo_1</code> … <code>svh_car_photo_80</code></td><td>Фото машины в галерее (до 80 шт., мультиupload из МП). Не путать с фото при создании заявки (<code>car_front_photo</code> и т.п.).</td></tr>
+              <tr><td><code>svh_car_video_1</code> … <code>svh_car_video_3</code></td><td>Видео машины в галерее СВХ (до 3 шт.).</td></tr>
+              <tr><td><code>svh_car_photos_zip</code></td><td>ZIP всех <code>svh_car_photo_*</code> и <code>svh_car_video_*</code> для 1С (собирает сервер после батча upload; также скачивание в админке).</td></tr>
+              <tr><td><code>transit_archive_photos_zip</code></td><td>ZIP всех <code>transit_archive_photo_*</code> для 1С (собирает сервер после батча upload; также скачивание в админке).</td></tr>
             </table>
             <p><b>Итоговые документы (1С → МП):</b></p>
             <table class="enum">
@@ -1484,7 +1487,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   "tokenType": "Bearer",
   "expiresAt": "2027-05-16T09:00:00.000Z",
   "login": "admin"
-}</pre><p>JWT с <code>aud: "admin"</code> — не подходит для API приложения.</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li></ul></div>
+}</pre><p>JWT с <code>aud: "admin"</code> — не подходит для API приложения.</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li><li><code>429 TOO_MANY_REQUESTS</code> — лимит попыток входа с IP (до 20 за 15 минут)</li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/auth/logout</code><span class="desc">Выход из сессии админки.</span></summary>
@@ -1497,6 +1500,32 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   "login": "admin",
   "createdAt": "2026-05-16T09:00:00.000Z"
 }</pre></div>
+        </details>
+      </section>
+
+      <section class="group">
+        <h2>Администраторы веб-админки</h2>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/users</code><span class="desc">Список администраторов.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p><b>Query:</b> <code>limit</code>, <code>offset</code></p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/users</code><span class="desc">Создать администратора.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p><b>Request:</b></p><pre>{
+  "login": "ops",
+  "password": "secret123"
+}</pre><p>Письмо не отправляется — логин/пароль копируют в админке.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method patch">PATCH</span><code class="path">/api/admin/users/:id</code><span class="desc">Сменить логин и/или пароль.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p><b>Request</b> (хотя бы одно поле):</p><pre>{
+  "login": "ops2",
+  "password": "newSecret123"
+}</pre><p>При смене пароля остальные сессии этого админа отзываются (текущая сессия при смене своего пароля сохраняется).</p><p><b>Errors:</b> <code>409 LOGIN_ALREADY_EXISTS</code>, <code>404</code>.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/users/:id</code><span class="desc">Удалить администратора.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p>Нельзя удалить себя и последнего администратора.</p></div>
         </details>
       </section>
 
@@ -1626,6 +1655,22 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
   "oneC": { "response": {} },
   "item": { "id": "123", "oneCUpdatePending": false }
 }</pre><p><b>Errors:</b> <code>409</code>, <code>502 ONE_C_UPDATE_FAILED</code>, <code>503</code></p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/customs-requests/:id/svh-car-photos-zip</code><span class="desc">Скачать ZIP фото машины (СВХ).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Ответ: <code>application/zip</code> из файлов <code>svh_car_photo_*</code> и <code>svh_car_video_*</code>. Если медиа нет — <code>404</code>.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/customs-requests/:id/svh-car-photos-zip/send-to-1c</code><span class="desc">Пересобрать ZIP и отправить в 1С.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Сохраняет <code>svh_car_photos_zip</code> (фото + видео) и шлёт update в 1С (<code>files[]</code> с этим docType).</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/customs-requests/:id/transit-archive-photos-zip</code><span class="desc">Скачать ZIP архива транзита.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Ответ: <code>application/zip</code> из <code>transit_archive_photo_*</code>. Если фото нет — <code>404</code>.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/customs-requests/:id/transit-archive-photos-zip/send-to-1c</code><span class="desc">ZIP архива транзита → 1С.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Сохраняет <code>transit_archive_photos_zip</code> и шлёт update в 1С.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/customs-requests/:id/resend-to-1c</code><span class="desc">Повторная отправка заявки в 1С (только status new).</span></summary>

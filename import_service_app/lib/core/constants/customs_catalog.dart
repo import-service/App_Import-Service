@@ -78,6 +78,7 @@ bool isSvhManagerAllowedDocType(String? docType) {
   final c = normalizeDocType(docType);
   if (c.isEmpty) return false;
   if (isSvhCarGalleryDocType(c)) return true;
+  if (isSvhCarVideoDocType(c)) return true;
   if (c == 'add_doc1' || c == 'add_doc2') return true;
   if (c == 'transit_archive_photo' || c == 'transit_archive_video') return true;
   if (RegExp(r'^transit_archive_photo_\d+$').hasMatch(c)) return true;
@@ -87,12 +88,28 @@ bool isSvhManagerAllowedDocType(String? docType) {
 /// Галерея «Фото машины» от СВХ: `svh_car_photo_1` … `svh_car_photo_80`.
 const int kSvhCarGalleryMaxPhotos = 80;
 
+/// Видео машины от СВХ: `svh_car_video_1` … `svh_car_video_3`.
+const int kSvhCarGalleryMaxVideos = 3;
+
 bool isSvhCarGalleryDocType(String? docType) {
   final c = normalizeDocType(docType);
   return RegExp(r'^svh_car_photo_\d+$').hasMatch(c);
 }
 
+bool isSvhCarVideoDocType(String? docType) {
+  final c = normalizeDocType(docType);
+  final m = RegExp(r'^svh_car_video_(\d+)$').firstMatch(c);
+  if (m == null) return false;
+  final n = int.tryParse(m.group(1) ?? '');
+  return n != null && n >= 1 && n <= kSvhCarGalleryMaxVideos;
+}
+
+bool isSvhCarMediaDocType(String? docType) =>
+    isSvhCarGalleryDocType(docType) || isSvhCarVideoDocType(docType);
+
 String svhCarGalleryDocType(int index) => 'svh_car_photo_$index';
+
+String svhCarVideoDocType(int index) => 'svh_car_video_$index';
 
 /// Свободные индексы 1…[kSvhCarGalleryMaxPhotos] под новые фото.
 List<int> nextSvhCarGalleryIndices({
@@ -116,17 +133,91 @@ List<int> nextSvhCarGalleryIndices({
   return out;
 }
 
-/// Слоты архива перед транзитом (опционально для СВХ в «к выдаче»).
+/// Свободные индексы 1…[kSvhCarGalleryMaxVideos] под новые видео.
+List<int> nextSvhCarVideoIndices({
+  required Iterable<String?> existingDocTypes,
+  required int count,
+}) {
+  final used = <int>{};
+  final re = RegExp(r'^svh_car_video_(\d+)$');
+  for (final raw in existingDocTypes) {
+    final m = re.firstMatch(normalizeDocType(raw));
+    if (m == null) continue;
+    final n = int.tryParse(m.group(1)!);
+    if (n != null) used.add(n);
+  }
+  final out = <int>[];
+  for (var i = 1;
+      i <= kSvhCarGalleryMaxVideos && out.length < count;
+      i++) {
+    if (!used.contains(i)) out.add(i);
+  }
+  return out;
+}
+
+/// Слоты архива перед транзитом (опционально в «к выдаче»).
 const List<String> kSvhTransitUploadDocTypes = [
   'transit_archive_photo_1',
   'transit_archive_photo_2',
   'transit_archive_photo_3',
 ];
 
+const int kTransitArchiveMaxPhotos = 3;
+
 const List<String> kSvhOtherUploadDocTypes = [
   'add_doc1',
   'add_doc2',
 ];
+
+const int kOtherDocsMaxFiles = 2;
+
+bool isTransitArchiveUploadDocType(String? docType) {
+  final c = normalizeDocType(docType);
+  return kSvhTransitUploadDocTypes.contains(c);
+}
+
+bool isOtherUploadDocType(String? docType) {
+  final c = normalizeDocType(docType);
+  return kSvhOtherUploadDocTypes.contains(c);
+}
+
+/// Свободные слоты из [slots] под новые файлы (по порядку).
+List<String> nextFreeUploadDocTypes({
+  required List<String> slots,
+  required Iterable<String?> existingDocTypes,
+  required int count,
+}) {
+  if (count <= 0) return const [];
+  final used = <String>{};
+  for (final raw in existingDocTypes) {
+    final c = normalizeDocType(raw);
+    if (c.isNotEmpty) used.add(c);
+  }
+  final out = <String>[];
+  for (final slot in slots) {
+    if (out.length >= count) break;
+    final code = normalizeDocType(slot);
+    if (code.isEmpty || used.contains(code)) continue;
+    out.add(code);
+  }
+  return out;
+}
+
+int occupiedUploadSlotCount({
+  required List<String> slots,
+  required Iterable<String?> existingDocTypes,
+}) {
+  final used = <String>{};
+  for (final raw in existingDocTypes) {
+    final c = normalizeDocType(raw);
+    if (c.isNotEmpty) used.add(c);
+  }
+  var n = 0;
+  for (final slot in slots) {
+    if (used.contains(normalizeDocType(slot))) n++;
+  }
+  return n;
+}
 
 String signedDocType(String baseDocType) {
   final type = CustomsDocType.tryParse(baseDocType);

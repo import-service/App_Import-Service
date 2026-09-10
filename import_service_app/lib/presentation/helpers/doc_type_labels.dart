@@ -4,11 +4,19 @@ import 'package:import_service_app/domain/entities/customs_request_file.dart';
 
 String? _svhCarGalleryLabel(String? rawDocType, JsonStringsService s) {
   final c = normalizeDocType(rawDocType);
-  final m = RegExp(r'^svh_car_photo_(\d+)$').firstMatch(c);
-  if (m == null) return null;
-  return s
-      .text('requestFilesSectionSvhCarGalleryItem')
-      .replaceAll('{n}', m.group(1)!);
+  final photo = RegExp(r'^svh_car_photo_(\d+)$').firstMatch(c);
+  if (photo != null) {
+    return s
+        .text('requestFilesSectionSvhCarGalleryItem')
+        .replaceAll('{n}', photo.group(1)!);
+  }
+  final video = RegExp(r'^svh_car_video_(\d+)$').firstMatch(c);
+  if (video != null) {
+    return s
+        .text('requestFilesSectionSvhCarVideoItem')
+        .replaceAll('{n}', video.group(1)!);
+  }
+  return null;
 }
 
 String docTypeLabel(CustomsRequestFile file, JsonStringsService s) {

@@ -70,7 +70,17 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   final GlobalKey _documentsAnchorKey = GlobalKey();
   String? _uploadingDocType;
   bool _uploadingSvhCarGallery = false;
+  bool _uploadingSvhCarVideos = false;
+  bool _uploadingTransitArchiveGallery = false;
+  bool _uploadingOtherDocsGallery = false;
   bool _documentsFocused = false;
+
+  bool get _anyUploadBusy =>
+      _uploadingDocType != null ||
+      _uploadingSvhCarGallery ||
+      _uploadingSvhCarVideos ||
+      _uploadingTransitArchiveGallery ||
+      _uploadingOtherDocsGallery;
 
   @override
   void initState() {
@@ -122,7 +132,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
 
   Future<void> _attachDocType(String docType, CarListItem item) async {
     if (item.isArchivedOffline) return;
-    if (_uploadingDocType != null || _uploadingSvhCarGallery) return;
+    if (_anyUploadBusy) return;
     final svh = isSvhManagerSession(sl<AuthSessionController>());
     if (svh && !isSvhManagerAllowedDocType(docType)) {
       sl<AppFeedbackService>().show(
@@ -178,7 +188,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
 
   Future<void> _attachSvhCarGallery(CarListItem item) async {
     if (item.isArchivedOffline) return;
-    if (_uploadingDocType != null || _uploadingSvhCarGallery) return;
+    if (_anyUploadBusy) return;
     if (!isSvhManagerSession(sl<AuthSessionController>())) return;
 
     final existing = item.files
@@ -194,7 +204,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       return;
     }
 
-    final paths = await pickMultipleImagePaths(maxCount: remaining);
+    final paths = await pickMultipleImagePaths(
+      context: context,
+      maxCount: remaining,
+    );
     if (!mounted || paths.isEmpty) return;
 
     final s = sl<JsonStringsService>();
@@ -251,6 +264,232 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
           docType: entries.first.docType,
           itemId: item.id,
         );
+      },
+    );
+  }
+
+  Future<void> _attachSvhCarVideos(CarListItem item) async {
+    if (item.isArchivedOffline) return;
+    if (_anyUploadBusy) return;
+    if (!isSvhManagerSession(sl<AuthSessionController>())) return;
+
+    final existing = item.files
+        .map((f) => f.docType)
+        .where(isSvhCarVideoDocType)
+        .length;
+    final remaining = kSvhCarGalleryMaxVideos - existing;
+    if (remaining <= 0) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('requestFilesSectionSvhCarVideoFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    final paths = await pickMultipleVideoPaths(maxCount: remaining);
+    if (!mounted || paths.isEmpty) return;
+
+    final s = sl<JsonStringsService>();
+    final indices = nextSvhCarVideoIndices(
+      existingDocTypes: item.files.map((f) => f.docType),
+      count: paths.length,
+    );
+    if (indices.isEmpty) {
+      sl<AppFeedbackService>().show(
+        s.text('requestFilesSectionSvhCarVideoFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    final entries = <({String docType, String localPath})>[];
+    for (var i = 0; i < indices.length && i < paths.length; i++) {
+      final docType = svhCarVideoDocType(indices[i]);
+      final path = paths[i];
+      final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
+      if (sizeKey != null) {
+        sl<AppFeedbackService>().show(
+          s.text(sizeKey),
+          kind: AppFeedbackKind.warning,
+        );
+        return;
+      }
+      entries.add((docType: docType, localPath: path));
+    }
+    if (entries.isEmpty) return;
+
+    setState(() => _uploadingSvhCarVideos = true);
+    final result = await sl<CarsRepository>().attachRequestFiles(
+      requestId: item.id,
+      items: entries,
+    );
+    if (!mounted) return;
+    setState(() => _uploadingSvhCarVideos = false);
+
+    final feedback = sl<AppFeedbackService>();
+    await result.fold(
+      (failure) async {
+        await sl<CarsRepository>().getVehicle(item.id);
+        if (!mounted) return;
+        setState(() {});
+        final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
+        feedback.show(
+          sizeMsg ?? requestAttachFailureMessage(failure.message, s),
+          kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+        );
+      },
+      (_) async {
+        await _onAttachSucceeded(
+          docType: entries.first.docType,
+          itemId: item.id,
+        );
+      },
+    );
+  }
+
+  Future<void> _attachTransitArchiveGallery(CarListItem item) async {
+    if (item.isArchivedOffline) return;
+    if (_anyUploadBusy) return;
+
+    final remaining = kTransitArchiveMaxPhotos -
+        occupiedUploadSlotCount(
+          slots: kSvhTransitUploadDocTypes,
+          existingDocTypes: item.files.map((f) => f.docType),
+        );
+    if (remaining <= 0) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('requestFilesSectionTransitGalleryFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    final paths = await pickMultipleImagePaths(
+      context: context,
+      maxCount: remaining,
+    );
+    if (!mounted || paths.isEmpty) return;
+
+    final s = sl<JsonStringsService>();
+    final slots = nextFreeUploadDocTypes(
+      slots: kSvhTransitUploadDocTypes,
+      existingDocTypes: item.files.map((f) => f.docType),
+      count: paths.length,
+    );
+    if (slots.isEmpty) {
+      sl<AppFeedbackService>().show(
+        s.text('requestFilesSectionTransitGalleryFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    final entries = <({String docType, String localPath})>[];
+    for (var i = 0; i < slots.length && i < paths.length; i++) {
+      final docType = slots[i];
+      final path = paths[i];
+      final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
+      if (sizeKey != null) {
+        sl<AppFeedbackService>().show(
+          s.text(sizeKey),
+          kind: AppFeedbackKind.warning,
+        );
+        return;
+      }
+      entries.add((docType: docType, localPath: path));
+    }
+    if (entries.isEmpty) return;
+
+    setState(() => _uploadingTransitArchiveGallery = true);
+    final result = await sl<CarsRepository>().attachRequestFiles(
+      requestId: item.id,
+      items: entries,
+    );
+    if (!mounted) return;
+    setState(() => _uploadingTransitArchiveGallery = false);
+
+    final feedback = sl<AppFeedbackService>();
+    await result.fold(
+      (failure) async {
+        await sl<CarsRepository>().getVehicle(item.id);
+        if (!mounted) return;
+        setState(() {});
+        final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
+        feedback.show(
+          sizeMsg ?? requestAttachFailureMessage(failure.message, s),
+          kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+        );
+      },
+      (_) async {
+        await _onAttachSucceeded(
+          docType: entries.first.docType,
+          itemId: item.id,
+        );
+      },
+    );
+  }
+
+  Future<void> _attachOtherDocsGallery(CarListItem item) async {
+    if (item.isArchivedOffline) return;
+    if (_anyUploadBusy) return;
+
+    final free = nextFreeUploadDocTypes(
+      slots: kSvhOtherUploadDocTypes,
+      existingDocTypes: item.files.map((f) => f.docType),
+      count: 1,
+    );
+    if (free.isEmpty) {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('requestFilesSectionOtherGalleryFull'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    final docType = free.first;
+    final path = await pickRequestDocumentPath(context);
+    if (!mounted || path == null || path.isEmpty) return;
+    final s = sl<JsonStringsService>();
+    final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
+    if (sizeKey != null) {
+      sl<AppFeedbackService>().show(
+        s.text(sizeKey),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+
+    setState(() => _uploadingOtherDocsGallery = true);
+    final result = await sl<CarsRepository>().attachRequestFile(
+      requestId: item.id,
+      docType: docType,
+      localFilePath: path,
+    );
+    if (!mounted) return;
+    setState(() => _uploadingOtherDocsGallery = false);
+
+    final feedback = sl<AppFeedbackService>();
+    await result.fold(
+      (failure) async {
+        await sl<CarsRepository>().getVehicle(item.id);
+        if (!mounted) return;
+        setState(() {});
+        final updated = _itemFromInventory(item.id);
+        final code = normalizeDocType(docType);
+        final uploadedDespiteError = updated != null &&
+            updated.files.any((f) => normalizeDocType(f.docType) == code);
+        if (uploadedDespiteError) {
+          await _onAttachSucceeded(docType: docType, itemId: item.id);
+        } else {
+          final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
+          feedback.show(
+            sizeMsg ?? requestAttachFailureMessage(failure.message, s),
+            kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+          );
+        }
+      },
+      (_) async {
+        await _onAttachSucceeded(docType: docType, itemId: item.id);
       },
     );
   }
@@ -633,10 +872,21 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
             uploadingDocType: _uploadingDocType,
             uploadingSvhCarGallery: _uploadingSvhCarGallery,
+            uploadingSvhCarVideos: _uploadingSvhCarVideos,
+            uploadingTransitArchiveGallery: _uploadingTransitArchiveGallery,
+            uploadingOtherDocsGallery: _uploadingOtherDocsGallery,
             svhUploadMode: svh,
             onUploadDocType: (docType) => _attachDocType(docType, item),
             onUploadSvhCarGallery:
                 svh ? () => _attachSvhCarGallery(item) : null,
+            onUploadSvhCarVideos:
+                svh ? () => _attachSvhCarVideos(item) : null,
+            onUploadTransitArchiveGallery: item.isArchivedOffline
+                ? null
+                : () => _attachTransitArchiveGallery(item),
+            onUploadOtherDocsGallery: item.isArchivedOffline
+                ? null
+                : () => _attachOtherDocsGallery(item),
             onTransitPhotoTap: (url) => _openExternalUrl(url),
             buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
               title: d.title,

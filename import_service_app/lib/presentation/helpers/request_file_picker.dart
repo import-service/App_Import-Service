@@ -1,61 +1,34 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_unified_image_picker/flutter_unified_image_picker.dart';
-import 'package:gap/gap.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
-import 'package:import_service_app/presentation/widgets/bottom_sheets/app_modal_bottom_sheet.dart';
-import 'package:import_service_app/presentation/widgets/bottom_sheets/sheet_header.dart';
+import 'package:import_service_app/presentation/widgets/bottom_sheets/app_choice_bottom_sheet.dart';
+import 'package:import_service_app/presentation/widgets/bottom_sheets/app_photo_source_bottom_sheet.dart';
 
-/// Фото/скан (камера/галерея) или PDF с устройства.
+enum _DocumentPickKind { photo, pdf }
+
+/// Фото/скан (камера) или PDF с устройства.
 Future<String?> pickRequestDocumentPath(BuildContext context) async {
   final s = sl<JsonStringsService>();
-  final choice = await AppModalBottomSheet.show<String>(
+  final choice = await AppChoiceBottomSheet.show<_DocumentPickKind>(
     context: context,
-    child: Builder(
-      builder: (sheetContext) => Material(
-        color: Colors.transparent,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SheetHeader(title: s.requestPickDocumentTitle),
-            InkWell(
-              onTap: () => Navigator.pop(sheetContext, 'photo'),
-              borderRadius: BorderRadius.circular(10),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.photo_camera_outlined),
-                    const Gap(12),
-                    Expanded(child: Text(s.requestPickDocumentPhoto)),
-                  ],
-                ),
-              ),
-            ),
-            InkWell(
-              onTap: () => Navigator.pop(sheetContext, 'pdf'),
-              borderRadius: BorderRadius.circular(10),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.picture_as_pdf_outlined),
-                    const Gap(12),
-                    Expanded(child: Text(s.requestPickDocumentPdf)),
-                  ],
-                ),
-              ),
-            ),
-            const Gap(8),
-          ],
-        ),
+    title: s.requestPickDocumentTitle,
+    options: [
+      AppChoiceSheetOption(
+        value: _DocumentPickKind.photo,
+        label: s.requestPickDocumentPhoto,
+        icon: Icons.photo_camera_outlined,
       ),
-    ),
+      AppChoiceSheetOption(
+        value: _DocumentPickKind.pdf,
+        label: s.requestPickDocumentPdf,
+        icon: Icons.picture_as_pdf_outlined,
+      ),
+    ],
   );
   if (!context.mounted || choice == null) return null;
-  if (choice == 'pdf') {
+  if (choice == _DocumentPickKind.pdf) {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
@@ -66,6 +39,54 @@ Future<String?> pickRequestDocumentPath(BuildContext context) async {
     return path;
   }
   if (!context.mounted) return null;
+  // Документ: сразу камера (как раньше). Галерея — через кнопку в CameraView.
+  return openAppCameraView(context);
+}
+
+/// Выбор источника и получение фото (СВХ / архив / любые мультизагрузки).
+///
+/// Шторка [AppPhotoSourceBottomSheet]: галерея (мульти) или камера (один кадр).
+Future<List<String>> pickMultipleImagePaths({
+  required BuildContext context,
+  required int maxCount,
+}) async {
+  if (maxCount <= 0) return const [];
+  final source = await AppPhotoSourceBottomSheet.show(context);
+  if (!context.mounted || source == null) return const [];
+
+  switch (source) {
+    case AppPhotoSource.gallery:
+      return _pickImagesFromGallery(maxCount: maxCount);
+    case AppPhotoSource.camera:
+      final path = await openAppCameraView(context);
+      if (path == null || path.isEmpty) return const [];
+      return [path];
+  }
+}
+
+/// Мультивыбор видео (для СВХ «Фото и видео машины», до [maxCount]).
+Future<List<String>> pickMultipleVideoPaths({
+  required int maxCount,
+}) async {
+  if (maxCount <= 0) return const [];
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.video,
+    allowMultiple: true,
+    withData: false,
+  );
+  if (result == null || result.files.isEmpty) return const [];
+  final paths = <String>[];
+  for (final f in result.files) {
+    final p = f.path;
+    if (p == null || p.isEmpty) continue;
+    paths.add(p);
+    if (paths.length >= maxCount) break;
+  }
+  return paths;
+}
+
+/// Общий вход в экран камеры приложения ([CameraView]).
+Future<String?> openAppCameraView(BuildContext context) {
   return Navigator.push<String>(
     context,
     MaterialPageRoute(
@@ -87,11 +108,7 @@ Future<String?> pickRequestDocumentPath(BuildContext context) async {
   );
 }
 
-/// Мультивыбор фото из галереи устройства (для СВХ «Фото машины»).
-Future<List<String>> pickMultipleImagePaths({
-  required int maxCount,
-}) async {
-  if (maxCount <= 0) return const [];
+Future<List<String>> _pickImagesFromGallery({required int maxCount}) async {
   final result = await FilePicker.platform.pickFiles(
     type: FileType.image,
     allowMultiple: true,

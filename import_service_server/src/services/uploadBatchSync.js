@@ -7,6 +7,18 @@ const { pushCustomsRequestUpdateTo1C } = require('./oneCUpdateSync');
 const { notifyFilesChangedFrom1C } = require('./pushNotifications');
 const { createSystemFilesUpdatedMessage } = require('./chatMessageOps');
 const { isDemoApplicantName, completeDemoCreateFromMpUpload, isDemoExternal1cId, tryAdvanceDemoFlow } = require('./demoFlow');
+const {
+  changedIncludesSvhCarGallery,
+  rebuildAndStoreSvhCarPhotosZip,
+  isSvhCarMediaDocType,
+  SVH_CAR_PHOTOS_ZIP_DOC_TYPE,
+} = require('./svhCarPhotosZip');
+const {
+  changedIncludesTransitArchivePhotos,
+  rebuildAndStoreTransitArchivePhotosZip,
+  isTransitArchivePhotoDocType,
+  TRANSIT_ARCHIVE_PHOTOS_ZIP_DOC_TYPE,
+} = require('./transitArchivePhotosZip');
 
 const UPLOAD_ROOT = require('path').join(process.cwd(), 'uploads', 'customs-requests');
 
@@ -179,13 +191,47 @@ async function syncAfterBatchComplete(fastify, requestId, source, changedDocType
   }
 
   const fileRows = await fetchAllFilesForOneC(fastify.pool, requestId);
-  const changedSet = new Set(changedDocTypes);
-  const filesForUpdate = fileRows.filter((f) => {
+  const changedSet = new Set(changedDocTypes.map(normalizeDocType).filter(Boolean));
+
+  let filesForUpdate = fileRows.filter((f) => {
     if (changedSet.has(f.docType)) return true;
-    // Развёрнутый архив: слот X изменён → включаем и X_1..X_N.
     const m = /^(.+)_\d+$/.exec(f.docType);
     return Boolean(m) && changedSet.has(m[1]);
   });
+
+  // Галерея СВХ → ZIP для 1С (Максим), отдельные фото на сервере остаются.
+  if (source === 'user' && changedIncludesSvhCarGallery(changedDocTypes)) {
+    const zipResult = await rebuildAndStoreSvhCarPhotosZip(fastify, requestId).catch((e) => {
+      fastify.log.warn({ requestId, err: e.message }, 'svh car photos zip rebuild failed');
+      return null;
+    });
+    filesForUpdate = filesForUpdate.filter((f) => !isSvhCarMediaDocType(f.docType));
+    if (zipResult?.file) {
+      filesForUpdate.push(zipResult.file);
+    } else {
+      const zipRow = fileRows.find((f) => f.docType === SVH_CAR_PHOTOS_ZIP_DOC_TYPE);
+      if (zipRow) filesForUpdate.push(zipRow);
+    }
+  }
+
+  // Архив транзита → ZIP для 1С, отдельные фото на сервере остаются.
+  if (source === 'user' && changedIncludesTransitArchivePhotos(changedDocTypes)) {
+    const zipResult = await rebuildAndStoreTransitArchivePhotosZip(fastify, requestId).catch((e) => {
+      fastify.log.warn({ requestId, err: e.message }, 'transit archive photos zip rebuild failed');
+      return null;
+    });
+    filesForUpdate = filesForUpdate.filter((f) => !isTransitArchivePhotoDocType(f.docType));
+    if (zipResult?.file) {
+      filesForUpdate.push(zipResult.file);
+    } else {
+      const zipRow = fileRows.find((f) => f.docType === TRANSIT_ARCHIVE_PHOTOS_ZIP_DOC_TYPE);
+      if (zipRow) filesForUpdate.push(zipRow);
+    }
+  }
+
+  if (!filesForUpdate.length) {
+    return { ok: true, action: 'update_1c_skipped_empty' };
+  }
 
   const oneCUpdate = await pushCustomsRequestUpdateTo1C(fastify, requestId, {
     files: filesForUpdate,
@@ -233,8 +279,8 @@ async function recordUploadAndMaybeSync(fastify, opts) {
   if (!Number.isFinite(uploadIndex) || uploadIndex < 1 || uploadIndex > uploadTotal) {
     throw new Error('VALIDATION_ERROR: uploadIndex должен быть от 1 до uploadTotal');
   }
-  if (!Number.isFinite(uploadTotal) || uploadTotal < 1 || uploadTotal > 64) {
-    throw new Error('VALIDATION_ERROR: uploadTotal от 1 до 64');
+  if (!Number.isFinite(uploadTotal) || uploadTotal < 1 || uploadTotal > 80) {
+    throw new Error('VALIDATION_ERROR: uploadTotal от 1 до 80');
   }
 
   const existing = await loadBatch(fastify.pool, requestId);

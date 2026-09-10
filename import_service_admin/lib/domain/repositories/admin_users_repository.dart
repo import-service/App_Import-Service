@@ -11,5 +11,11 @@ abstract class AdminUsersRepository {
     required String password,
   });
 
+  Future<AdminUser> update({
+    required int id,
+    String? login,
+    String? password,
+  });
+
   Future<void> delete(int id);
 }

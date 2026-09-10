@@ -116,4 +116,68 @@ class CustomsRequestsRemoteDataSource {
       throw ErrorHandler.handle(e);
     }
   }
+
+  Future<({List<int> bytes, String filename})> downloadSvhCarPhotosZip(
+    String id,
+  ) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        'admin/customs-requests/${Uri.encodeComponent(id)}/svh-car-photos-zip',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = response.data ?? <int>[];
+      if (bytes.isEmpty) {
+        throw const UnknownServerException('Пустой ZIP фото машины');
+      }
+      return (bytes: bytes, filename: 'svh_car_photos_$id.zip');
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<void> sendSvhCarPhotosZipTo1C(String id) async {
+    try {
+      await _dio.post<dynamic>(
+        'admin/customs-requests/${Uri.encodeComponent(id)}/svh-car-photos-zip/send-to-1c',
+        options: Options(
+          connectTimeout: _oneCTimeout,
+          receiveTimeout: _oneCTimeout,
+        ),
+      );
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<({List<int> bytes, String filename})> downloadTransitArchivePhotosZip(
+    String id,
+  ) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        'admin/customs-requests/${Uri.encodeComponent(id)}/transit-archive-photos-zip',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = response.data ?? <int>[];
+      if (bytes.isEmpty) {
+        throw const UnknownServerException('Пустой ZIP архива транзита');
+      }
+      return (bytes: bytes, filename: 'transit_archive_photos_$id.zip');
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<void> sendTransitArchivePhotosZipTo1C(String id) async {
+    try {
+      await _dio.post<dynamic>(
+        'admin/customs-requests/${Uri.encodeComponent(id)}/transit-archive-photos-zip/send-to-1c',
+        options: Options(
+          connectTimeout: _oneCTimeout,
+          receiveTimeout: _oneCTimeout,
+        ),
+      );
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
 }

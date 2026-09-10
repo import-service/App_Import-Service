@@ -15,6 +15,7 @@ const int kRequestFileMaxVideoAudioBytes = 100 * 1024 * 1024;
 bool isLocalFileVideoOrAudio(String path, {String? docType}) {
   final code = CustomsDocType.normalizeCode(docType ?? '');
   if (code == CustomsDocType.transitArchiveVideo.apiCode) return true;
+  if (RegExp(r'^svh_car_video_\d+$').hasMatch(code)) return true;
   if (code.endsWith('_video') || code.endsWith('_audio')) return true;
   final mime = _mimeFromPath(path);
   if (mime.startsWith('video/') || mime.startsWith('audio/')) return true;

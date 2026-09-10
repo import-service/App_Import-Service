@@ -62,6 +62,30 @@ class AdminUsersRemoteDataSource {
     }
   }
 
+  Future<AdminUser> update({
+    required int id,
+    String? login,
+    String? password,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (login != null) body['login'] = login;
+      if (password != null) body['password'] = password;
+      final response = await _dio.patch<dynamic>('admin/users/$id', data: body);
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ при обновлении администратора');
+      }
+      final item = data['item'];
+      if (item is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ при обновлении администратора');
+      }
+      return AdminUserModel.fromJson(item).toEntity();
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
   Future<void> delete(int id) async {
     try {
       await _dio.delete<dynamic>('admin/users/$id');

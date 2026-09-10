@@ -426,4 +426,6 @@ module.exports = {
   renameRequestFilesToExternal1cId,
   extensionFromFilename,
   CUSTOMS_REQUEST_FILE_SELECT,
+  removeExistingSlotFiles,
+  insertFileRow,
 };

@@ -86,4 +86,42 @@ class CustomsRequestsRepositoryImpl implements CustomsRequestsRepository {
     }
     return _remote.resendUpdateTo1C(id);
   }
+
+  @override
+  Future<({List<int> bytes, String filename})> downloadSvhCarPhotosZip(String id) {
+    if (AppConfig.useMockApi) {
+      throw UnsupportedError('downloadSvhCarPhotosZip недоступен в режиме моков');
+    }
+    return _remote.downloadSvhCarPhotosZip(id);
+  }
+
+  @override
+  Future<void> sendSvhCarPhotosZipTo1C(String id) {
+    if (AppConfig.useMockApi) {
+      throw UnsupportedError('sendSvhCarPhotosZipTo1C недоступен в режиме моков');
+    }
+    return _remote.sendSvhCarPhotosZipTo1C(id);
+  }
+
+  @override
+  Future<({List<int> bytes, String filename})> downloadTransitArchivePhotosZip(
+    String id,
+  ) {
+    if (AppConfig.useMockApi) {
+      throw UnsupportedError(
+        'downloadTransitArchivePhotosZip недоступен в режиме моков',
+      );
+    }
+    return _remote.downloadTransitArchivePhotosZip(id);
+  }
+
+  @override
+  Future<void> sendTransitArchivePhotosZipTo1C(String id) {
+    if (AppConfig.useMockApi) {
+      throw UnsupportedError(
+        'sendTransitArchivePhotosZipTo1C недоступен в режиме моков',
+      );
+    }
+    return _remote.sendTransitArchivePhotosZipTo1C(id);
+  }
 }

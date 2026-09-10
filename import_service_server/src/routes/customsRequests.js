@@ -395,7 +395,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(403).send({
           error: 'FORBIDDEN',
           message:
-            'Менеджер СВХ может загружать только галерею авто (svh_car_photo_1…80), архив (transit_archive_*) и add_doc1/2',
+            'Менеджер СВХ может загружать только галерею авто (svh_car_photo_1…80, svh_car_video_1…3), архив (transit_archive_*) и add_doc1/2',
         });
       }
 

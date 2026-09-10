@@ -22,5 +22,13 @@ class AdminUsersRepositoryImpl implements AdminUsersRepository {
       _remote.create(login: login, password: password);
 
   @override
+  Future<AdminUser> update({
+    required int id,
+    String? login,
+    String? password,
+  }) =>
+      _remote.update(id: id, login: login, password: password);
+
+  @override
   Future<void> delete(int id) => _remote.delete(id);
 }

@@ -83,7 +83,10 @@ class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
       );
       return;
     }
-    final paths = await pickMultipleImagePaths(maxCount: remaining);
+    final paths = await pickMultipleImagePaths(
+      context: context,
+      maxCount: remaining,
+    );
     if (!mounted || paths.isEmpty) return;
     final s = sl<JsonStringsService>();
     final indices = nextSvhCarGalleryIndices(

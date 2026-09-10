@@ -40,7 +40,7 @@ final class RequestFilesGrouped {
   final List<CustomsRequestFile> finalDocs;
   /// «Документы к выдаче»: архив СВХ + итоговые (СБКТС/ЭПТС…).
   final List<CustomsRequestFile> issueHandover;
-  /// Галерея «Фото машины» (СВХ): `svh_car_photo_N`.
+  /// Галерея «Фото и видео машины» (СВХ): `svh_car_photo_N` + `svh_car_video_N`.
   final List<CustomsRequestFile> svhCarGallery;
   final List<CustomsRequestFile> other;
 }
@@ -185,14 +185,16 @@ RequestFilesGrouped groupRequestFiles({
 
   final svhCarGallery = <CustomsRequestFile>[];
   for (final f in files) {
-    if (isSvhCarGalleryDocType(f.docType)) {
+    if (isSvhCarMediaDocType(f.docType)) {
       svhCarGallery.add(f);
     }
   }
   svhCarGallery.sort((a, b) {
-    final ai = _svhGalleryIndex(a.docType);
-    final bi = _svhGalleryIndex(b.docType);
-    return ai.compareTo(bi);
+    final ak = _svhMediaSortKey(a.docType);
+    final bk = _svhMediaSortKey(b.docType);
+    final byKind = ak.$1.compareTo(bk.$1);
+    if (byKind != 0) return byKind;
+    return ak.$2.compareTo(bk.$2);
   });
 
   final issueHandover = <CustomsRequestFile>[
@@ -206,6 +208,8 @@ RequestFilesGrouped groupRequestFiles({
     ...payment.map((e) => CustomsDocType.normalizeCode(e.docType)),
     ...issueHandover.map((e) => CustomsDocType.normalizeCode(e.docType)),
     ...svhCarGallery.map((e) => CustomsDocType.normalizeCode(e.docType)),
+    'svh_car_photos_zip',
+    'transit_archive_photos_zip',
   };
 
   final other = <CustomsRequestFile>[];
@@ -230,9 +234,17 @@ RequestFilesGrouped groupRequestFiles({
   );
 }
 
-int _svhGalleryIndex(String? docType) {
-  final m = RegExp(r'^svh_car_photo_(\d+)$').firstMatch(normalizeDocType(docType));
-  return int.tryParse(m?.group(1) ?? '') ?? 0;
+(int, int) _svhMediaSortKey(String? docType) {
+  final c = normalizeDocType(docType);
+  final photo = RegExp(r'^svh_car_photo_(\d+)$').firstMatch(c);
+  if (photo != null) {
+    return (0, int.tryParse(photo.group(1) ?? '') ?? 0);
+  }
+  final video = RegExp(r'^svh_car_video_(\d+)$').firstMatch(c);
+  if (video != null) {
+    return (1, int.tryParse(video.group(1) ?? '') ?? 0);
+  }
+  return (9, 0);
 }
 
 bool _shouldShowSigningRow({

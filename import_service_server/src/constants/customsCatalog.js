@@ -240,6 +240,12 @@ function isKnownDocType(docType) {
     const n = Number(code.replace(/^svh_car_photo_/, ''));
     return Number.isInteger(n) && n >= 1 && n <= 80;
   }
+  if (/^svh_car_video_\d+$/.test(code)) {
+    const n = Number(code.replace(/^svh_car_video_/, ''));
+    return Number.isInteger(n) && n >= 1 && n <= 3;
+  }
+  if (code === 'svh_car_photos_zip') return true;
+  if (code === 'transit_archive_photos_zip') return true;
   return false;
 }
 
@@ -282,6 +288,15 @@ function docTypeLabel(code) {
   if (/^svh_car_photo_\d+$/.test(c)) {
     return 'Фото машины (СВХ)';
   }
+  if (/^svh_car_video_\d+$/.test(c)) {
+    return 'Видео машины (СВХ)';
+  }
+  if (c === 'svh_car_photos_zip') {
+    return 'Архив фото и видео машины (СВХ)';
+  }
+  if (c === 'transit_archive_photos_zip') {
+    return 'Архив фото перед транзитом (ZIP)';
+  }
   return c;
 }
 
@@ -309,7 +324,8 @@ function docTypeCategory(code) {
   if (/^transit_archive_photo_\d+$/.test(c)) return 'transit_archive';
   if (c === 'transit_archive_video') return 'transit_archive';
   if (/^svh_car_photo_\d+$/.test(c)) return 'svh_car_gallery';
-  if (c.startsWith('payment_')) return 'payment';
+  if (/^svh_car_video_\d+$/.test(c)) return 'svh_car_gallery';
+  if (c === 'svh_car_photos_zip') return 'svh_car_gallery';  if (c.startsWith('payment_')) return 'payment';
   return 'other';
 }
 
@@ -327,6 +343,10 @@ function isSvhManagerAllowedDocType(docType) {
   if (/^svh_car_photo_\d+$/.test(c)) {
     const n = Number(c.replace(/^svh_car_photo_/, ''));
     return Number.isInteger(n) && n >= 1 && n <= 80;
+  }
+  if (/^svh_car_video_\d+$/.test(c)) {
+    const n = Number(c.replace(/^svh_car_video_/, ''));
+    return Number.isInteger(n) && n >= 1 && n <= 3;
   }
   if (c === 'add_doc1' || c === 'add_doc2') return true;
   if (c === 'transit_archive_photo' || c === 'transit_archive_video') return true;

@@ -13,6 +13,7 @@ import 'package:import_service_admin/core/logging/one_c_log.dart';
 import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/core/ui/app_snackbars.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
+import 'package:import_service_admin/core/util/browser_download.dart';
 import 'package:import_service_admin/core/util/file_url_resolver.dart';
 import 'package:import_service_admin/domain/entities/customs_request.dart';
 import 'package:import_service_admin/domain/entities/customs_request_file.dart';
@@ -72,6 +73,105 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
       success: 'Изменения отправлены в 1С',
       logAction: 'resend-update-to-1c #${item.id}',
     );
+  }
+
+  bool _hasSvhCarPhotos(CustomsRequest item) {
+    return item.files.any((f) {
+      final code = f.docType.trim();
+      return RegExp(r'^svh_car_photo_\d+$').hasMatch(code) ||
+          RegExp(r'^svh_car_video_\d+$').hasMatch(code);
+    });
+  }
+
+  bool _hasTransitArchivePhotos(CustomsRequest item) {
+    return item.files.any(
+      (f) => RegExp(r'^transit_archive_photo_\d+$').hasMatch(f.docType.trim()),
+    );
+  }
+
+  Future<void> _downloadSvhCarPhotosZip(CustomsRequest item) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final zip = await sl<CustomsRequestsRepository>()
+          .downloadSvhCarPhotosZip(item.id);
+      saveBytesAsFile(
+        Uint8List.fromList(zip.bytes),
+        zip.filename,
+      );
+      if (!mounted) return;
+      AppSnackBars.showSuccess('ZIP фото/видео машины скачан');
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBars.showError('Не удалось скачать ZIP фото/видео машины');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _sendSvhCarPhotosZipTo1C(CustomsRequest item) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      await sl<CustomsRequestsRepository>().sendSvhCarPhotosZipTo1C(item.id);
+      if (!mounted) return;
+      AppSnackBars.showSuccess('Архив фото/видео машины отправлен в 1С');
+      _reload();
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBars.showError('Не удалось отправить ZIP в 1С');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _downloadTransitArchivePhotosZip(CustomsRequest item) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final zip = await sl<CustomsRequestsRepository>()
+          .downloadTransitArchivePhotosZip(item.id);
+      saveBytesAsFile(
+        Uint8List.fromList(zip.bytes),
+        zip.filename,
+      );
+      if (!mounted) return;
+      AppSnackBars.showSuccess('ZIP архива транзита скачан');
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBars.showError('Не удалось скачать ZIP архива транзита');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _sendTransitArchivePhotosZipTo1C(CustomsRequest item) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      await sl<CustomsRequestsRepository>()
+          .sendTransitArchivePhotosZipTo1C(item.id);
+      if (!mounted) return;
+      AppSnackBars.showSuccess('Архив транзита отправлен в 1С');
+      _reload();
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBars.showError('Не удалось отправить ZIP архива в 1С');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   Future<void> _runOneC(
@@ -530,7 +630,10 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
         item.statusSubType != null && item.statusSubType!.trim().isNotEmpty;
 
     final out = <Widget>[
-      if (item.canSendTo1C || item.canResendUpdateTo1C) ...[
+      if (item.canSendTo1C ||
+          item.canResendUpdateTo1C ||
+          _hasSvhCarPhotos(item) ||
+          _hasTransitArchivePhotos(item)) ...[
         _AdminActions(
           item: item,
           sending: _sending,
@@ -538,6 +641,18 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
               item.canSendTo1C ? () => _resendCreate(item) : null,
           onResendUpdate:
               item.canResendUpdateTo1C ? () => _resendUpdate(item) : null,
+          onDownloadSvhCarPhotosZip: _hasSvhCarPhotos(item)
+              ? () => _downloadSvhCarPhotosZip(item)
+              : null,
+          onSendSvhCarPhotosZipTo1C: _hasSvhCarPhotos(item)
+              ? () => _sendSvhCarPhotosZipTo1C(item)
+              : null,
+          onDownloadTransitArchivePhotosZip: _hasTransitArchivePhotos(item)
+              ? () => _downloadTransitArchivePhotosZip(item)
+              : null,
+          onSendTransitArchivePhotosZipTo1C: _hasTransitArchivePhotos(item)
+              ? () => _sendTransitArchivePhotosZipTo1C(item)
+              : null,
         ),
         const Gap(20),
       ],
@@ -1055,12 +1170,20 @@ class _AdminActions extends StatelessWidget {
     required this.sending,
     this.onResendCreate,
     this.onResendUpdate,
+    this.onDownloadSvhCarPhotosZip,
+    this.onSendSvhCarPhotosZipTo1C,
+    this.onDownloadTransitArchivePhotosZip,
+    this.onSendTransitArchivePhotosZipTo1C,
   });
 
   final CustomsRequest item;
   final bool sending;
   final VoidCallback? onResendCreate;
   final VoidCallback? onResendUpdate;
+  final VoidCallback? onDownloadSvhCarPhotosZip;
+  final VoidCallback? onSendSvhCarPhotosZipTo1C;
+  final VoidCallback? onDownloadTransitArchivePhotosZip;
+  final VoidCallback? onSendTransitArchivePhotosZipTo1C;
 
   @override
   Widget build(BuildContext context) {
@@ -1085,6 +1208,38 @@ class _AdminActions extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppTheme.accentRed,
             ),
+          ),
+        ],
+        if (onDownloadSvhCarPhotosZip != null) ...[
+          if (onResendCreate != null || onResendUpdate != null) const Gap(8),
+          OutlinedButton.icon(
+            onPressed: sending ? null : onDownloadSvhCarPhotosZip,
+            icon: const Icon(Icons.folder_zip_outlined),
+            label: const Text('Скачать ZIP фото/видео машины'),
+          ),
+        ],
+        if (onSendSvhCarPhotosZipTo1C != null) ...[
+          const Gap(8),
+          OutlinedButton.icon(
+            onPressed: sending ? null : onSendSvhCarPhotosZipTo1C,
+            icon: const Icon(Icons.send_outlined),
+            label: const Text('ZIP фото/видео машины → 1С'),
+          ),
+        ],
+        if (onDownloadTransitArchivePhotosZip != null) ...[
+          const Gap(8),
+          OutlinedButton.icon(
+            onPressed: sending ? null : onDownloadTransitArchivePhotosZip,
+            icon: const Icon(Icons.folder_zip_outlined),
+            label: const Text('Скачать ZIP архива транзита'),
+          ),
+        ],
+        if (onSendTransitArchivePhotosZipTo1C != null) ...[
+          const Gap(8),
+          OutlinedButton.icon(
+            onPressed: sending ? null : onSendTransitArchivePhotosZipTo1C,
+            icon: const Icon(Icons.send_outlined),
+            label: const Text('ZIP архива транзита → 1С'),
           ),
         ],
       ],

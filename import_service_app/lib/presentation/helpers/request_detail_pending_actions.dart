@@ -65,14 +65,18 @@ String? sectionKeyForUploadedDocType(String docType) {
   if (code.contains('receipt') || code.startsWith('payment_')) {
     return RequestDetailSectionKeys.filesPayment;
   }
+  if (code == 'add_doc1' || code == 'add_doc2') {
+    return RequestDetailSectionKeys.filesOther;
+  }
   if (code.startsWith('car_') ||
       code.startsWith('transit_archive') ||
       code.startsWith('svh_car_photo_') ||
+      code.startsWith('svh_car_video_') ||
       code == 'epts' ||
       code == 'sbkts' ||
       code == 'tpo' ||
       code == 'ptd') {
-    if (code.startsWith('svh_car_photo_')) {
+    if (code.startsWith('svh_car_photo_') || code.startsWith('svh_car_video_')) {
       return RequestDetailSectionKeys.filesSvhCarGallery;
     }
     if (code.startsWith('car_')) {

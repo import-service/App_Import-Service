@@ -15,9 +15,13 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _loginController = TextEditingController(text: AppConfig.mockLogin);
-  final _passwordController =
-      TextEditingController(text: AppConfig.mockPassword);
+  /// Prefill только в mock-режиме; на проде поля пустые (без дефолтного admin/123456).
+  final _loginController = TextEditingController(
+    text: AppConfig.useMockApi ? AppConfig.mockLogin : '',
+  );
+  final _passwordController = TextEditingController(
+    text: AppConfig.useMockApi ? AppConfig.mockPassword : '',
+  );
   bool _loading = false;
   bool _obscurePassword = true;
 
@@ -53,6 +57,8 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       context.go('/dashboard');
     } on UnauthorizedException catch (e) {
+      _showError(e.message);
+    } on ServerException catch (e) {
       _showError(e.message);
     } catch (_) {
       _showError('Не удалось войти. Попробуйте позже.');
@@ -100,15 +106,6 @@ class _LoginPageState extends State<LoginPage> {
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const Gap(8),
-                Text(
-                  'Тестовый вход',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: AppTheme.accentRed,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const Gap(24),

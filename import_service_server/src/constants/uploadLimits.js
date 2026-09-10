@@ -13,6 +13,7 @@ function normalizeMime(mimeType) {
 function isVideoDocType(docType) {
   const c = String(docType ?? '').trim();
   if (c === 'transit_archive_video') return true;
+  if (/^svh_car_video_\d+$/i.test(c)) return true;
   return /_video$/i.test(c);
 }
 
