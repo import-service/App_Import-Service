@@ -207,6 +207,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final paths = await pickMultipleImagePaths(
       context: context,
       maxCount: remaining,
+      allowFile: false,
     );
     if (!mounted || paths.isEmpty) return;
 

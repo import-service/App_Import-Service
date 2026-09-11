@@ -19,6 +19,7 @@ import 'package:import_service_admin/data/datasources/remote/organizations_remot
 import 'package:import_service_admin/data/datasources/remote/broadcast_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/storage_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/store_versions_remote_data_source.dart';
+import 'package:import_service_admin/data/datasources/remote/android_apk_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/client_errors_remote_data_source.dart';
 import 'package:import_service_admin/data/repositories/admin_users_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/svh_managers_repository_impl.dart';
@@ -73,6 +74,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<StoreVersionsRemoteDataSource>(
     () => StoreVersionsRemoteDataSource(sl<Dio>()),
+  );
+  sl.registerLazySingleton<AndroidApkRemoteDataSource>(
+    () => AndroidApkRemoteDataSource(sl<Dio>()),
   );
   sl.registerLazySingleton<ClientErrorsRemoteDataSource>(
     () => ClientErrorsRemoteDataSource(sl<Dio>()),

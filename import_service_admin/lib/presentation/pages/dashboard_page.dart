@@ -1,3 +1,8 @@
+// Web-only file picker (admin is Flutter Web).
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'dart:html' as html;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +10,7 @@ import 'package:import_service_admin/core/di/injection_container.dart';
 import 'package:import_service_admin/core/theme/app_theme.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
 import 'package:import_service_admin/core/error/exceptions.dart';
+import 'package:import_service_admin/data/datasources/remote/android_apk_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/store_versions_remote_data_source.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
 import 'package:import_service_admin/domain/repositories/organizations_repository.dart';
@@ -24,11 +30,25 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Map<String, dynamic>> _storeVersions = const [];
   String? _storeVersionsError;
   bool _scanningStores = false;
+  Map<String, dynamic>? _apkStatus;
+  String? _apkError;
+  bool _uploadingApk = false;
+  final _apkVersionCodeCtrl = TextEditingController();
+  final _apkVersionNameCtrl = TextEditingController();
+  Uint8List? _apkBytes;
+  String? _apkFileName;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _apkVersionCodeCtrl.dispose();
+    _apkVersionNameCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -38,6 +58,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _newCount = null;
       _orgsTotal = null;
       _storeVersionsError = null;
+      _apkError = null;
     });
     try {
       final all = await sl<CustomsRequestsRepository>().listRequests(limit: 200);
@@ -53,6 +74,13 @@ class _DashboardPageState extends State<DashboardPage> {
       } catch (e) {
         storesErr = e is ServerException ? e.message : e.toString();
       }
+      Map<String, dynamic>? apk;
+      String? apkErr;
+      try {
+        apk = await sl<AndroidApkRemoteDataSource>().fetchStatus();
+      } catch (e) {
+        apkErr = e is ServerException ? e.message : e.toString();
+      }
       if (!mounted) return;
       setState(() {
         _requestsTotal = all.total;
@@ -60,6 +88,16 @@ class _DashboardPageState extends State<DashboardPage> {
         _orgsTotal = orgs.total;
         _storeVersions = stores;
         _storeVersionsError = storesErr;
+        _apkStatus = apk;
+        _apkError = apkErr;
+        if (apk != null && apk['available'] == true) {
+          final code = apk['versionCode'];
+          if (code != null) _apkVersionCodeCtrl.text = '$code';
+          final name = apk['versionName']?.toString();
+          if (name != null && name.isNotEmpty) {
+            _apkVersionNameCtrl.text = name;
+          }
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -67,6 +105,75 @@ class _DashboardPageState extends State<DashboardPage> {
       setState(() {
         _error = e is ServerException ? e.message : e.toString();
       });
+    }
+  }
+
+  Future<void> _pickApk() async {
+    final input = html.FileUploadInputElement()..accept = '.apk,application/vnd.android.package-archive';
+    input.click();
+    await input.onChange.first;
+    final file = input.files?.first;
+    if (file == null) return;
+    final reader = html.FileReader();
+    reader.readAsArrayBuffer(file);
+    await reader.onLoad.first;
+    final raw = reader.result;
+    late Uint8List bytes;
+    if (raw is ByteBuffer) {
+      bytes = raw.asUint8List();
+    } else if (raw is Uint8List) {
+      bytes = raw;
+    } else {
+      return;
+    }
+    setState(() {
+      _apkBytes = bytes;
+      _apkFileName = file.name;
+    });
+  }
+
+  Future<void> _uploadApk() async {
+    final code = int.tryParse(_apkVersionCodeCtrl.text.trim());
+    if (code == null || code < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Укажите versionCode (buildNumber)')),
+      );
+      return;
+    }
+    if (_apkBytes == null || _apkBytes!.isEmpty || _apkFileName == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Выберите APK файл')),
+      );
+      return;
+    }
+    setState(() => _uploadingApk = true);
+    try {
+      final result = await sl<AndroidApkRemoteDataSource>().upload(
+        fileBytes: _apkBytes!,
+        fileName: _apkFileName!,
+        versionCode: code,
+        versionName: _apkVersionNameCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _apkStatus = result;
+        _apkBytes = null;
+        _apkFileName = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('APK опубликован на сервере')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is ServerException ? e.message : 'Не удалось загрузить APK',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingApk = false);
     }
   }
 
@@ -187,6 +294,91 @@ class _DashboardPageState extends State<DashboardPage> {
                 onTap: _goOrganizations,
               ),
             ],
+          ),
+          const Gap(28),
+          Text(
+            'APK на сервере',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const Gap(12),
+          if (_apkError != null)
+            Text(
+              _apkError!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.accentRed,
+                  ),
+            ),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFE0E0E0)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _apkStatus == null
+                        ? 'Статус неизвестен'
+                        : _apkStatus!['available'] == true
+                            ? 'Опубликован: build ${_apkStatus!['versionCode']}'
+                                '${_apkStatus!['versionName'] != null ? ' (${_apkStatus!['versionName']})' : ''}'
+                                '${_apkStatus!['updatedAt'] != null ? '\n${_apkStatus!['updatedAt']}' : ''}'
+                            : 'APK ещё не загружен',
+                  ),
+                  const Gap(12),
+                  TextField(
+                    controller: _apkVersionCodeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'versionCode (buildNumber)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const Gap(8),
+                  TextField(
+                    controller: _apkVersionNameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'versionName (опционально)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const Gap(8),
+                  Text(
+                    _apkFileName == null
+                        ? 'Файл не выбран'
+                        : 'Файл: $_apkFileName (${((_apkBytes?.length ?? 0) / (1024 * 1024)).toStringAsFixed(1)} МБ)',
+                  ),
+                  const Gap(8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _uploadingApk ? null : _pickApk,
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Выбрать APK'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _uploadingApk ? null : _uploadApk,
+                        icon: _uploadingApk
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.cloud_upload_outlined),
+                        label: const Text('Опубликовать'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
           const Gap(28),
           Row(

@@ -2,9 +2,11 @@ const { docTypeCategory } = require('./customsCatalog');
 
 const LIMIT_PHOTO_DOC_BYTES = 25 * 1024 * 1024;
 const LIMIT_MEDIA_BYTES = 100 * 1024 * 1024;
+/** APK релиза МП (админ upload). */
+const LIMIT_APK_BYTES = 200 * 1024 * 1024;
 /** Тело HTTP для JSON+base64 (≈×1.37 от 100 МБ). */
 const HTTP_BODY_LIMIT_BYTES = 150 * 1024 * 1024;
-const MULTIPART_MAX_BYTES = LIMIT_MEDIA_BYTES;
+const MULTIPART_MAX_BYTES = Math.max(LIMIT_MEDIA_BYTES, LIMIT_APK_BYTES);
 
 function normalizeMime(mimeType) {
   return String(mimeType ?? '').trim().toLowerCase();
@@ -65,6 +67,7 @@ function shouldGeneratePreview(docType, mimeType) {
 module.exports = {
   LIMIT_PHOTO_DOC_BYTES,
   LIMIT_MEDIA_BYTES,
+  LIMIT_APK_BYTES,
   HTTP_BODY_LIMIT_BYTES,
   MULTIPART_MAX_BYTES,
   maxBytesForUpload,

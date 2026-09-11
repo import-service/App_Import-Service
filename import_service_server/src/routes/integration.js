@@ -28,9 +28,29 @@ function normalizeOrgPayload(raw) {
   const password = String(raw.password ?? '');
   const role = parseRole(raw.role);
   const orgType = parseOrgType(raw.orgType);
-  const companyName = normalize(raw.companyName) || login;
-  const inn = normalize(raw.inn);
-  const phone = normalize(raw.phone);
+  const companyNameRaw =
+    normalize(raw.companyName) ||
+    normalize(raw.fullCompanyName) ||
+    normalize(raw.полноеНаименование) ||
+    normalize(raw.наименование) ||
+    normalize(raw.fullName) ||
+    normalize(raw.name) ||
+    '';
+  // Не сохранять login/email как «наименование» (старый баг / пустой ответ 1С).
+  const companyName =
+    !companyNameRaw ||
+    companyNameRaw === login ||
+    companyNameRaw.includes('@')
+      ? ''
+      : companyNameRaw;
+  const inn = normalize(raw.inn ?? raw.INN ?? raw.legalInn);
+  const phone = normalize(
+    raw.phone ??
+      raw.telephone ??
+      raw.phoneNumber ??
+      raw.Phone ??
+      raw.legalPhone,
+  );
 
   if (!id1c) throw new Error('VALIDATION_ERROR: id_1c обязателен');
   if (!login) throw new Error('VALIDATION_ERROR: login обязателен');
@@ -77,9 +97,19 @@ module.exports = async function integrationRoutes(fastify) {
             role: { type: 'string', enum: ['admin', 'user', 'ADMIN', 'USER'] },
             orgType: { type: 'string', enum: ['ИП', 'ООО', 'Физическое лицо'] },
             companyName: { type: 'string', maxLength: 255 },
+            fullCompanyName: { type: 'string', maxLength: 255 },
+            fullName: { type: 'string', maxLength: 255 },
+            name: { type: 'string', maxLength: 255 },
             inn: { type: 'string', maxLength: 32 },
+            legalInn: { type: 'string', maxLength: 32 },
+            INN: { type: 'string', maxLength: 32 },
             phone: { type: 'string', maxLength: 30 },
+            telephone: { type: 'string', maxLength: 30 },
+            phoneNumber: { type: 'string', maxLength: 30 },
+            legalPhone: { type: 'string', maxLength: 30 },
+            Phone: { type: 'string', maxLength: 30 },
           },
+          additionalProperties: true,
         },
       },
     },
@@ -111,7 +141,11 @@ module.exports = async function integrationRoutes(fastify) {
              role = VALUES(role),
              password_hash = VALUES(password_hash),
              org_type = VALUES(org_type),
-             company_name = IF(VALUES(company_name) = '', company_name, VALUES(company_name)),
+             company_name = CASE
+               WHEN VALUES(company_name) <> '' THEN VALUES(company_name)
+               WHEN company_name LIKE '%@%' THEN ''
+               ELSE company_name
+             END,
              inn = IF(VALUES(inn) = '', inn, VALUES(inn)),
              phone = IF(VALUES(phone) = '', phone, VALUES(phone)),
              deleted_at = NULL`,

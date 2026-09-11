@@ -86,6 +86,7 @@ class _SvhRequestDetailPageState extends State<SvhRequestDetailPage> {
     final paths = await pickMultipleImagePaths(
       context: context,
       maxCount: remaining,
+      allowFile: false,
     );
     if (!mounted || paths.isEmpty) return;
     final s = sl<JsonStringsService>();

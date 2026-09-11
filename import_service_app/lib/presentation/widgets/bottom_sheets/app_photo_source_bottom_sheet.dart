@@ -3,14 +3,15 @@ import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/app_choice_bottom_sheet.dart';
 
-/// Источник фото: галерея устройства или съёмка.
-enum AppPhotoSource { gallery, camera }
+/// Источник вложения: галерея, камера или файл (PDF).
+enum AppPhotoSource { gallery, camera, file }
 
-/// Универсальная шторка «Галерея / Камера» для всего МП.
+/// Универсальная шторка «Галерея / Камера / Файл» для всего МП.
 abstract final class AppPhotoSourceBottomSheet {
   static Future<AppPhotoSource?> show(
     BuildContext context, {
     String? title,
+    bool allowFile = true,
   }) {
     final s = sl<JsonStringsService>();
     return AppChoiceBottomSheet.show<AppPhotoSource>(
@@ -27,6 +28,12 @@ abstract final class AppPhotoSourceBottomSheet {
           label: s.text('requestPickPhotoSourceCamera'),
           icon: Icons.photo_camera_outlined,
         ),
+        if (allowFile)
+          AppChoiceSheetOption(
+            value: AppPhotoSource.file,
+            label: s.text('requestPickPhotoSourceFile'),
+            icon: Icons.attach_file,
+          ),
       ],
     );
   }

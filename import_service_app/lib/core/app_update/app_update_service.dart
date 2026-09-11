@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rustore_update/flutter_rustore_update.dart' as rustore_update;
 import 'package:in_app_update/in_app_update.dart' as play_update;
 import 'package:import_service_app/core/app_update/app_install_source.dart';
+import 'package:import_service_app/core/app_update/android_server_apk_client.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
@@ -29,11 +30,13 @@ const String kAppStoreUrl =
 /// Проверка обновления и диалог — один раз за жизнь процесса (cold start).
 /// Logout / демо флаг не сбрасывают (см. [AppUpdateBootstrap]).
 final class AppUpdateService {
-  AppUpdateService(this._dio);
+  AppUpdateService(this._dio) : _serverApk = AndroidServerApkClient(_dio);
 
   final Dio _dio;
+  final AndroidServerApkClient _serverApk;
   bool _checkDoneThisSession = false;
   bool _promptInFlight = false;
+  bool _serverInstallInFlight = false;
   StreamSubscription<rustore_update.RequestResponse>? _rustoreStateSub;
   StreamSubscription<play_update.InstallStatus>? _playInstallSub;
 
@@ -85,7 +88,7 @@ final class AppUpdateService {
           .text('appUpdateMessage')
           .replaceAll('{storeVersion}', check.storeVersion)
           .replaceAll('{localVersion}', check.localVersion);
-      final update = await showDialog<bool>(
+      final choice = await showDialog<String>(
         context: ctx,
         useRootNavigator: true,
         barrierDismissible: false,
@@ -94,22 +97,31 @@ final class AppUpdateService {
           content: Text(message),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              onPressed: () => Navigator.of(dialogCtx).pop('later'),
               child: Text(strings.text('appUpdateLater')),
             ),
+            if (Platform.isAndroid)
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop('server'),
+                child: Text(strings.text('appUpdateViaServer')),
+              ),
             FilledButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              onPressed: () => Navigator.of(dialogCtx).pop('store'),
               child: Text(strings.text('appUpdateButton')),
             ),
           ],
         ),
       );
 
-      _dbg('dialogResult=$update');
+      _dbg('dialogResult=$choice');
       _checkDoneThisSession = true;
-      if (update != true) return;
+      if (choice == null || choice == 'later') return;
       final afterCtx = _dialogContext(context);
       if (afterCtx == null) return;
+      if (choice == 'server') {
+        await installFromServer(afterCtx);
+        return;
+      }
       await _performUpdate(afterCtx);
     } catch (e, st) {
       AppLog.error(
@@ -121,6 +133,42 @@ final class AppUpdateService {
       _dbg('error: $e');
     } finally {
       _promptInFlight = false;
+    }
+  }
+
+  /// Есть ли на сервере APK новее установленного (для кнопки в профиле).
+  Future<bool> isServerApkUpdateAvailable() =>
+      _serverApk.isServerNewerThanInstalled();
+
+  /// Скачать APK с сервера и открыть установщик (профиль / диалог).
+  Future<void> installFromServer(BuildContext? context) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    if (_serverInstallInFlight) return;
+    _serverInstallInFlight = true;
+    final strings = sl<JsonStringsService>();
+    try {
+      _feedback(
+        strings: strings.text('appUpdateServerDownloading'),
+        kind: AppFeedbackKind.warning,
+      );
+      await _serverApk.downloadAndInstall();
+      _feedback(
+        strings: strings.text('appUpdateServerInstallPrompt'),
+        kind: AppFeedbackKind.success,
+      );
+    } catch (e, st) {
+      AppLog.error(
+        'server apk install failed',
+        tag: 'AppUpdate',
+        error: e,
+        stackTrace: st,
+      );
+      final msg = e.toString().contains('sha256')
+          ? strings.text('appUpdateServerHashMismatch')
+          : strings.text('appUpdateServerFailed');
+      _feedback(strings: msg, kind: AppFeedbackKind.error);
+    } finally {
+      _serverInstallInFlight = false;
     }
   }
 

@@ -22,6 +22,7 @@ import 'package:import_service_app/domain/entities/request_files_batch_upload_re
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/presentation/helpers/masked_field_validation.dart';
+import 'package:import_service_app/presentation/helpers/org_display_name.dart';
 import 'package:import_service_app/presentation/helpers/request_attach_failure_message.dart';
 import 'package:import_service_app/presentation/helpers/session_auth_error.dart';
 import 'package:import_service_app/presentation/helpers/vin_validation.dart';
@@ -629,11 +630,17 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     setState(() {});
   }
 
-  /// Только поля организации из сессии (read-only в UI). Физлицо «на кого» не трогаем.
+  /// Поля организации из сессии (префилл). Пустые можно заполнить вручную.
   void _prefillOrgFromProfile(AuthSessionController session) {
     final isDemo = session.isDemo;
-    final companyName =
+    final rawCompany =
         isDemo ? DemoProfileSnapshot.companyName : (session.companyName ?? '');
+    final companyName = looksLikeEmailOrLogin(
+          rawCompany,
+          login: session.login,
+        )
+        ? ''
+        : rawCompany.trim();
     final inn = isDemo ? DemoProfileSnapshot.inn : (session.inn ?? '');
     final parsed = OrganizationTypeInn.tryParse(session.orgType);
     if (parsed != null) {
@@ -647,7 +654,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final phone =
         isDemo ? DemoProfileSnapshot.phoneDisplay : (session.phone ?? '');
 
-    _companyNameController.text = companyName.trim();
+    _companyNameController.text = companyName;
     _companyInnController.text = InnInputFormatter.formatDigits(
       inn,
       maxDigits: _organizationType.innMaxDigits,
@@ -743,15 +750,6 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                     : s.text('requestCompanyNameHint'),
                 controller: _companyNameController,
                 textCapitalization: TextCapitalization.words,
-                readOnly: true,
-              ),
-              const SizedBox(height: 14),
-              AppInnField(
-                label: s.innLabel,
-                controller: _companyInnController,
-                organizationType: _organizationType,
-                validate: false,
-                readOnly: true,
               ),
               const SizedBox(height: 14),
               RequestLabeledInputField(
@@ -759,14 +757,12 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
                 hintText: s.emailLabel,
                 controller: _companyEmailController,
                 keyboardType: TextInputType.emailAddress,
-                readOnly: true,
               ),
               const SizedBox(height: 14),
               AppPhoneRuField(
                 label: s.text('requestCompanyPhoneLabel'),
                 controller: _companyPhoneController,
                 validate: false,
-                readOnly: true,
               ),
               const SizedBox(height: 14),
               RequestLabeledInputField(
@@ -785,6 +781,13 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
               AppSnilsField(
                 label: s.text('requestSnilsLabel'),
                 controller: _personSnilsController,
+                validate: false,
+              ),
+              const SizedBox(height: 14),
+              AppInnField(
+                label: s.innLabel,
+                controller: _companyInnController,
+                organizationType: _organizationType,
                 validate: false,
               ),
               const SizedBox(height: 14),

@@ -22,6 +22,7 @@ import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
+import 'package:import_service_app/presentation/helpers/org_display_name.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/settings_app_bar_action.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/logout_confirm_bottom_sheet.dart';
@@ -151,16 +152,7 @@ class _HomePageState extends State<HomePage> {
             OrganizationType.person;
         final displayName = isDemo
             ? strings.demoClientName
-            : (isPersonApplicant
-                ? ((session.fullName?.trim().isNotEmpty == true
-                        ? session.fullName!.trim()
-                        : session.companyName?.trim()) ??
-                    session.login?.trim() ??
-                    '—')
-                : ((session.companyName?.trim().isNotEmpty == true
-                        ? session.companyName!.trim()
-                        : session.login?.trim()) ??
-                    '—'));
+            : orgDisplayNameFromSession(session);
 
         final appBarTitle = switch (_tabIndex) {
           _tabChats => strings.chatsTabTitle,
@@ -233,7 +225,12 @@ class _HomePageState extends State<HomePage> {
                 innLabel: strings.profileInnLabel,
                 logoutLabel: strings.logoutButton,
                 onLogout: () => _logout(context),
-                companyName: session.companyName,
+                companyName: looksLikeEmailOrLogin(
+                  session.companyName,
+                  login: session.login,
+                )
+                    ? null
+                    : session.companyName,
                 inn: session.inn,
                 phone: session.phone,
                 email: session.email,

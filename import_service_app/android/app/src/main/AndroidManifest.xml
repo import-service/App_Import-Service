@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Пуш-уведомления Android 13+ (FCM). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Установка APK, скачанного с нашего сервера. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Photo Picker в либе — без READ_MEDIA. Вырезаем, если плагин подмешает. -->
     <uses-permission

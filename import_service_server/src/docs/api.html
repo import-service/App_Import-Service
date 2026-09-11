@@ -265,6 +265,42 @@
 }</pre><p><b>Правила:</b> только статусы <code>delivered</code> / <code>closed</code>; повтор — <code>409 ALREADY_RATED</code>. Письмо на <code>CUSTOMS_REQUEST_MAIL_TO</code> (по умолчанию <code>info@import-service.su</code>). В 1С не уходит. В DTO: <code>clientRating</code>, <code>clientRatingComment</code>, <code>clientRatedAt</code>.</p><p><b>Success:</b> тело заявки (как GET <code>/api/customs-requests/:id</code>).</p><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 UNAUTHORIZED</code></li><li><code>404 NOT_FOUND</code></li><li><code>409 ALREADY_RATED</code> / <code>409 RATING_NOT_ALLOWED</code></li></ul></div>
         </details>
         <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/app/android-apk</code><span class="desc">Манифест APK с сервера (публично).</span></summary>
+          <div class="body"><p><b>Auth:</b> не нужен.</p>
+            <p>Один файл на сервере, при публикации <b>перезаписывается</b>. Сравнение в МП — только <code>versionCode</code> (= <code>buildNumber</code>, например <code>+34</code>).</p>
+            <p><b>Success (есть файл):</b></p><pre>{
+  "available": true,
+  "versionCode": 34,
+  "versionName": "1.0.34",
+  "sha256": "…hex…",
+  "sizeBytes": 52428800,
+  "updatedAt": "2026-09-11T06:00:00.000Z",
+  "apkUrl": "https://157-22-173-7.sslip.io/api/app/android-apk/download"
+}</pre>
+            <p><b>Success (нет файла):</b></p><pre>{ "available": false }</pre>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/app/android-apk/download</code><span class="desc">Скачать APK (публично).</span></summary>
+          <div class="body"><p><b>Auth:</b> не нужен.</p><p><b>Success:</b> binary <code>application/vnd.android.package-archive</code>.</p><p><b>Errors:</b> <code>404 APK_NOT_FOUND</code></p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span> / <span class="method post">POST</span><code class="path">/api/admin/android-apk</code><span class="desc">Статус и загрузка APK (админ).</span></summary>
+          <div class="body">
+            <p><b>Auth:</b> Bearer admin</p>
+            <p><b>GET</b> — тот же JSON, что <code>/api/app/android-apk</code>.</p>
+            <p><b>POST</b> multipart:</p>
+            <table class="fields">
+              <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
+              <tr><td><code>file</code></td><td>да</td><td>APK (перезапись <code>import-service-latest.apk</code>)</td></tr>
+              <tr><td><code>versionCode</code></td><td>да</td><td>buildNumber (<code>+34</code> → <code>34</code>)</td></tr>
+              <tr><td><code>versionName</code></td><td>нет</td><td>например <code>1.0.34</code></td></tr>
+            </table>
+            <p>Лимит ~200 МБ. Сервер считает <code>sha256</code> и пишет манифест.</p>
+            <p><b>Success:</b> <code>{ "ok": true, "available": true, "versionCode": 34, … }</code></p>
+          </div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/feedback</code><span class="desc">Обратная связь из МП (Профиль) → письмо на info@import-service.su.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Request:</b></p><pre>{
   "message": "Текст отзыва (мин. 15, макс. 4000 символов)",
@@ -911,11 +947,12 @@
               <tr><td><code>password</code></td><td>да</td><td>Пароль (на сервере хэшируется).</td></tr>
               <tr><td><code>role</code></td><td>нет</td><td><code>user</code> или <code>admin</code> (по умолчанию <code>user</code>).</td></tr>
               <tr><td><code>orgType</code></td><td>нет</td><td><code>ИП</code>, <code>ООО</code> или <code>Физическое лицо</code> (по умолчанию <code>ООО</code>).</td></tr>
-              <tr><td><code>companyName</code></td><td>нет</td><td>Наименование (если пусто — подставляется login).</td></tr>
-              <tr><td><code>inn</code></td><td>нет</td><td>ИНН. Клиент может заполнить позже в профиле МП.</td></tr>
-              <tr><td><code>phone</code></td><td>нет</td><td>Телефон. Можно заполнить в профиле МП.</td></tr>
+              <tr><td><code>companyName</code></td><td>нет</td><td>Наименование ЮЛ/ИП/ФИО. Если пусто — <code>fullCompanyName</code> / <code>fullName</code> / <code>name</code>. <b>Не</b> подставляем login (email).</td></tr>
+              <tr><td><code>inn</code></td><td>нет</td><td>ИНН.</td></tr>
+              <tr><td><code>phone</code></td><td>нет</td><td>Телефон (также <code>telephone</code> / <code>phoneNumber</code>). Править в 1С.</td></tr>
             </table>
-            <p>Пустые <code>inn</code>/<code>phone</code>/<code>companyName</code> при <b>обновлении</b> существующей org не затирают уже сохранённые значения.</p>
+            <p>Пустые <code>inn</code>/<code>phone</code>/<code>companyName</code> при <b>обновлении</b> существующей org не затирают уже сохранённые значения. Исключение: если в БД в <code>company_name</code> ошибочно лежит email (содержит <code>@</code>) — при пустом имени из 1С поле очищается.</p>
+            <p>Алиасы телефона: <code>telephone</code>, <code>phoneNumber</code>, <code>legalPhone</code>. Алиасы имени: <code>fullCompanyName</code>, <code>fullName</code>, <code>name</code>.</p>
             <p><b>Request (минимум):</b></p><pre>{
   "id_1c": "org-001",
   "login": "mail@org.ru",

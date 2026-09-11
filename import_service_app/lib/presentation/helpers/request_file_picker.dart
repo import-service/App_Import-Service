@@ -43,15 +43,19 @@ Future<String?> pickRequestDocumentPath(BuildContext context) async {
   return openAppCameraView(context);
 }
 
-/// Выбор источника и получение фото (СВХ / архив / любые мультизагрузки).
+/// Выбор источника и получение файлов (создание заявки / СВХ / архив).
 ///
-/// Шторка [AppPhotoSourceBottomSheet]: галерея (мульти) или камера (один кадр).
+/// Шторка [AppPhotoSourceBottomSheet]: галерея, камера или PDF («Файл»).
 Future<List<String>> pickMultipleImagePaths({
   required BuildContext context,
   required int maxCount,
+  bool allowFile = true,
 }) async {
   if (maxCount <= 0) return const [];
-  final source = await AppPhotoSourceBottomSheet.show(context);
+  final source = await AppPhotoSourceBottomSheet.show(
+    context,
+    allowFile: allowFile,
+  );
   if (!context.mounted || source == null) return const [];
 
   switch (source) {
@@ -59,6 +63,10 @@ Future<List<String>> pickMultipleImagePaths({
       return _pickImagesFromGallery(maxCount: maxCount);
     case AppPhotoSource.camera:
       final path = await openAppCameraView(context);
+      if (path == null || path.isEmpty) return const [];
+      return [path];
+    case AppPhotoSource.file:
+      final path = await _pickPdfFile();
       if (path == null || path.isEmpty) return const [];
       return [path];
   }
@@ -123,4 +131,15 @@ Future<List<String>> _pickImagesFromGallery({required int maxCount}) async {
     if (paths.length >= maxCount) break;
   }
   return paths;
+}
+
+Future<String?> _pickPdfFile() async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: const ['pdf'],
+    withData: false,
+  );
+  final path = result?.files.single.path;
+  if (path == null || path.isEmpty) return null;
+  return path;
 }
