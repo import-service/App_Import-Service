@@ -1,11 +1,10 @@
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Манифест APK с нашего сервера (`GET /api/app/android-apk`).
 final class AndroidServerApkInfo {
@@ -71,10 +70,8 @@ final class AndroidServerApkClient {
     return info.versionCode! > local;
   }
 
-  /// Скачать APK, проверить sha256, открыть системный установщик.
-  Future<void> downloadAndInstall({
-    void Function(double? progress)? onProgress,
-  }) async {
+  /// Открыть публичную ссылку на APK во внешнем браузере (установка вручную).
+  Future<void> openDownloadInBrowser() async {
     if (kIsWeb || !Platform.isAndroid) {
       throw StateError('Только Android');
     }
@@ -82,53 +79,22 @@ final class AndroidServerApkClient {
     if (info == null || !info.available) {
       throw StateError('APK на сервере недоступен');
     }
-    final url = (info.apkUrl ?? '').trim();
-    if (url.isEmpty) {
-      throw StateError('Нет apkUrl');
+    final url = _resolveDownloadUrl(info.apkUrl);
+    final uri = Uri.parse(url);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      throw StateError('Не удалось открыть ссылку');
     }
+  }
 
-    final dir = await getTemporaryDirectory();
-    final target = File('${dir.path}/import-service-latest.apk');
-    if (await target.exists()) {
-      await target.delete();
+  String _resolveDownloadUrl(String? apkUrl) {
+    final raw = (apkUrl ?? '').trim();
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      return raw;
     }
-
-    final absoluteOrRelative = url.startsWith('http')
-        ? url
-        : 'app/android-apk/download';
-
-    await _dio.download(
-      absoluteOrRelative,
-      target.path,
-      options: Options(
-        responseType: ResponseType.bytes,
-        followRedirects: true,
-        receiveTimeout: const Duration(minutes: 15),
-        sendTimeout: const Duration(minutes: 2),
-        headers: const {'Accept': '*/*'},
-      ),
-      onReceiveProgress: (received, total) {
-        if (total > 0) {
-          onProgress?.call(received / total);
-        } else {
-          onProgress?.call(null);
-        }
-      },
-    );
-
-    final expected = (info.sha256 ?? '').trim().toLowerCase();
-    if (expected.isNotEmpty) {
-      final digest = await sha256.bind(target.openRead()).first;
-      final actual = digest.toString();
-      if (actual != expected) {
-        await target.delete();
-        throw StateError('sha256 APK не совпадает');
-      }
-    }
-
-    final result = await OpenFilex.open(target.path);
-    if (result.type != ResultType.done) {
-      throw StateError(result.message);
-    }
+    final base = ApiConfig.baseUrl.trim();
+    final u = Uri.parse(base.endsWith('/') ? base : '$base/');
+    // base уже …/api/ → относительный download path
+    return u.resolve('app/android-apk/download').toString();
   }
 }

@@ -631,6 +631,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }
 
   /// Поля организации из сессии (префилл). Пустые можно заполнить вручную.
+  /// ИНН не префиллим — только маска (заказчик).
   void _prefillOrgFromProfile(AuthSessionController session) {
     final isDemo = session.isDemo;
     final rawCompany =
@@ -641,13 +642,14 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         )
         ? ''
         : rawCompany.trim();
-    final inn = isDemo ? DemoProfileSnapshot.inn : (session.inn ?? '');
+    // Длина ИНН из профиля — только чтобы угадать тип орг, если orgType пуст.
+    final innForType = isDemo ? DemoProfileSnapshot.inn : (session.inn ?? '');
     final parsed = OrganizationTypeInn.tryParse(session.orgType);
     if (parsed != null) {
       _organizationType = parsed;
-    } else if (inn.trim().length == 12) {
+    } else if (innForType.trim().length == 12) {
       _organizationType = OrganizationType.ip;
-    } else if (inn.trim().length == 10) {
+    } else if (innForType.trim().length == 10) {
       _organizationType = OrganizationType.ooo;
     }
     final email = isDemo ? DemoProfileSnapshot.email : (session.email ?? '');
@@ -655,10 +657,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         isDemo ? DemoProfileSnapshot.phoneDisplay : (session.phone ?? '');
 
     _companyNameController.text = companyName;
-    _companyInnController.text = InnInputFormatter.formatDigits(
-      inn,
-      maxDigits: _organizationType.innMaxDigits,
-    );
+    _companyInnController.clear();
     _companyEmailController.text = email.trim();
     _companyPhoneController.text = PhoneRuInputFormatter.formatDisplay(phone);
     _clampInnToOrgType();

@@ -1,0 +1,34 @@
+---
+description: Android release — никогда не Gradle в Cursor sandbox-cache
+alwaysApply: true
+---
+
+# Android release / Gradle (Import Service)
+
+## Корневая причина зависаний (2026-09)
+
+Сборка APK зависала на `assembleRelease` на десятки минут / часы, когда Gradle кэш уходил в:
+
+`%LOCALAPPDATA%\Temp\cursor-sandbox-cache\…\gradle\caches\…`
+
+Это **подмена Cursor sandbox**, не нормальный `%USERPROFILE%\.gradle`. Повторные `flutter build` без разбора — пустая трата времени.
+
+## Жёсткие правила для агента
+
+1. **Release APK/AAB** — только через скрипт:
+   ```powershell
+   cd D:\Projects\import_servis
+   .\scripts\build-release-android.ps1 -AlsoAab
+   # + на сервер:
+   .\scripts\build-release-android.ps1 -AlsoAab -UploadApk
+   ```
+2. Перед сборкой скрипт выставляет `GRADLE_USER_HOME=%USERPROFILE%\.gradle` и **отказывается** работать, если путь содержит `cursor-sandbox-cache`.
+3. **Не** запускать параллельно два `flutter build` / несколько Java Gradle.
+4. Если `assembleRelease` > **10 минут** без новой строки в логе — **стоп** процессов этой сборки, `gradlew --stop`, разбор (кэш/HOME), **не** третий подряд слепой рестарт.
+5. Shell для релиза — с полным доступом к диску (не sandbox), иначе снова упрётесь в temp-cache.
+6. Детали артефактов / bump версии / push — `import_service_app/.cursor/rules/release-apk-handoff.mdc`.
+
+## Запрещено
+
+- Игнорировать `cursor-sandbox-cache` в логах Gradle и «ещё раз flutter build».
+- Считать «код сломан», если сборка висит только на Gradle без compile-ошибок.

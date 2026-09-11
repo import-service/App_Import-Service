@@ -140,7 +140,7 @@ final class AppUpdateService {
   Future<bool> isServerApkUpdateAvailable() =>
       _serverApk.isServerNewerThanInstalled();
 
-  /// Скачать APK с сервера и открыть установщик (профиль / диалог).
+  /// Открыть ссылку на APK с сервера (пользователь ставит вручную).
   Future<void> installFromServer(BuildContext? context) async {
     if (kIsWeb || !Platform.isAndroid) return;
     if (_serverInstallInFlight) return;
@@ -148,25 +148,25 @@ final class AppUpdateService {
     final strings = sl<JsonStringsService>();
     try {
       _feedback(
-        strings: strings.text('appUpdateServerDownloading'),
+        strings: strings.text('appUpdateServerOpeningLink'),
         kind: AppFeedbackKind.warning,
       );
-      await _serverApk.downloadAndInstall();
+      await _serverApk.openDownloadInBrowser();
       _feedback(
         strings: strings.text('appUpdateServerInstallPrompt'),
         kind: AppFeedbackKind.success,
       );
     } catch (e, st) {
       AppLog.error(
-        'server apk install failed',
+        'server apk link open failed',
         tag: 'AppUpdate',
         error: e,
         stackTrace: st,
       );
-      final msg = e.toString().contains('sha256')
-          ? strings.text('appUpdateServerHashMismatch')
-          : strings.text('appUpdateServerFailed');
-      _feedback(strings: msg, kind: AppFeedbackKind.error);
+      _feedback(
+        strings: strings.text('appUpdateServerFailed'),
+        kind: AppFeedbackKind.error,
+      );
     } finally {
       _serverInstallInFlight = false;
     }
