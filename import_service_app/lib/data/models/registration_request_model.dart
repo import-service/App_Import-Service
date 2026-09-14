@@ -34,12 +34,19 @@ extension OrganizationTypeInn on OrganizationType {
     final s = (raw ?? '').trim();
     if (s.isEmpty) return null;
     final lower = s.toLowerCase();
-    if (s == 'ООО' || lower == 'ooo') return OrganizationType.ooo;
+    if (s == 'ООО' ||
+        lower == 'ooo' ||
+        lower.contains('юрлиц') ||
+        lower.contains('юридическ')) {
+      return OrganizationType.ooo;
+    }
     if (s == 'ИП' || lower == 'ip') return OrganizationType.ip;
     if (s == 'Физическое лицо' ||
         lower == 'fl' ||
         lower == 'person' ||
-        lower == 'physical') {
+        lower == 'physical' ||
+        lower.contains('физлиц') ||
+        lower.contains('физическ')) {
       return OrganizationType.person;
     }
     return null;

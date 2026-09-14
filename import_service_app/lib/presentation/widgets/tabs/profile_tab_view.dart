@@ -86,8 +86,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
   Future<void> _checkServerUpdate() async {
     if (widget.isDemo) return;
     try {
-      final available =
-          await sl<AppUpdateService>().isServerApkUpdateAvailable();
+      final available = await sl<AppUpdateService>().isServerApkPublished();
       if (!mounted) return;
       setState(() => _serverUpdateAvailable = available);
     } catch (_) {}
@@ -190,11 +189,20 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                           if (widget.showInn &&
                               (widget.inn ?? '').trim().isNotEmpty)
                             ProfileMetaRow(
-                              label: widget.innLabel,
+                              label: () {
+                                final digits = widget.inn!
+                                    .replaceAll(RegExp(r'\D'), '');
+                                return digits.length == 10
+                                    ? s.text('innLabelLegal')
+                                    : s.text('innLabelPerson');
+                              }(),
                               value: InnInputFormatter.formatDigits(
                                 widget.inn!.trim(),
                                 maxDigits:
-                                    widget.inn!.trim().length == 12 ? 12 : 10,
+                                    widget.inn!.trim().replaceAll(RegExp(r'\D'), '').length ==
+                                            12
+                                        ? 12
+                                        : 10,
                               ),
                             ),
                           if (widget.showManager &&

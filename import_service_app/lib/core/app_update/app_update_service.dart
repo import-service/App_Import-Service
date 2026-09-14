@@ -95,19 +95,26 @@ final class AppUpdateService {
         builder: (dialogCtx) => AlertDialog(
           title: Text(strings.text('appUpdateTitle')),
           content: Text(message),
+          actionsAlignment: MainAxisAlignment.center,
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop('later'),
-              child: Text(strings.text('appUpdateLater')),
-            ),
-            if (Platform.isAndroid)
-              TextButton(
-                onPressed: () => Navigator.of(dialogCtx).pop('server'),
-                child: Text(strings.text('appUpdateViaServer')),
-              ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogCtx).pop('store'),
-              child: Text(strings.text('appUpdateButton')),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (Platform.isAndroid)
+                  FilledButton.tonal(
+                    onPressed: () => Navigator.of(dialogCtx).pop('server'),
+                    child: Text(strings.text('appUpdateViaServer')),
+                  ),
+                if (Platform.isAndroid) const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop('store'),
+                  child: Text(strings.text('appUpdateViaStore')),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop('later'),
+                  child: Text(strings.text('appUpdateLater')),
+                ),
+              ],
             ),
           ],
         ),
@@ -136,7 +143,10 @@ final class AppUpdateService {
     }
   }
 
-  /// Есть ли на сервере APK новее установленного (для кнопки в профиле).
+  /// Есть ли на сервере опубликованный APK (кнопка в профиле / раздача).
+  Future<bool> isServerApkPublished() => _serverApk.isServerApkPublished();
+
+  /// Есть ли на сервере APK новее установленного.
   Future<bool> isServerApkUpdateAvailable() =>
       _serverApk.isServerNewerThanInstalled();
 

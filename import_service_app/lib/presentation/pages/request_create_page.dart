@@ -207,9 +207,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       sl<AppFeedbackService>().show(s.emailFormatError, kind: AppFeedbackKind.error);
       return false;
     }
-    if (!_isValidInn(innDigits, _organizationType)) {
+    if (!_isValidInn(innDigits, _innFieldOrganizationType)) {
       sl<AppFeedbackService>().show(
-        s.innFormatErrorFor(_organizationType),
+        s.innFormatErrorFor(_innFieldOrganizationType),
         kind: AppFeedbackKind.error,
       );
       return false;
@@ -264,7 +264,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         vin.isNotEmpty;
     if (!hasRequiredText) return false;
     final formatsOk = _isValidEmail(email) &&
-        _isValidInn(innDigits, _organizationType) &&
+        _isValidInn(innDigits, _innFieldOrganizationType) &&
         isValidRuPhoneDigits(companyPhoneDigits) &&
         isValidRuPhoneDigits(personPhoneDigits) &&
         isValidSnilsDigits(snilsRaw) &&
@@ -297,7 +297,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
             : s.text('requestCompanyNameLabel'),
       );
     }
-    if (companyInn.isEmpty) return missing(s.innLabel);
+    if (companyInn.isEmpty) return missing(_innFieldLabel(s));
     if (companyEmail.isEmpty) return missing(s.text('requestCompanyEmailLabel'));
     if (companyPhone.isEmpty) return missing(s.text('requestCompanyPhoneLabel'));
     if (personName.isEmpty) return missing(s.text('requestPersonNameLabel'));
@@ -308,8 +308,8 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (vin.isEmpty) return missing(s.text('requestVinLabel'));
 
     if (!_isValidEmail(companyEmail)) return s.emailFormatError;
-    if (!_isValidInn(companyInn, _organizationType)) {
-      return s.innFormatErrorFor(_organizationType);
+    if (!_isValidInn(companyInn, _innFieldOrganizationType)) {
+      return s.innFormatErrorFor(_innFieldOrganizationType);
     }
     if (!isValidRuPhoneDigits(companyPhone) || !isValidRuPhoneDigits(personPhone)) {
       return s.phoneFormatError;
@@ -596,7 +596,15 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   }
 
   void _clampInnToOrgType() =>
-      clampInnController(_companyInnController, _organizationType);
+      clampInnController(_companyInnController, _innFieldOrganizationType);
+
+  /// Юрлицо (ООО) — 10; физлицо/ИП — 12. Подпись в скобках.
+  OrganizationType get _innFieldOrganizationType => _organizationType;
+
+  String _innFieldLabel(JsonStringsService s) =>
+      _organizationType == OrganizationType.ooo
+          ? s.text('innLabelLegal')
+          : s.text('innLabelPerson');
 
   /// Черновик: физлицо / авто / файлы — из draft; юрлицо всегда из профиля.
   void _applyDraft(RequestFormModel f) {
@@ -784,9 +792,10 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
               ),
               const SizedBox(height: 14),
               AppInnField(
-                label: s.innLabel,
+                key: ValueKey('inn_${_innFieldOrganizationType.name}'),
+                label: _innFieldLabel(s),
                 controller: _companyInnController,
-                organizationType: _organizationType,
+                organizationType: _innFieldOrganizationType,
                 validate: false,
               ),
               const SizedBox(height: 14),

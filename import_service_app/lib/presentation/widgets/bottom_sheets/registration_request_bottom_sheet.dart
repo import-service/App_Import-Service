@@ -191,7 +191,10 @@ class _RegistrationRequestBottomSheetState
           ),
           const Gap(12),
           AppInnField(
-            label: strings.innLabel,
+            key: ValueKey('reg_inn_${_organizationType.name}'),
+            label: _organizationType == OrganizationType.ooo
+                ? strings.text('innLabelLegal')
+                : strings.text('innLabelPerson'),
             controller: _innController,
             organizationType: _organizationType,
             textInputAction: TextInputAction.next,

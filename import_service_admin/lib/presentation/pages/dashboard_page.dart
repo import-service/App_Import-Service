@@ -4,6 +4,7 @@ import 'dart:html' as html;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
@@ -374,6 +375,22 @@ class _DashboardPageState extends State<DashboardPage> {
                             : const Icon(Icons.cloud_upload_outlined),
                         label: const Text('Опубликовать'),
                       ),
+                      if (_apkStatus != null && _apkStatus!['available'] == true)
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final url = _apkStatus!['apkUrl']?.toString() ??
+                                'https://157-22-173-7.sslip.io/api/app/android-apk/download';
+                            await Clipboard.setData(ClipboardData(text: url));
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Ссылка на APK скопирована'),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.link),
+                          label: const Text('Скопировать ссылку'),
+                        ),
                     ],
                   ),
                 ],

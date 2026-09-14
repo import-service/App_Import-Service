@@ -59,6 +59,12 @@ final class AndroidServerApkClient {
     }
   }
 
+  /// `true`, если на сервере есть опубликованный APK (для раздачи / скачивания).
+  Future<bool> isServerApkPublished() async {
+    final info = await fetchManifest();
+    return info != null && info.available;
+  }
+
   /// `true`, если на сервере APK с большим `versionCode`, чем у установленного.
   Future<bool> isServerNewerThanInstalled() async {
     final info = await fetchManifest();
@@ -68,6 +74,13 @@ final class AndroidServerApkClient {
     final packageInfo = await PackageInfo.fromPlatform();
     final local = int.tryParse(packageInfo.buildNumber) ?? 0;
     return info.versionCode! > local;
+  }
+
+  /// Публичный URL скачивания (если APK есть).
+  Future<String?> publicDownloadUrl() async {
+    final info = await fetchManifest();
+    if (info == null || !info.available) return null;
+    return _resolveDownloadUrl(info.apkUrl);
   }
 
   /// Открыть публичную ссылку на APK во внешнем браузере (установка вручную).
