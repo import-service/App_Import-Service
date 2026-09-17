@@ -9,7 +9,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Микрофон нужен при записи видео в режиме камеры.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>При необходимости сохраняем снимки в вашу галерею.</string>
+	<string>Нужно сохранять фото и видео из заявки в вашу галерею.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Нужен доступ к фото, чтобы выбрать изображения для заявки.</string>
 	<key>LSApplicationQueriesSchemes</key>

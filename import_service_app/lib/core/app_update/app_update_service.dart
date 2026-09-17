@@ -148,6 +148,9 @@ final class AppUpdateService {
   /// Есть ли на сервере опубликованный APK (кнопка в профиле / раздача).
   Future<bool> isServerApkPublished() => _serverApk.isServerApkPublished();
 
+  /// Манифест APK с сервера (для подписи версии в профиле).
+  Future<AndroidServerApkInfo?> fetchServerApkInfo() => _serverApk.fetchManifest();
+
   /// Есть ли на сервере APK новее установленного.
   Future<bool> isServerApkUpdateAvailable() =>
       _serverApk.isServerNewerThanInstalled();

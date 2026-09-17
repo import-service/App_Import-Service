@@ -94,6 +94,32 @@ class _RequestVideoPlayerPageState extends State<RequestVideoPlayerPage> {
     if (_busy) return;
     setState(() => _busy = true);
     final s = sl<JsonStringsService>();
+    if (asDownload) {
+      final result = await saveLocalMediaToGallery(
+        filePath: widget.filePath,
+        isVideo: true,
+      );
+      if (!mounted) return;
+      setState(() => _busy = false);
+      switch (result) {
+        case SaveMediaToGalleryResult.saved:
+          sl<AppFeedbackService>().show(
+            s.requestMediaSaved,
+            kind: AppFeedbackKind.success,
+          );
+        case SaveMediaToGalleryResult.permissionDenied:
+          sl<AppFeedbackService>().show(
+            s.requestMediaPermissionDenied,
+            kind: AppFeedbackKind.warning,
+          );
+        case SaveMediaToGalleryResult.failed:
+          sl<AppFeedbackService>().show(
+            s.requestMediaActionFailed,
+            kind: AppFeedbackKind.error,
+          );
+      }
+      return;
+    }
     final ok = await shareLocalRequestFile(
       filePath: widget.filePath,
       displayName: widget.title,
@@ -104,13 +130,6 @@ class _RequestVideoPlayerPageState extends State<RequestVideoPlayerPage> {
       sl<AppFeedbackService>().show(
         s.requestMediaActionFailed,
         kind: AppFeedbackKind.error,
-      );
-      return;
-    }
-    if (asDownload) {
-      sl<AppFeedbackService>().show(
-        s.requestMediaSaveHint,
-        kind: AppFeedbackKind.success,
       );
     }
   }

@@ -2,7 +2,7 @@ name: import_service_app
 description: "A new Flutter project."
 publish_to: 'none'
 # com.importservice.app
-version: 1.0.40+40
+version: 1.0.41+41
 
 environment:
   sdk: ^3.11.1
@@ -55,6 +55,7 @@ dependencies:
   # Vendored: upstream 0.5.6 still calls jcenter() (broken on AGP 8+/9).
   video_thumbnail:
     path: packages/video_thumbnail
+  gal: ^2.3.3
 
 dev_dependencies:
   flutter_test:

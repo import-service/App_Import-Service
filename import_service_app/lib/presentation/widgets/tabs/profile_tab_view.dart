@@ -73,29 +73,92 @@ class ProfileTabView extends StatefulWidget {
 
 class _ProfileTabViewState extends State<ProfileTabView> {
   String? _versionLabel;
-  bool _serverUpdateAvailable = false;
+  String? _serverVersionLabel;
+  bool _serverApkAvailable = false;
   bool _serverUpdateBusy = false;
 
   @override
   void initState() {
     super.initState();
-    _loadVersion();
-    unawaited(_checkServerUpdate());
+    unawaited(_loadLocalAndServerVersions());
+  }
+
+  Future<void> _loadLocalAndServerVersions() async {
+    await _loadVersion();
+    await _checkServerUpdate();
   }
 
   Future<void> _checkServerUpdate() async {
     if (widget.isDemo) return;
     try {
-      final available = await sl<AppUpdateService>().isServerApkPublished();
+      final info = await sl<AppUpdateService>().fetchServerApkInfo();
       if (!mounted) return;
-      setState(() => _serverUpdateAvailable = available);
-    } catch (_) {}
+      if (info == null || !info.available) {
+        setState(() {
+          _serverApkAvailable = false;
+          _serverVersionLabel = null;
+        });
+        return;
+      }
+      final name = (info.versionName ?? '').trim();
+      final code = info.versionCode;
+      final label = name.isNotEmpty && code != null
+          ? '$name+$code'
+          : (name.isNotEmpty
+              ? name
+              : (code != null ? '$code' : null));
+      setState(() {
+        _serverApkAvailable = true;
+        _serverVersionLabel = label;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _serverApkAvailable = false;
+        _serverVersionLabel = null;
+      });
+    }
+  }
+
+  Future<bool> _confirmSameOrOlderInstall() async {
+    final s = sl<JsonStringsService>();
+    final local = _versionLabel ?? '—';
+    final server = _serverVersionLabel ?? '—';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.text('appUpdateServerSameOrOlderTitle')),
+        content: Text(
+          s
+              .text('appUpdateServerSameOrOlderBody')
+              .replaceAll('{server}', server)
+              .replaceAll('{local}', local),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(s.text('appUpdateServerSameOrOlderCancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(s.text('appUpdateServerSameOrOlderConfirm')),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<void> _onServerUpdate() async {
     if (_serverUpdateBusy) return;
     setState(() => _serverUpdateBusy = true);
     try {
+      final newer = await sl<AppUpdateService>().isServerApkUpdateAvailable();
+      if (!mounted) return;
+      if (!newer) {
+        final confirmed = await _confirmSameOrOlderInstall();
+        if (!confirmed || !mounted) return;
+      }
       await sl<AppUpdateService>().installFromServer(context);
       if (!mounted) return;
       await _checkServerUpdate();
@@ -275,7 +338,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
             },
           ),
           const SizedBox(height: 16),
-          if (_serverUpdateAvailable)
+          if (_serverApkAvailable)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: AppPrimaryOutlinedWideButton(
@@ -308,7 +371,16 @@ class _ProfileTabViewState extends State<ProfileTabView> {
           if (_versionLabel != null) ...[
             const SizedBox(height: 12),
             Text(
-              '${s.text('profileAppVersionLabel')} $_versionLabel',
+              () {
+                final base =
+                    '${s.text('profileAppVersionLabel')} $_versionLabel';
+                final server = _serverVersionLabel;
+                if (server == null || server.isEmpty) return base;
+                final paren = s
+                    .text('profileServerVersionParen')
+                    .replaceAll('{version}', server);
+                return '$base ($paren)';
+              }(),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondary,

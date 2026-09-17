@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:gal/gal.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
@@ -517,5 +518,57 @@ Future<bool> shareLocalRequestFile({
       stackTrace: st,
     );
     return false;
+  }
+}
+
+enum SaveMediaToGalleryResult {
+  saved,
+  permissionDenied,
+  failed,
+}
+
+bool _looksLikeVideoPath(String filePath) {
+  final lower = filePath.toLowerCase();
+  return RegExp(r'\.(mp4|mov|webm|mkv|avi|m4v)$').hasMatch(lower);
+}
+
+/// Сохранить фото/видео в системную галерею (без шторки «Поделиться»).
+Future<SaveMediaToGalleryResult> saveLocalMediaToGallery({
+  required String filePath,
+  bool? isVideo,
+}) async {
+  if (!await File(filePath).exists()) return SaveMediaToGalleryResult.failed;
+  try {
+    final hasAccess = await Gal.hasAccess();
+    if (!hasAccess) {
+      final granted = await Gal.requestAccess();
+      if (!granted) return SaveMediaToGalleryResult.permissionDenied;
+    }
+    final video = isVideo ?? _looksLikeVideoPath(filePath);
+    if (video) {
+      await Gal.putVideo(filePath);
+    } else {
+      await Gal.putImage(filePath);
+    }
+    return SaveMediaToGalleryResult.saved;
+  } on GalException catch (e, st) {
+    AppLog.error(
+      'saveLocalMediaToGallery type=${e.type}',
+      tag: 'RequestFile',
+      error: e,
+      stackTrace: st,
+    );
+    if (e.type == GalExceptionType.accessDenied) {
+      return SaveMediaToGalleryResult.permissionDenied;
+    }
+    return SaveMediaToGalleryResult.failed;
+  } catch (e, st) {
+    AppLog.error(
+      'saveLocalMediaToGallery',
+      tag: 'RequestFile',
+      error: e,
+      stackTrace: st,
+    );
+    return SaveMediaToGalleryResult.failed;
   }
 }

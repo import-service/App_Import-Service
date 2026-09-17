@@ -1554,6 +1554,32 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
       );
       return;
     }
+    if (asDownload) {
+      final result = await saveLocalMediaToGallery(
+        filePath: path,
+        isVideo: false,
+      );
+      if (!mounted) return;
+      setState(() => _busy = false);
+      switch (result) {
+        case SaveMediaToGalleryResult.saved:
+          sl<AppFeedbackService>().show(
+            s.requestMediaSaved,
+            kind: AppFeedbackKind.success,
+          );
+        case SaveMediaToGalleryResult.permissionDenied:
+          sl<AppFeedbackService>().show(
+            s.requestMediaPermissionDenied,
+            kind: AppFeedbackKind.warning,
+          );
+        case SaveMediaToGalleryResult.failed:
+          sl<AppFeedbackService>().show(
+            s.requestMediaActionFailed,
+            kind: AppFeedbackKind.error,
+          );
+      }
+      return;
+    }
     final ok = await shareLocalRequestFile(
       filePath: path,
       displayName: widget.items[_index].title,
@@ -1564,13 +1590,6 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
       sl<AppFeedbackService>().show(
         s.requestMediaActionFailed,
         kind: AppFeedbackKind.error,
-      );
-      return;
-    }
-    if (asDownload) {
-      sl<AppFeedbackService>().show(
-        s.requestMediaSaveHint,
-        kind: AppFeedbackKind.success,
       );
     }
   }
