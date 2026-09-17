@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:import_service_app/core/app_update/app_update_service.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
+import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -41,6 +42,8 @@ class ProfileTabView extends StatefulWidget {
     this.phone,
     this.email,
     this.managerName,
+    /// Вкладка сейчас видима (IndexedStack). При каждом показе — refresh версии APK.
+    this.isActive = true,
   });
 
   final bool isDemo;
@@ -66,6 +69,7 @@ class ProfileTabView extends StatefulWidget {
   final String? phone;
   final String? email;
   final String? managerName;
+  final bool isActive;
 
   @override
   State<ProfileTabView> createState() => _ProfileTabViewState();
@@ -80,7 +84,20 @@ class _ProfileTabViewState extends State<ProfileTabView> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadLocalAndServerVersions());
+    if (widget.isActive) {
+      unawaited(_loadLocalAndServerVersions());
+    } else {
+      unawaited(_loadVersion());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileTabView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // IndexedStack не пересоздаёт вкладку — при каждом показе профиля тянем манифест.
+    if (widget.isActive && !oldWidget.isActive) {
+      unawaited(_checkServerUpdate());
+    }
   }
 
   Future<void> _loadLocalAndServerVersions() async {
@@ -111,7 +128,13 @@ class _ProfileTabViewState extends State<ProfileTabView> {
         _serverApkAvailable = true;
         _serverVersionLabel = label;
       });
-    } catch (_) {
+    } catch (e, st) {
+      AppLog.error(
+        'profile server apk version check failed',
+        tag: 'Profile',
+        error: e,
+        stackTrace: st,
+      );
       if (!mounted) return;
       setState(() {
         _serverApkAvailable = false;

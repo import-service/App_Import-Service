@@ -192,6 +192,7 @@ class _SvhHomePageState extends State<SvhHomePage> {
               const ChatsTabView(),
               ProfileTabView(
                 isDemo: false,
+                isActive: _tabIndex == _tabProfile,
                 headlineTitle: displayName,
                 isPersonApplicant: true,
                 showInn: false,

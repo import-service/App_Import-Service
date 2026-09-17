@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
+import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -56,7 +57,13 @@ final class AndroidServerApkClient {
       if (data is! Map) return null;
       final map = data.map((k, v) => MapEntry(k.toString(), v));
       return AndroidServerApkInfo.fromJson(map);
-    } catch (_) {
+    } catch (e, st) {
+      AppLog.error(
+        'fetchManifest failed',
+        tag: 'ServerApk',
+        error: e,
+        stackTrace: st,
+      );
       return null;
     }
   }

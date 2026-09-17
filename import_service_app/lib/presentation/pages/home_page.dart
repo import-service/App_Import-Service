@@ -216,6 +216,7 @@ class _HomePageState extends State<HomePage> {
               const ChatsTabView(),
               ProfileTabView(
                 isDemo: isDemo,
+                isActive: _tabIndex == _tabProfile,
                 headlineTitle: displayName,
                 isPersonApplicant: isPersonApplicant,
                 managerLabel: strings.profileManagerLabel,
