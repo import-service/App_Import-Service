@@ -93,7 +93,57 @@ async function getStatusDto(publicBaseUrl) {
   if (!manifest) {
     return { available: false };
   }
-  return buildPublicDto(manifest, publicBaseUrl);
+  const dto = buildPublicDto(manifest, publicBaseUrl);
+  try {
+    const st = await fsp.stat(APK_PATH);
+    dto.fileSizeBytes = st.size;
+    dto.sizeMatches = st.size === Number(manifest.sizeBytes || 0);
+  } catch {
+    dto.fileSizeBytes = 0;
+    dto.sizeMatches = false;
+  }
+  return dto;
+}
+
+/**
+ * Полная проверка: размер на диске, ZIP magic, sha256 vs манифест.
+ * @returns {Promise<object>}
+ */
+async function verifyApkIntegrity(publicBaseUrl) {
+  const manifest = await readManifest();
+  if (!manifest || !(await fileExists(APK_PATH))) {
+    return { ok: false, available: false };
+  }
+  const st = await fsp.stat(APK_PATH);
+  const fd = await fsp.open(APK_PATH, 'r');
+  let zipMagicOk = false;
+  try {
+    const buf = Buffer.alloc(2);
+    const { bytesRead } = await fd.read(buf, 0, 2, 0);
+    zipMagicOk = bytesRead === 2 && buf[0] === 0x50 && buf[1] === 0x4b;
+  } finally {
+    await fd.close();
+  }
+  const fileSha = await sha256OfFile(APK_PATH);
+  const manifestSize = Number(manifest.sizeBytes) || 0;
+  const manifestSha = String(manifest.sha256 || '').toLowerCase();
+  const sizeMatches = st.size === manifestSize;
+  const shaMatches = fileSha === manifestSha;
+  return {
+    ok: sizeMatches && shaMatches && zipMagicOk,
+    available: true,
+    versionCode: Number(manifest.versionCode) || 0,
+    versionName: manifest.versionName ? String(manifest.versionName) : null,
+    sizeBytes: st.size,
+    manifestSizeBytes: manifestSize,
+    sizeMatches,
+    sha256: fileSha,
+    manifestSha256: manifestSha,
+    shaMatches,
+    zipMagicOk,
+    updatedAt: manifest.updatedAt || null,
+    apkUrl: buildPublicDto(manifest, publicBaseUrl).apkUrl,
+  };
 }
 
 /**
@@ -185,6 +235,7 @@ module.exports = {
   manifestPath,
   ensureDir,
   getStatusDto,
+  verifyApkIntegrity,
   readManifest,
   publishApkBuffer,
   publishApkFromPath,

@@ -81,6 +81,10 @@ RequestFilesGrouped groupRequestFiles({
 
   final creation = <CustomsRequestFile>[];
   for (final type in CustomsDocType.creationTypes) {
+    // add_doc1/2 — секция «Прочие файлы», не «Документы при подаче».
+    if (type == CustomsDocType.addDoc1 || type == CustomsDocType.addDoc2) {
+      continue;
+    }
     final list = byCode[type.apiCode];
     if (list == null) continue;
     creation.addAll(list);

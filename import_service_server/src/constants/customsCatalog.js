@@ -336,8 +336,7 @@ function signedDocType(baseDocType) {
   return `${base}_sign`;
 }
 
-/** DocType, которые менеджер СВХ может загружать (галерея авто / архив), без анкеты/подписей/оплат. */
-function isSvhManagerAllowedDocType(docType) {
+function isSvhCarMediaDocType(docType) {
   const c = normalizeDocType(docType);
   if (!c) return false;
   if (/^svh_car_photo_\d+$/.test(c)) {
@@ -348,6 +347,14 @@ function isSvhManagerAllowedDocType(docType) {
     const n = Number(c.replace(/^svh_car_video_/, ''));
     return Number.isInteger(n) && n >= 1 && n <= 3;
   }
+  return false;
+}
+
+/** DocType, которые менеджер СВХ может загружать (галерея авто / архив), без анкеты/подписей/оплат. */
+function isSvhManagerAllowedDocType(docType) {
+  const c = normalizeDocType(docType);
+  if (!c) return false;
+  if (isSvhCarMediaDocType(c)) return true;
   if (c === 'add_doc1' || c === 'add_doc2') return true;
   if (c === 'transit_archive_photo' || c === 'transit_archive_video') return true;
   if (/^transit_archive_photo_\d+$/.test(c)) return true;
@@ -365,6 +372,7 @@ module.exports = {
   LEGACY_STATUS_SUB_TYPE_ALIASES,
   normalizeDocType,
   isKnownDocType,
+  isSvhCarMediaDocType,
   isSvhManagerAllowedDocType,
   normalizeStatusSubType,
   isKnownStatusSubType,

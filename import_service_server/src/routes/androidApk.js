@@ -4,9 +4,11 @@ const {
   APK_FILE_NAME,
   apkPath,
   getStatusDto,
+  verifyApkIntegrity,
   publishApkBuffer,
   fileExists,
 } = require('../services/androidApkRelease');
+const { notifyAndroidApkPublished } = require('../services/emailNotification');
 
 function multipartFieldValue(fields, name) {
   const v = fields?.[name];
@@ -48,6 +50,16 @@ module.exports = async function androidApkRoutes(fastify) {
     async (_request, reply) => {
       const dto = await getStatusDto(publicBase());
       return reply.send(dto);
+    },
+  );
+
+  /** Полная проверка файла на диске (размер + sha256 + ZIP magic). */
+  fastify.get(
+    '/admin/android-apk/verify',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (_request, reply) => {
+      const result = await verifyApkIntegrity(publicBase());
+      return reply.send(result);
     },
   );
 
@@ -128,6 +140,29 @@ module.exports = async function androidApkRoutes(fastify) {
           },
           'android apk published',
         );
+        try {
+          const mail = await notifyAndroidApkPublished(
+            fastify.config.smtp,
+            {
+              versionCode: dto.versionCode,
+              versionName: dto.versionName,
+              apkUrl: dto.apkUrl,
+              sizeBytes: dto.sizeBytes ?? dto.fileSizeBytes,
+            },
+            fastify.log,
+          );
+          if (!mail?.success) {
+            fastify.log.warn(
+              { err: mail?.error },
+              'android apk published email failed',
+            );
+          }
+        } catch (mailErr) {
+          fastify.log.warn(
+            { err: mailErr?.message || mailErr },
+            'android apk published email failed',
+          );
+        }
         return reply.send({ ok: true, ...dto });
       } catch (e) {
         const msg = e && e.message ? String(e.message) : 'publish failed';

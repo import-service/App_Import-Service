@@ -1,5 +1,8 @@
 allprojects {
     repositories {
+        maven { url = uri("https://repo.huaweicloud.com/repository/maven/") }
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
         google()
         mavenCentral()
         maven { url = uri("https://artifactory-external.vkpartner.ru/artifactory/maven") }

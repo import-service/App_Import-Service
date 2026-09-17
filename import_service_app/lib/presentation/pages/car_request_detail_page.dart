@@ -11,6 +11,7 @@ import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/extensions/navigation_context.dart';
+import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/core/push/push_request_handler.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -21,6 +22,7 @@ import 'package:import_service_app/core/themes/request_status_list_style.dart';
 import 'package:import_service_app/data/demo/demo_pdf_factory.dart';
 import 'package:import_service_app/data/demo/demo_seed_files.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
+import 'package:import_service_app/data/local/request_draft_attachments_space.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/request_status.dart';
@@ -37,6 +39,7 @@ import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_status_action_hint.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/presentation/pages/request_pdf_viewer_page.dart';
+import 'package:import_service_app/presentation/pages/request_video_player_page.dart';
 import 'package:import_service_app/presentation/helpers/request_file_preview_helper.dart';
 import 'package:import_service_app/presentation/helpers/request_file_uploaded_indicator.dart';
 import 'package:import_service_app/core/utils/request_file_upload_validation.dart';
@@ -47,6 +50,7 @@ import 'package:import_service_app/presentation/widgets/requests/request_detail_
 import 'package:import_service_app/presentation/widgets/requests/request_detail_files_sections.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_deliverable_doc_row.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_finances_block.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_file_video_thumb.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_owner_section.dart';
 import 'package:import_service_app/presentation/helpers/request_file_picker.dart';
 
@@ -204,12 +208,20 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       return;
     }
 
+    AppLog.trace(
+      'svh photo pick start requestId=${item.id} remaining=$remaining',
+      tag: 'SvhUpload',
+    );
     final paths = await pickMultipleImagePaths(
       context: context,
       maxCount: remaining,
       allowFile: false,
     );
-    if (!mounted || paths.isEmpty) return;
+    if (!mounted || paths.isEmpty) {
+      AppLog.trace('svh photo pick cancelled/empty', tag: 'SvhUpload');
+      return;
+    }
+    AppLog.trace('svh photo picked count=${paths.length}', tag: 'SvhUpload');
 
     final s = sl<JsonStringsService>();
     final indices = nextSvhCarGalleryIndices(
@@ -227,8 +239,11 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final entries = <({String docType, String localPath})>[];
     for (var i = 0; i < indices.length && i < paths.length; i++) {
       final docType = svhCarGalleryDocType(indices[i]);
-      final path = paths[i];
-      final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
+      final compressed =
+          await RequestDraftAttachmentsSpace.prepareImageForUpload(paths[i]);
+      if (!mounted) return;
+      final sizeKey =
+          requestFileSizeLimitMessageKey(compressed, docType: docType);
       if (sizeKey != null) {
         sl<AppFeedbackService>().show(
           s.text(sizeKey),
@@ -236,11 +251,16 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         );
         return;
       }
-      entries.add((docType: docType, localPath: path));
+      entries.add((docType: docType, localPath: compressed));
     }
     if (entries.isEmpty) return;
 
     setState(() => _uploadingSvhCarGallery = true);
+    AppLog.trace(
+      'svh photo upload start count=${entries.length} '
+      'docTypes=${entries.map((e) => e.docType).join(",")}',
+      tag: 'SvhUpload',
+    );
     final result = await sl<CarsRepository>().attachRequestFiles(
       requestId: item.id,
       items: entries,
@@ -251,9 +271,31 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final feedback = sl<AppFeedbackService>();
     await result.fold(
       (failure) async {
+        AppLog.trace(
+          'svh photo upload Left: ${failure.message}',
+          tag: 'SvhUpload',
+        );
         await sl<CarsRepository>().getVehicle(item.id);
         if (!mounted) return;
         setState(() {});
+        final updated = _itemFromInventory(item.id);
+        final anyUploaded = updated != null &&
+            entries.any(
+              (e) => updated.files.any(
+                (f) => normalizeDocType(f.docType) == normalizeDocType(e.docType),
+              ),
+            );
+        if (anyUploaded) {
+          AppLog.trace(
+            'svh photo: server has files despite client error → success',
+            tag: 'SvhUpload',
+          );
+          await _onAttachSucceeded(
+            docType: entries.first.docType,
+            itemId: item.id,
+          );
+          return;
+        }
         final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
         feedback.show(
           sizeMsg ?? requestAttachFailureMessage(failure.message, s),
@@ -261,6 +303,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         );
       },
       (_) async {
+        AppLog.trace('svh photo upload Right ok', tag: 'SvhUpload');
         await _onAttachSucceeded(
           docType: entries.first.docType,
           itemId: item.id,
@@ -287,13 +330,39 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       return;
     }
 
+    AppLog.trace(
+      'svh video pick start requestId=${item.id} remaining=$remaining',
+      tag: 'SvhUpload',
+    );
     final paths = await pickMultipleVideoPaths(maxCount: remaining);
-    if (!mounted || paths.isEmpty) return;
+    if (!mounted || paths.isEmpty) {
+      AppLog.trace('svh video pick cancelled/empty', tag: 'SvhUpload');
+      return;
+    }
+    AppLog.trace(
+      'svh video picked count=${paths.length}',
+      tag: 'SvhUpload',
+    );
 
     final s = sl<JsonStringsService>();
+    final videoPaths = paths.where(looksLikeLocalVideoFile).toList();
+    if (videoPaths.isEmpty) {
+      sl<AppFeedbackService>().show(
+        s.text('requestFilesSectionSvhCarVideoNotVideo'),
+        kind: AppFeedbackKind.warning,
+      );
+      return;
+    }
+    if (videoPaths.length < paths.length) {
+      sl<AppFeedbackService>().show(
+        s.text('requestFilesSectionSvhCarVideoNotVideo'),
+        kind: AppFeedbackKind.warning,
+      );
+    }
+
     final indices = nextSvhCarVideoIndices(
       existingDocTypes: item.files.map((f) => f.docType),
-      count: paths.length,
+      count: videoPaths.length,
     );
     if (indices.isEmpty) {
       sl<AppFeedbackService>().show(
@@ -304,11 +373,15 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     }
 
     final entries = <({String docType, String localPath})>[];
-    for (var i = 0; i < indices.length && i < paths.length; i++) {
+    for (var i = 0; i < indices.length && i < videoPaths.length; i++) {
       final docType = svhCarVideoDocType(indices[i]);
-      final path = paths[i];
+      final path = videoPaths[i];
       final sizeKey = requestFileSizeLimitMessageKey(path, docType: docType);
       if (sizeKey != null) {
+        AppLog.trace(
+          'svh video rejected by size docType=$docType path=$path',
+          tag: 'SvhUpload',
+        );
         sl<AppFeedbackService>().show(
           s.text(sizeKey),
           kind: AppFeedbackKind.warning,
@@ -320,6 +393,11 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     if (entries.isEmpty) return;
 
     setState(() => _uploadingSvhCarVideos = true);
+    AppLog.trace(
+      'svh video upload start count=${entries.length} '
+      'docTypes=${entries.map((e) => e.docType).join(",")}',
+      tag: 'SvhUpload',
+    );
     final result = await sl<CarsRepository>().attachRequestFiles(
       requestId: item.id,
       items: entries,
@@ -330,9 +408,31 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final feedback = sl<AppFeedbackService>();
     await result.fold(
       (failure) async {
+        AppLog.trace(
+          'svh video upload Left: ${failure.message}',
+          tag: 'SvhUpload',
+        );
         await sl<CarsRepository>().getVehicle(item.id);
         if (!mounted) return;
         setState(() {});
+        final updated = _itemFromInventory(item.id);
+        final anyUploaded = updated != null &&
+            entries.any(
+              (e) => updated.files.any(
+                (f) => normalizeDocType(f.docType) == normalizeDocType(e.docType),
+              ),
+            );
+        if (anyUploaded) {
+          AppLog.trace(
+            'svh video: server has files despite client error → success',
+            tag: 'SvhUpload',
+          );
+          await _onAttachSucceeded(
+            docType: entries.first.docType,
+            itemId: item.id,
+          );
+          return;
+        }
         final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
         feedback.show(
           sizeMsg ?? requestAttachFailureMessage(failure.message, s),
@@ -340,6 +440,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         );
       },
       (_) async {
+        AppLog.trace('svh video upload Right ok', tag: 'SvhUpload');
         await _onAttachSucceeded(
           docType: entries.first.docType,
           itemId: item.id,
@@ -430,6 +531,53 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     );
   }
 
+  Future<void> _deleteSvhMediaFile(CarListItem item, CustomsRequestFile file) async {
+    if (!isSvhManagerSession(sl<AuthSessionController>())) return;
+    if (!isSvhCarMediaDocType(file.docType)) return;
+    final fileId = file.id?.trim() ?? '';
+    if (fileId.isEmpty) {
+      _onDocumentOpenFailed();
+      return;
+    }
+    final s = sl<JsonStringsService>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.text('requestFileDeleteTitle')),
+        content: Text(s.text('requestFileDeleteConfirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(s.text('actionCancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(s.text('requestFileDeleteAction')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final result = await sl<CarsRepository>().deleteRequestFile(
+      requestId: item.id,
+      fileId: fileId,
+    );
+    if (!mounted) return;
+    await result.fold(
+      (failure) async {
+        sl<AppFeedbackService>().show(
+          s.text('requestFileDeleteFailed'),
+          kind: AppFeedbackKind.error,
+        );
+      },
+      (_) async {
+        await sl<CarsRepository>().getVehicle(item.id);
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
   Future<void> _attachOtherDocsGallery(CarListItem item) async {
     if (item.isArchivedOffline) return;
     if (_anyUploadBusy) return;
@@ -513,10 +661,37 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     await sl<CarsRepository>().getVehicle(itemId);
     if (!mounted) return;
     setState(() {});
+
+    // СВХ / архив / доп. доки: менеджер добавляет несколько файлов подряд —
+    // не выходим в список заявок.
+    if (_stayOnDetailAfterAttach(docType)) {
+      AppLog.trace(
+        'attach ok stayOnDetail docType=$docType requestId=$itemId',
+        tag: 'SvhUpload',
+      );
+      return;
+    }
+
     final updated = _itemFromInventory(itemId);
     if (updated != null && !hasPendingClientUploadActions(updated)) {
+      AppLog.trace(
+        'attach ok pop detail (no pending client actions) docType=$docType',
+        tag: 'SvhUpload',
+      );
       context.pop();
     }
+  }
+
+  /// Галерея авто / видео / транзит / add_doc — остаёмся на карточке.
+  bool _stayOnDetailAfterAttach(String docType) {
+    final code = normalizeDocType(docType);
+    if (code.isEmpty) return false;
+    if (isSvhCarGalleryDocType(code) || isSvhCarVideoDocType(code)) {
+      return true;
+    }
+    if (code.startsWith('transit_archive')) return true;
+    if (code == 'add_doc1' || code == 'add_doc2') return true;
+    return false;
   }
 
   CarListItem? _itemFromInventory(String id) {
@@ -533,6 +708,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     required ThemeData theme,
     required CustomsRequestFile f,
     required VoidCallback? onTap,
+    VoidCallback? onDelete,
     bool highlight = false,
     String? badge,
     bool embedded = false,
@@ -542,7 +718,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final isVideo = isRequestFileVideo(f);
     final showPdfIcon = isRequestFilePdf(f);
     final rawPath = requestFileFullUrl(f);
-    final localFile = rawPath != null &&
+    final localFile = !isVideo &&
+            rawPath != null &&
             rawPath.isNotEmpty &&
             !rawPath.startsWith('http') &&
             File(rawPath).existsSync()
@@ -551,11 +728,11 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final thumbUrl = localFile == null
         ? _resolveFileUrl(requestFileThumbnailUrl(f))
         : null;
-    final hasOpenTarget = localFile != null ||
-        (rawPath != null && rawPath.isNotEmpty);
+    final hasOpenTarget = (rawPath != null && rawPath.isNotEmpty) ||
+        (isVideo &&
+            ((_resolveFileUrl(requestFileFullUrl(f)) ?? '').isNotEmpty));
     final showThumbImage =
         localFile != null || (thumbUrl != null && thumbUrl.isNotEmpty);
-    final showVideoIcon = isVideo && !showThumbImage;
     final tappable = onTap != null && hasOpenTarget;
     final token = sl<AuthSessionController>().accessToken?.trim();
     final headers = (token != null && token.isNotEmpty)
@@ -570,59 +747,70 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     const outerRadius = 12.0;
     const thumbRadius = 8.0;
 
+    final Widget thumbChild;
+    if (isVideo) {
+      thumbChild = RequestFileVideoThumb(
+        file: f,
+        resolvedFullUrl: _resolveFileUrl(requestFileFullUrl(f)),
+        resolvedPreviewUrl: thumbUrl,
+        authHeaders: headers,
+        size: 64,
+      );
+    } else if (showThumbImage) {
+      thumbChild = localFile != null
+          ? Image.file(
+              localFile,
+              fit: BoxFit.cover,
+              width: 64,
+              height: 64,
+              errorBuilder: (_, _, _) => Icon(
+                Icons.insert_drive_file_outlined,
+                size: 24,
+                color: AppTheme.textSecondary.withValues(alpha: 0.85),
+              ),
+            )
+          : Image.network(
+              thumbUrl!,
+              headers: headers,
+              fit: BoxFit.cover,
+              width: 64,
+              height: 64,
+              errorBuilder: (_, _, _) => Icon(
+                Icons.insert_drive_file_outlined,
+                size: 24,
+                color: AppTheme.textSecondary.withValues(alpha: 0.85),
+              ),
+            );
+    } else {
+      thumbChild = Icon(
+        showPdfIcon
+            ? Icons.picture_as_pdf_outlined
+            : Icons.insert_drive_file_outlined,
+        size: 24,
+        color: AppTheme.textSecondary.withValues(alpha: 0.85),
+      );
+    }
+
+    final thumb = Container(
+      width: 64,
+      height: 64,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppTheme.pageBackground,
+        borderRadius: BorderRadius.circular(thumbRadius),
+        border: Border.all(
+          color: highlight && !embedded
+              ? AppTheme.requestCardBorder
+              : borderColor,
+        ),
+      ),
+      child: thumbChild,
+    );
+
     final row = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: 64,
-          height: 64,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: AppTheme.pageBackground,
-            borderRadius: BorderRadius.circular(thumbRadius),
-            border: Border.all(
-              color: highlight && !embedded
-                  ? AppTheme.requestCardBorder
-                  : borderColor,
-            ),
-          ),
-          child: showThumbImage
-              ? localFile != null
-                  ? Image.file(
-                      localFile,
-                      fit: BoxFit.cover,
-                      width: 64,
-                      height: 64,
-                      errorBuilder: (_, _, _) => Icon(
-                        Icons.insert_drive_file_outlined,
-                        size: 24,
-                        color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                      ),
-                    )
-                  : Image.network(
-                      thumbUrl!,
-                      headers: headers,
-                      fit: BoxFit.cover,
-                      width: 64,
-                      height: 64,
-                      errorBuilder: (_, _, _) => Icon(
-                        isVideo
-                            ? Icons.videocam_outlined
-                            : Icons.insert_drive_file_outlined,
-                        size: 24,
-                        color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                      ),
-                    )
-              : Icon(
-                  showVideoIcon
-                      ? Icons.play_circle_outline
-                      : showPdfIcon
-                          ? Icons.picture_as_pdf_outlined
-                          : Icons.insert_drive_file_outlined,
-                  size: showVideoIcon ? 32 : 24,
-                  color: AppTheme.textSecondary.withValues(alpha: 0.85),
-                ),
-        ),
+        thumb,
         const Gap(12),
         Expanded(
           child: Column(
@@ -665,11 +853,25 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
           ),
         ),
         if (showUploadedCheck) ...[
-          const Gap(8),
+          const Gap(4),
           const Icon(
             Icons.check_circle_rounded,
             size: 24,
             color: Color(0xFF2E7D32),
+          ),
+        ],
+        if (onDelete != null) ...[
+          const Gap(2),
+          IconButton(
+            onPressed: onDelete,
+            tooltip: sl<JsonStringsService>().text('requestFileDeleteAction'),
+            icon: const Icon(Icons.close, size: 22),
+            color: AppTheme.accentRed,
+            style: IconButton.styleFrom(
+              foregroundColor: AppTheme.accentRed,
+              minimumSize: const Size(48, 48),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ],
@@ -888,6 +1090,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             onUploadOtherDocsGallery: item.isArchivedOffline
                 ? null
                 : () => _attachOtherDocsGallery(item),
+            onDeleteSvhMediaFile:
+                svh ? (f) => _deleteSvhMediaFile(item, f) : null,
             onTransitPhotoTap: (url) => _openExternalUrl(url),
             buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
               title: d.title,
@@ -908,13 +1112,14 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                 _onDocumentOpenFailed();
               },
             ),
-            buildFileRow: (f, {required highlight, badge, embedded = false}) {
+            buildFileRow: (f, {required highlight, badge, embedded = false, onDelete}) {
               return _buildServerFileRow(
                 theme: theme,
                 f: f,
                 highlight: highlight,
                 badge: badge,
                 embedded: embedded,
+                onDelete: onDelete,
                 onTap: () => _openRequestFile(f),
               );
             },
@@ -967,7 +1172,35 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       return;
     }
     if (isRequestFileVideo(file)) {
-      await _openExternalUrl(resolved);
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      final localPath = await downloadAuthenticatedRequestFile(resolved, file);
+      if (localPath != null) {
+        await ensureRequestVideoThumbnail(
+          file: file,
+          resolvedUrl: resolved,
+          localVideoPath: localPath,
+        );
+      }
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      if (localPath == null) {
+        _onDocumentOpenFailed();
+        return;
+      }
+      final title = docTypeLabel(file, sl<JsonStringsService>());
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => RequestVideoPlayerPage(
+            filePath: localPath,
+            title: title,
+          ),
+        ),
+      );
       return;
     }
     if (isRequestFileImage(file)) {
@@ -976,7 +1209,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         _onDocumentOpenFailed();
         return;
       }
-      final images = item.files.where(isRequestFileImage).toList();
+      final images = imageCarouselPeers(file, item.files);
       final index = images.indexWhere(
         (e) => e.docType == file.docType && e.fileUrl == file.fileUrl,
       );
@@ -1259,6 +1492,8 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
   late final PageController _controller;
   late int _index;
   late int _page;
+  bool _busy = false;
+  final Map<int, String> _localPathByIndex = {};
 
   @override
   void initState() {
@@ -1275,8 +1510,74 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
     super.dispose();
   }
 
+  String _saveFileName(_CarouselPhotoItem item) {
+    final urlPath = Uri.tryParse(item.fullUrl)?.path ?? '';
+    final segments = urlPath.split('/').where((e) => e.isNotEmpty).toList();
+    final last = segments.isEmpty ? '' : segments.last;
+    final urlExt = last.contains('.') ? '.${last.split('.').last}' : '';
+    final ext = RegExp(r'\.(jpe?g|png|webp|gif|heic|bmp)$', caseSensitive: false)
+            .hasMatch(urlExt)
+        ? urlExt.toLowerCase()
+        : '.jpg';
+    final base = item.title
+        .trim()
+        .replaceAll(RegExp(r'[^\w.\- ()\u0400-\u04FF]'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    final safe = base.isEmpty ? 'photo' : base;
+    if (safe.toLowerCase().endsWith(ext.toLowerCase())) return safe;
+    return '$safe$ext';
+  }
+
+  Future<String?> _ensureLocalFile() async {
+    final cached = _localPathByIndex[_index];
+    if (cached != null && await File(cached).exists()) return cached;
+    final item = widget.items[_index];
+    final path = await downloadAuthenticatedUrl(
+      url: item.fullUrl,
+      saveFileName: _saveFileName(item),
+    );
+    if (path != null) _localPathByIndex[_index] = path;
+    return path;
+  }
+
+  Future<void> _shareOrSave({required bool asDownload}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final s = sl<JsonStringsService>();
+    final path = await _ensureLocalFile();
+    if (!mounted) return;
+    if (path == null) {
+      setState(() => _busy = false);
+      sl<AppFeedbackService>().show(
+        s.requestMediaActionFailed,
+        kind: AppFeedbackKind.error,
+      );
+      return;
+    }
+    final ok = await shareLocalRequestFile(
+      filePath: path,
+      displayName: widget.items[_index].title,
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!ok) {
+      sl<AppFeedbackService>().show(
+        s.requestMediaActionFailed,
+        kind: AppFeedbackKind.error,
+      );
+      return;
+    }
+    if (asDownload) {
+      sl<AppFeedbackService>().show(
+        s.requestMediaSaveHint,
+        kind: AppFeedbackKind.success,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = sl<JsonStringsService>();
     final token = widget.authToken?.trim();
     final headers = (token != null && token.isNotEmpty)
         ? <String, String>{'Authorization': 'Bearer $token'}
@@ -1291,6 +1592,27 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
           '${_index + 1}/${widget.items.length}',
           style: const TextStyle(color: Colors.white),
         ),
+        actions: [
+          IconButton(
+            onPressed: _busy ? null : () => _shareOrSave(asDownload: true),
+            tooltip: s.requestMediaDownloadButton,
+            icon: _busy
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.download_rounded),
+          ),
+          IconButton(
+            onPressed: _busy ? null : () => _shareOrSave(asDownload: false),
+            tooltip: s.requestMediaShareButton,
+            icon: const Icon(Icons.ios_share_rounded),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -1390,7 +1712,7 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text(
               current.title,
               textAlign: TextAlign.center,
@@ -1398,6 +1720,37 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          _busy ? null : () => _shareOrSave(asDownload: true),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white54),
+                      ),
+                      icon: const Icon(Icons.download_rounded, size: 18),
+                      label: Text(s.requestMediaDownloadButton),
+                    ),
+                  ),
+                  const Gap(10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed:
+                          _busy ? null : () => _shareOrSave(asDownload: false),
+                      icon: const Icon(Icons.ios_share_rounded, size: 18),
+                      label: Text(s.requestMediaShareButton),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

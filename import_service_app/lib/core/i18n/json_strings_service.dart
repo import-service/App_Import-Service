@@ -161,6 +161,10 @@ final class JsonStringsService {
   String get requestPdfShareButton => text('requestPdfShareButton');
   String get requestPdfShareFailed => text('requestPdfShareFailed');
   String get requestPdfShareHint => text('requestPdfShareHint');
+  String get requestMediaDownloadButton => text('requestMediaDownloadButton');
+  String get requestMediaShareButton => text('requestMediaShareButton');
+  String get requestMediaActionFailed => text('requestMediaActionFailed');
+  String get requestMediaSaveHint => text('requestMediaSaveHint');
   String get requestPickDocumentTitle => text('requestPickDocumentTitle');
   String get requestPickDocumentPhoto => text('requestPickDocumentPhoto');
   String get requestPickDocumentPdf => text('requestPickDocumentPdf');

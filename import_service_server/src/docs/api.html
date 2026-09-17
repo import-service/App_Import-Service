@@ -134,7 +134,7 @@
         <h2>Заявки на таможенное оформление</h2>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/upload</code><span class="desc">Загрузить файл в заявку (батч).</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Лимиты:</b> фото/PDF/документы — <b>25 МБ</b>; видео и аудио — <b>100 МБ</b> (по <code>docType</code> и mime).</p><p><b>Request:</b> multipart — <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code></p><p><b>Success:</b></p><pre>{
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p><b>Лимиты:</b> фото/PDF/документы — <b>25 МБ</b>; видео и аудио — <b>100 МБ</b> (по <code>docType</code> и mime).</p><p><b>Видео:</b> сервер при необходимости перекодирует в H.264 Baseline + AAC (<code>faststart</code>) для совместимости с Android MediaCodec (СВХ и др.).</p><p><b>Request:</b> multipart — <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code></p><p><b>Success:</b></p><pre>{
   "ok": true,
   "batchComplete": false,
   "file": {
@@ -274,21 +274,24 @@
   "versionName": "1.0.34",
   "sha256": "…hex…",
   "sizeBytes": 52428800,
+  "fileSizeBytes": 52428800,
+  "sizeMatches": true,
   "updatedAt": "2026-09-11T06:00:00.000Z",
   "apkUrl": "https://157-22-173-7.sslip.io/api/app/android-apk/download"
 }</pre>
+            <p><code>fileSizeBytes</code> / <code>sizeMatches</code> — сверка файла на диске с манифестом (без пересчёта sha).</p>
             <p><b>Success (нет файла):</b></p><pre>{ "available": false }</pre>
           </div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/app/android-apk/download</code><span class="desc">Скачать APK (публично).</span></summary>
-          <div class="body"><p><b>Auth:</b> не нужен.</p><p><b>Success:</b> binary <code>application/vnd.android.package-archive</code>.</p><p><b>Errors:</b> <code>404 APK_NOT_FOUND</code></p></div>
+          <div class="body"><p><b>Auth:</b> не нужен.</p><p><b>Success:</b> binary <code>application/vnd.android.package-archive</code> + <code>Content-Length</code>.</p><p><b>Errors:</b> <code>404 APK_NOT_FOUND</code></p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span> / <span class="method post">POST</span><code class="path">/api/admin/android-apk</code><span class="desc">Статус и загрузка APK (админ).</span></summary>
           <div class="body">
             <p><b>Auth:</b> Bearer admin</p>
-            <p><b>GET</b> — тот же JSON, что <code>/api/app/android-apk</code>.</p>
+            <p><b>GET</b> — тот же JSON, что <code>/api/app/android-apk</code> (+ <code>fileSizeBytes</code>, <code>sizeMatches</code>).</p>
             <p><b>POST</b> multipart:</p>
             <table class="fields">
               <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
@@ -297,7 +300,28 @@
               <tr><td><code>versionName</code></td><td>нет</td><td>например <code>1.0.34</code></td></tr>
             </table>
             <p>Лимит ~200 МБ. Сервер считает <code>sha256</code> и пишет манифест.</p>
-            <p><b>Success:</b> <code>{ "ok": true, "available": true, "versionCode": 34, … }</code></p>
+            <p>После успешной публикации — письмо на <code>CUSTOMS_REQUEST_MAIL_TO</code> (по умолчанию <code>info@import-service.su</code>) со ссылкой на <code>/api/app/android-apk/download</code>. Ошибка SMTP не откатывает загрузку. Тот же mail уходит при публикации через <code>scripts/publish-android-apk.js</code> (загрузка агентом).</p>
+            <p><b>Success:</b> <code>{ "ok": true, "available": true, "versionCode": 34, "sizeBytes": …, "sizeMatches": true, … }</code></p>
+          </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/android-apk/verify</code><span class="desc">Проверка APK на диске (размер + sha256).</span></summary>
+          <div class="body">
+            <p><b>Auth:</b> Bearer admin</p>
+            <p>Пересчитывает sha256 файла и сверяет с манифестом. Помогает понять, целый ли файл после выкладки.</p>
+            <p><b>Success:</b></p><pre>{
+  "ok": true,
+  "available": true,
+  "versionCode": 37,
+  "sizeBytes": 84268427,
+  "manifestSizeBytes": 84268427,
+  "sizeMatches": true,
+  "sha256": "…",
+  "manifestSha256": "…",
+  "shaMatches": true,
+  "zipMagicOk": true
+}</pre>
+            <p><code>ok: false</code> — битый/неполный файл или рассинхрон манифеста.</p>
           </div>
         </details>
         <details class="card">
@@ -1083,6 +1107,8 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
               <tr><td><code>advancePayment</code></td><td>нет</td><td>Аванс, рубли (строка/число).</td></tr>
               <tr><td><code>actualPayment</code></td><td>нет</td><td>Факт, рубли.</td></tr>
             </table>
+            <p><b>Имена полей:</b> строго camelCase как в таблице (<code>vin</code>, не <code>VIN</code>/<code>VinNumber</code>). Пустой <code>vin</code> не перезаписывает БД.</p>
+            <p><b>Диагностика:</b> сервер пишет в лог <code>1c state applied</code> / <code>1c state: заявка не найдена</code> — <code>external1cId</code>, список ключей тела, <code>vinBefore</code>/<code>vinAfter</code>, применённые поля (без токенов).</p>
             <p><b>Ответ <code>item</code>:</b> полная карточка с <code>files[]</code>, <code>refundAmount</code> (считает сервер).</p>
             <p><b>Цепочка 1С:</b> N×<code>upload</code> → при необходимости <code>state</code>. Push файлов — после батча upload; push статуса — после <code>state</code>.</p>
             <p><b>Request (пример):</b></p><pre>{

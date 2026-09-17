@@ -6,8 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_rustore_update/flutter_rustore_update.dart' as rustore_update;
 import 'package:in_app_update/in_app_update.dart' as play_update;
+import 'package:import_service_app/core/app_update/app_distribution.dart';
 import 'package:import_service_app/core/app_update/app_install_source.dart';
 import 'package:import_service_app/core/app_update/android_server_apk_client.dart';
+import 'package:import_service_app/core/app_update/apk_installer.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
@@ -150,34 +152,249 @@ final class AppUpdateService {
   Future<bool> isServerApkUpdateAvailable() =>
       _serverApk.isServerNewerThanInstalled();
 
-  /// Открыть ссылку на APK с сервера (пользователь ставит вручную).
+  /// Скачать APK с сервера с прогрессом, проверить размер/sha, открыть установщик.
   Future<void> installFromServer(BuildContext? context) async {
     if (kIsWeb || !Platform.isAndroid) return;
     if (_serverInstallInFlight) return;
     _serverInstallInFlight = true;
     final strings = sl<JsonStringsService>();
+    final dialogCtx = _dialogContext(context);
+    final progress = ValueNotifier<_ServerApkProgress>(
+      const _ServerApkProgress(
+        received: 0,
+        total: null,
+        verifying: false,
+        connecting: true,
+      ),
+    );
+    final cancelToken = CancelToken();
+    var dialogOpen = false;
+
+    Future<void> closeDialog() async {
+      if (!dialogOpen) return;
+      dialogOpen = false;
+      final navCtx = _dialogContext(context);
+      if (navCtx != null && Navigator.of(navCtx, rootNavigator: true).canPop()) {
+        Navigator.of(navCtx, rootNavigator: true).pop();
+      }
+    }
+
     try {
-      _feedback(
-        strings: strings.text('appUpdateServerOpeningLink'),
-        kind: AppFeedbackKind.warning,
+      // Store-сборка без REQUEST_INSTALL_PACKAGES — только ссылка в браузер.
+      if (AppDistribution.isStore) {
+        _feedback(
+          strings: strings.text('appUpdateServerOpeningLink'),
+          kind: AppFeedbackKind.warning,
+        );
+        await _serverApk.openDownloadInBrowser();
+        return;
+      }
+
+      if (dialogCtx != null) {
+        dialogOpen = true;
+        unawaited(
+          showDialog<void>(
+            context: dialogCtx,
+            useRootNavigator: true,
+            barrierDismissible: false,
+            builder: (dCtx) {
+              return PopScope(
+                canPop: false,
+                child: AlertDialog(
+                  title: Text(strings.text('appUpdateServerDownloadingTitle')),
+                  content: ValueListenableBuilder<_ServerApkProgress>(
+                    valueListenable: progress,
+                    builder: (_, p, child) {
+                      final total = p.total;
+                      final frac = (total != null && total > 0)
+                          ? (p.received / total).clamp(0.0, 1.0)
+                          : null;
+                      final receivedMb =
+                          (p.received / (1024 * 1024)).toStringAsFixed(1);
+                      final totalMb = total != null && total > 0
+                          ? (total / (1024 * 1024)).toStringAsFixed(1)
+                          : '…';
+                      final pctValue = frac != null
+                          ? (frac * 100).toStringAsFixed(0)
+                          : null;
+                      final pct = pctValue != null ? ' ($pctValue%)' : '';
+                      final status = p.verifying
+                          ? strings.text('appUpdateServerVerifying')
+                          : p.connecting
+                              ? strings.text('appUpdateServerConnecting')
+                              : strings.text('appUpdateServerDownloadingStatus');
+                      final line = p.verifying
+                          ? status
+                          : strings
+                              .text('appUpdateServerProgress')
+                              .replaceAll('{received}', receivedMb)
+                              .replaceAll('{total}', totalMb)
+                              .replaceAll('{percent}', pct);
+                      final barValue =
+                          (p.verifying || p.connecting || frac == null)
+                              ? null
+                              : frac;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            status,
+                            style: Theme.of(dCtx).textTheme.titleMedium,
+                          ),
+                          if (pctValue != null && !p.verifying) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              '$pctValue%',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(dCtx)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: barValue,
+                              minHeight: 10,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            line,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(dCtx).textTheme.bodyMedium,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        cancelToken.cancel('user');
+                        Navigator.of(dCtx).pop();
+                        dialogOpen = false;
+                      },
+                      child: Text(strings.text('appUpdateServerCancel')),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ).whenComplete(() => dialogOpen = false),
+        );
+        // Дать диалогу отрисоваться.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+
+      final manifest = await _serverApk.fetchManifest();
+      if (manifest?.sizeBytes != null && manifest!.sizeBytes! > 0) {
+        progress.value = _ServerApkProgress(
+          received: 0,
+          total: manifest.sizeBytes,
+          verifying: false,
+          connecting: false,
+        );
+      } else {
+        progress.value = const _ServerApkProgress(
+          received: 0,
+          total: null,
+          verifying: false,
+          connecting: false,
+        );
+      }
+
+      final file = await _serverApk.downloadApkToTemp(
+        cancelToken: cancelToken,
+        onProgress: (received, total) {
+          progress.value = _ServerApkProgress(
+            received: received,
+            total: total != null && total > 0 ? total : progress.value.total,
+            verifying: false,
+            connecting: false,
+          );
+        },
+        onVerifying: () {
+          progress.value = _ServerApkProgress(
+            received: progress.value.received,
+            total: progress.value.total,
+            verifying: true,
+            connecting: false,
+          );
+        },
       );
-      await _serverApk.openDownloadInBrowser();
+      await closeDialog();
+
+      final canInstall = await ApkInstaller.canRequestPackageInstalls();
+      if (!canInstall) {
+        _feedback(
+          strings: strings.text('appUpdateServerNeedInstallPermission'),
+          kind: AppFeedbackKind.warning,
+        );
+        await ApkInstaller.openUnknownAppSettings();
+        // После возврата из настроек пользователь снова нажмёт «скачать».
+        return;
+      }
+
+      await ApkInstaller.installApk(file.path);
       _feedback(
-        strings: strings.text('appUpdateServerInstallPrompt'),
+        strings: strings.text('appUpdateServerReady'),
         kind: AppFeedbackKind.success,
       );
-    } catch (e, st) {
+    } on DioException catch (e) {
+      await closeDialog();
+      if (CancelToken.isCancel(e) || e.type == DioExceptionType.cancel) {
+        _feedback(
+          strings: strings.text('appUpdateServerCancelled'),
+          kind: AppFeedbackKind.warning,
+        );
+        return;
+      }
       AppLog.error(
-        'server apk link open failed',
+        'server apk download failed',
         tag: 'AppUpdate',
         error: e,
-        stackTrace: st,
+        stackTrace: e.stackTrace,
       );
       _feedback(
         strings: strings.text('appUpdateServerFailed'),
         kind: AppFeedbackKind.error,
       );
+    } catch (e, st) {
+      await closeDialog();
+      final msg = e.toString();
+      AppLog.error(
+        'server apk download failed',
+        tag: 'AppUpdate',
+        error: e,
+        stackTrace: st,
+      );
+      if (msg.contains('SIZE_MISMATCH')) {
+        _feedback(
+          strings: strings.text('appUpdateServerSizeMismatch'),
+          kind: AppFeedbackKind.error,
+        );
+      } else if (msg.contains('SHA_MISMATCH')) {
+        _feedback(
+          strings: strings.text('appUpdateServerShaMismatch'),
+          kind: AppFeedbackKind.error,
+        );
+      } else if (msg.contains('INSTALL') || msg.contains('FileProvider')) {
+        _feedback(
+          strings: strings.text('appUpdateServerInstallFailed'),
+          kind: AppFeedbackKind.error,
+        );
+      } else {
+        _feedback(
+          strings: strings.text('appUpdateServerFailed'),
+          kind: AppFeedbackKind.error,
+        );
+      }
     } finally {
+      progress.dispose();
       _serverInstallInFlight = false;
     }
   }
@@ -758,4 +975,19 @@ final class _StoreVersionInfo {
       versionCode: codeRaw is num ? codeRaw.toInt() : int.tryParse('$codeRaw'),
     );
   }
+}
+
+final class _ServerApkProgress {
+  const _ServerApkProgress({
+    required this.received,
+    required this.total,
+    required this.verifying,
+    this.connecting = false,
+  });
+
+  final int received;
+  final int? total;
+  final bool verifying;
+  /// До первого байта / манифеста — диалог не «пустой».
+  final bool connecting;
 }

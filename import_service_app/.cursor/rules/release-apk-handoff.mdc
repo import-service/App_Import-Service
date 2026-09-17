@@ -13,16 +13,23 @@ alwaysApply: false
 
 ```powershell
 cd D:\Projects\import_servis
-.\scripts\build-release-android.ps1 -AlsoAab
-# положить APK на наш сервер:
-.\scripts\build-release-android.ps1 -AlsoAab -UploadApk
+# APK на наш сервер (flavor server):
+.\scripts\build-release-android.ps1 -UploadApk
+# + AAB для сторов (flavor store):
+.\scripts\build-release-android.ps1 -AlsoStoreAab -UploadApk
+# + APK для RuStore (flavor store):
+.\scripts\build-release-android.ps1 -AlsoStoreAab -AlsoStoreApk
 ```
 
 Скрипт:
 
 - ставит `GRADLE_USER_HOME=%USERPROFILE%\.gradle` (запрет `cursor-sandbox-cache`);
 - `gradlew --stop` перед сборкой;
-- копирует в `D:\Temp\import_service_app_1_{BUILD}.apk` / `.aab`.
+- **server** APK → `D:\Temp\import_service_app_1_{BUILD}.apk` (на сервер);
+- **store** AAB → `D:\Temp\import_service_app_1_{BUILD}.aab`;
+- **store** APK → `D:\Temp\import_service_app_store_1_{BUILD}.apk`.
+
+Flavors: `server` (самоустановка APK) / `store` (Play/RuStore, без `REQUEST_INSTALL_PACKAGES`).
 
 Канон про зависания Gradle: `.cursor/rules/android-release-gradle-never-sandbox.mdc`.
 
@@ -46,11 +53,13 @@ cd D:\Projects\import_servis
 
 5. **Сообщить пользователю**: путь к APK, новая версия, что push выполнен (или ошибка).
 
-## Android: AAB (Google Play / RuStore)
+## Android: AAB / store APK (Google Play / RuStore)
 
-Флаг `-AlsoAab` у `build-release-android.ps1` (имя `import_service_app_1_{BUILD}.aab` в `D:\Temp`).
+Флаги `-AlsoStoreAab` / `-AlsoStoreApk` у `build-release-android.ps1` (**flavor store**).
 
-Имя: `import_service_app_1_{BUILD}.aab`, `{BUILD}` — число после `+` в `pubspec.yaml`.
+Имена: `import_service_app_1_{BUILD}.aab`, `import_service_app_store_1_{BUILD}.apk`.
+
+Устаревший `-AlsoAab` = `-AlsoStoreAab`.
 
 ## iOS (только macOS)
 

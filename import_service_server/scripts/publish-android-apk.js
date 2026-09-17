@@ -7,11 +7,15 @@
  */
 const path = require('path');
 
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const {
   apkPath,
   publishApkFromPath,
   getStatusDto,
 } = require('../src/services/androidApkRelease');
+const { notifyAndroidApkPublished } = require('../src/services/emailNotification');
+const config = require('../src/config');
 
 function argValue(name) {
   const i = process.argv.indexOf(name);
@@ -30,8 +34,29 @@ async function main() {
   }
 
   const manifest = await publishApkFromPath(file, { versionCode, versionName });
-  const dto = await getStatusDto(process.env.PUBLIC_BASE_URL || '');
+  const publicBase = process.env.PUBLIC_BASE_URL || config.publicBaseUrl || '';
+  const dto = await getStatusDto(publicBase);
   console.log(JSON.stringify({ ok: true, manifest, status: dto }, null, 2));
+
+  try {
+    const mail = await notifyAndroidApkPublished(
+      config.smtp,
+      {
+        versionCode: dto.versionCode,
+        versionName: dto.versionName,
+        apkUrl: dto.apkUrl,
+        sizeBytes: dto.sizeBytes ?? dto.fileSizeBytes,
+      },
+      console,
+    );
+    if (!mail?.success) {
+      console.error('EMAIL_WARN', mail?.error || 'send failed');
+    } else {
+      console.log('EMAIL_OK', mail.messageId || '');
+    }
+  } catch (e) {
+    console.error('EMAIL_WARN', e.message || e);
+  }
 }
 
 main().catch((e) => {

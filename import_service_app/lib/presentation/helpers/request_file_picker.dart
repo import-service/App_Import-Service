@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_unified_image_picker/flutter_unified_image_picker.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
+import 'package:import_service_app/core/utils/request_file_upload_validation.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/app_choice_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/app_photo_source_bottom_sheet.dart';
 
@@ -72,22 +73,27 @@ Future<List<String>> pickMultipleImagePaths({
   }
 }
 
-/// Мультивыбор видео (для СВХ «Фото и видео машины», до [maxCount]).
+/// Мультивыбор видео (СВХ «Видео машины», до [maxCount]).
+///
+/// Только расширения видео; JPEG/PNG отсекаются (на части OEM `FileType.video`
+/// всё равно показывает фото).
 Future<List<String>> pickMultipleVideoPaths({
   required int maxCount,
 }) async {
   if (maxCount <= 0) return const [];
   final result = await FilePicker.platform.pickFiles(
-    type: FileType.video,
+    type: FileType.custom,
+    allowedExtensions: const ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v'],
     allowMultiple: true,
     withData: false,
   );
   if (result == null || result.files.isEmpty) return const [];
   final paths = <String>[];
   for (final f in result.files) {
-    final p = f.path;
-    if (p == null || p.isEmpty) continue;
-    paths.add(p);
+    final path = f.path;
+    if (path == null || path.isEmpty) continue;
+    if (!looksLikeLocalVideoFile(path)) continue;
+    paths.add(path);
     if (paths.length >= maxCount) break;
   }
   return paths;

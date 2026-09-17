@@ -21,6 +21,7 @@ typedef RequestFileRowBuilder = Widget Function(
   required bool highlight,
   String? badge,
   bool embedded,
+  VoidCallback? onDelete,
 });
 
 typedef RequestDeliverableRowBuilder = Widget Function(DeliveredVehicleDocument doc);
@@ -38,6 +39,7 @@ class RequestDetailFilesSections extends StatelessWidget {
     this.onUploadSvhCarVideos,
     this.onUploadTransitArchiveGallery,
     this.onUploadOtherDocsGallery,
+    this.onDeleteSvhMediaFile,
     this.uploadingDocType,
     this.uploadingSvhCarGallery = false,
     this.uploadingSvhCarVideos = false,
@@ -55,14 +57,16 @@ class RequestDetailFilesSections extends StatelessWidget {
   final RequestFileRowBuilder buildFileRow;
   final RequestDeliverableRowBuilder buildDeliverableRow;
   final void Function(String docType)? onUploadDocType;
-  /// Мультизагрузка фото в галерею «Фото и видео машины» (СВХ).
+  /// Мультизагрузка фото в галерею «Фото машины» (СВХ).
   final VoidCallback? onUploadSvhCarGallery;
-  /// Мультизагрузка видео в ту же галерею (до 3).
+  /// Мультизагрузка видео (до 3).
   final VoidCallback? onUploadSvhCarVideos;
   /// Галерея архива транзита: загруженные + «Добавить» (лимит 3).
   final VoidCallback? onUploadTransitArchiveGallery;
   /// Галерея прочих файлов: загруженные + «Добавить» (лимит 2).
   final VoidCallback? onUploadOtherDocsGallery;
+  /// Удаление фото/видео машины — только менеджер СВХ.
+  final void Function(CustomsRequestFile file)? onDeleteSvhMediaFile;
   final String? uploadingDocType;
   final bool uploadingSvhCarGallery;
   final bool uploadingSvhCarVideos;
@@ -325,12 +329,34 @@ class RequestDetailFilesSections extends StatelessWidget {
     );
 
     if (_shouldShowSvhCarGallery(item, grouped)) {
+      final photos = grouped.svhCarGallery
+          .where((f) => isSvhCarGalleryDocType(f.docType))
+          .toList();
+      final videos = grouped.svhCarGallery
+          .where((f) => isSvhCarVideoDocType(f.docType))
+          .toList();
       addSection(
         sectionKey: RequestDetailSectionKeys.filesSvhCarGallery,
-        title: s.requestFilesSectionSvhCarGallery,
+        title: s
+            .text('requestFilesSectionSvhCarGalleryTitle')
+            .replaceAll('{count}', '${photos.length}')
+            .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
         needsAction: false,
-        rows: _buildSvhCarGalleryRows(
-          grouped: grouped,
+        rows: _buildSvhCarPhotoRows(
+          photos: photos,
+          s: s,
+          theme: theme,
+        ),
+      );
+      addSection(
+        sectionKey: RequestDetailSectionKeys.filesSvhCarVideos,
+        title: s
+            .text('requestFilesSectionSvhCarVideosTitle')
+            .replaceAll('{count}', '${videos.length}')
+            .replaceAll('{max}', '$kSvhCarGalleryMaxVideos'),
+        needsAction: false,
+        rows: _buildSvhCarVideoRows(
+          videos: videos,
           s: s,
           theme: theme,
         ),
@@ -348,15 +374,23 @@ class RequestDetailFilesSections extends StatelessWidget {
       ),
     );
 
+    final otherSlotCount = occupiedUploadSlotCount(
+      slots: kSvhOtherUploadDocTypes,
+      existingDocTypes: item.files.map((f) => f.docType),
+    );
     final otherRows = _buildOtherRows(
       grouped: grouped,
       s: s,
       theme: theme,
+      slotCount: otherSlotCount,
     );
     if (otherRows.isNotEmpty) {
       addSection(
         sectionKey: RequestDetailSectionKeys.filesOther,
-        title: s.requestFilesSectionOther,
+        title: s
+            .text('requestFilesSectionOtherTitle')
+            .replaceAll('{count}', '$otherSlotCount')
+            .replaceAll('{max}', '$kOtherDocsMaxFiles'),
         needsAction: false,
         rows: otherRows,
       );
@@ -386,41 +420,14 @@ class RequestDetailFilesSections extends StatelessWidget {
     return svhUploadMode;
   }
 
-  List<Widget> _buildSvhCarGalleryRows({
-    required RequestFilesGrouped grouped,
+  List<Widget> _buildSvhCarPhotoRows({
+    required List<CustomsRequestFile> photos,
     required JsonStringsService s,
     required ThemeData theme,
   }) {
-    final photos = grouped.svhCarGallery
-        .where((f) => isSvhCarGalleryDocType(f.docType))
-        .toList();
-    final videos = grouped.svhCarGallery
-        .where((f) => isSvhCarVideoDocType(f.docType))
-        .toList();
     final photoCount = photos.length;
-    final videoCount = videos.length;
-    final rows = <Widget>[
-      Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text(
-          s
-              .text('requestFilesSectionSvhCarGalleryCount')
-              .replaceAll('{count}', '$photoCount')
-              .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
-          style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          s
-              .text('requestFilesSectionSvhCarVideoCount')
-              .replaceAll('{count}', '$videoCount')
-              .replaceAll('{max}', '$kSvhCarGalleryMaxVideos'),
-          style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-        ),
-      ),
-    ];
+    final rows = <Widget>[];
+    final canDelete = svhUploadMode && onDeleteSvhMediaFile != null;
 
     if (svhUploadMode && onUploadSvhCarGallery != null) {
       final full = photoCount >= kSvhCarGalleryMaxPhotos;
@@ -456,6 +463,28 @@ class RequestDetailFilesSections extends StatelessWidget {
       rows.add(const Gap(8));
     }
 
+    for (final f in photos) {
+      rows.add(
+        buildFileRow(
+          f,
+          highlight: _isHighlighted(f),
+          embedded: false,
+          onDelete: canDelete ? () => onDeleteSvhMediaFile!(f) : null,
+        ),
+      );
+    }
+    return rows;
+  }
+
+  List<Widget> _buildSvhCarVideoRows({
+    required List<CustomsRequestFile> videos,
+    required JsonStringsService s,
+    required ThemeData theme,
+  }) {
+    final videoCount = videos.length;
+    final rows = <Widget>[];
+    final canDelete = svhUploadMode && onDeleteSvhMediaFile != null;
+
     if (svhUploadMode && onUploadSvhCarVideos != null) {
       final full = videoCount >= kSvhCarGalleryMaxVideos;
       rows.add(
@@ -490,8 +519,15 @@ class RequestDetailFilesSections extends StatelessWidget {
       rows.add(const Gap(8));
     }
 
-    for (final f in grouped.svhCarGallery) {
-      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+    for (final f in videos) {
+      rows.add(
+        buildFileRow(
+          f,
+          highlight: _isHighlighted(f),
+          embedded: false,
+          onDelete: canDelete ? () => onDeleteSvhMediaFile!(f) : null,
+        ),
+      );
     }
     return rows;
   }
@@ -581,6 +617,7 @@ class RequestDetailFilesSections extends StatelessWidget {
     required RequestFilesGrouped grouped,
     required JsonStringsService s,
     required ThemeData theme,
+    required int slotCount,
   }) {
     final otherFiles = grouped.other;
     final slotFiles = otherFiles
@@ -590,31 +627,11 @@ class RequestDetailFilesSections extends StatelessWidget {
         .where((f) => !isOtherUploadDocType(f.docType))
         .toList();
     final canUpload = onUploadOtherDocsGallery != null;
-    final count = occupiedUploadSlotCount(
-      slots: kSvhOtherUploadDocTypes,
-      existingDocTypes: item.files.map((f) => f.docType),
-    );
+    final count = slotCount;
 
     if (!canUpload && otherFiles.isEmpty) return const [];
 
     final rows = <Widget>[];
-
-    if (canUpload || slotFiles.isNotEmpty) {
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text(
-            s
-                .text('requestFilesSectionOtherGalleryCount')
-                .replaceAll('{count}', '$count')
-                .replaceAll('{max}', '$kOtherDocsMaxFiles'),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ),
-      );
-    }
 
     if (canUpload) {
       final full = count >= kOtherDocsMaxFiles;

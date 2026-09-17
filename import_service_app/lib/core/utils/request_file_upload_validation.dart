@@ -13,14 +13,16 @@ const int kRequestFileMaxPhotoPdfBytes = 25 * 1024 * 1024;
 const int kRequestFileMaxVideoAudioBytes = 100 * 1024 * 1024;
 
 bool isLocalFileVideoOrAudio(String path, {String? docType}) {
-  final code = CustomsDocType.normalizeCode(docType ?? '');
-  if (code == CustomsDocType.transitArchiveVideo.apiCode) return true;
-  if (RegExp(r'^svh_car_video_\d+$').hasMatch(code)) return true;
-  if (code.endsWith('_video') || code.endsWith('_audio')) return true;
   final mime = _mimeFromPath(path);
   if (mime.startsWith('video/') || mime.startsWith('audio/')) return true;
   return RegExp(r'\.(mp4|mov|webm|mkv|avi|m4v|mp3|m4a|wav|aac|ogg)$')
       .hasMatch(path.toLowerCase());
+}
+
+/// Файл по расширению — видео (не JPEG/PNG). Для слотов `svh_car_video_*`.
+bool looksLikeLocalVideoFile(String path) {
+  final ext = p.extension(path).toLowerCase();
+  return const {'.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'}.contains(ext);
 }
 
 /// `null` — размер допустим; иначе ключ для [JsonStringsService.text].
@@ -28,7 +30,13 @@ String? requestFileSizeLimitMessageKey(String path, {String? docType}) {
   final file = File(path);
   if (!file.existsSync()) return null;
   final size = file.lengthSync();
-  final videoAudio = isLocalFileVideoOrAudio(path, docType: docType);
+  final code = CustomsDocType.normalizeCode(docType ?? '');
+  final forceVideoSlot = RegExp(r'^svh_car_video_\d+$').hasMatch(code) ||
+      code.endsWith('_video') ||
+      code == CustomsDocType.transitArchiveVideo.apiCode;
+  final videoAudio = forceVideoSlot
+      ? looksLikeLocalVideoFile(path)
+      : isLocalFileVideoOrAudio(path, docType: docType);
   final max =
       videoAudio ? kRequestFileMaxVideoAudioBytes : kRequestFileMaxPhotoPdfBytes;
   if (size <= max) return null;

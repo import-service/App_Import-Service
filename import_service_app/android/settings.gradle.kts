@@ -11,6 +11,12 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
+        // Mirrors first: dl.google.com often fails TLS (VPN/RU).
+        // Huawei returns proper 404 for missing plugin-marker JARs; Aliyun may 502 and disable the repo.
+        maven { url = uri("https://repo.huaweicloud.com/repository/maven/") }
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         google()
         mavenCentral()
         gradlePluginPortal()

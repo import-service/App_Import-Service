@@ -76,8 +76,11 @@ String? sectionKeyForUploadedDocType(String docType) {
       code == 'sbkts' ||
       code == 'tpo' ||
       code == 'ptd') {
-    if (code.startsWith('svh_car_photo_') || code.startsWith('svh_car_video_')) {
+    if (code.startsWith('svh_car_photo_')) {
       return RequestDetailSectionKeys.filesSvhCarGallery;
+    }
+    if (code.startsWith('svh_car_video_')) {
+      return RequestDetailSectionKeys.filesSvhCarVideos;
     }
     if (code.startsWith('car_')) {
       return RequestDetailSectionKeys.filesCreation;

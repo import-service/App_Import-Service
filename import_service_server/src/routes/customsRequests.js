@@ -21,6 +21,7 @@ const {
   suggestedStatusForSubType,
   isKnownStatusSubType,
   isSvhManagerAllowedDocType,
+  isSvhCarMediaDocType,
 } = require('../constants/customsCatalog');
 const { notifyStateChangedFrom1C } = require('../services/pushNotifications');
 const {
@@ -28,11 +29,12 @@ const {
   upsertRequestFile,
   CUSTOMS_REQUEST_FILE_SELECT,
 } = require('../util/requestFileStorage');
-const { assertFileSizeAllowed } = require('../constants/uploadLimits');
+const { assertFileSizeAllowed, isVideoDocType } = require('../constants/uploadLimits');
 const { recordUploadAndMaybeSync } = require('../services/uploadBatchSync');
 const { parseOneCUploadJsonBody } = require('../util/uploadBase64');
 const { integrationFileUploadPayload } = require('../util/integrationFileUrl');
 const { unlinkIfExists } = require('../util/imagePreview');
+const { normalizeVideoBuffer } = require('../services/videoNormalize');
 const {
   notifyNewCustomsRequest,
   notifyClientCustomsRequestAccepted,
@@ -173,6 +175,28 @@ function rejectDeprecatedStateFields(body, reply) {
   return false;
 }
 
+/** Ключи тела state, которые реально пришли (для диагностики 1С → сервер). */
+function stateBodyKeysPresent(body) {
+  if (!body || typeof body !== 'object') return [];
+  return Object.keys(body).filter((k) => body[k] !== undefined);
+}
+
+function stateVinDiagnostics(body, beforeVin, afterVin, appliedColumns) {
+  const vinInBody = body && Object.prototype.hasOwnProperty.call(body, 'vin');
+  const vinRaw = vinInBody ? normalize(body.vin) : null;
+  return {
+    vinInBody,
+    vinBodyEmpty: vinInBody && !vinRaw,
+    vinApplied: Boolean(appliedColumns && appliedColumns.includes('vin')),
+    vinBefore: beforeVin != null ? String(beforeVin) : null,
+    vinAfter: afterVin != null ? String(afterVin) : null,
+    vinChanged:
+      beforeVin != null &&
+      afterVin != null &&
+      String(beforeVin) !== String(afterVin),
+  };
+}
+
 async function ensureUploadDir() {
   await fs.mkdir(UPLOAD_ROOT, { recursive: true });
 }
@@ -249,6 +273,37 @@ async function finalizeCustomsUpload(fastify, request, reply, {
     });
   }
 
+  let outBuf = buf;
+  let outMime = normalize(mimeType) || 'application/octet-stream';
+  let outName = clientFileName;
+  const looksVideo =
+    isVideoDocType(docType) ||
+    outMime.startsWith('video/') ||
+    /\.(mp4|mov|m4v|webm|mkv|3gp)$/i.test(String(clientFileName || ''));
+  if (looksVideo) {
+    try {
+      const norm = await normalizeVideoBuffer(outBuf, { log: fastify.log });
+      if (norm.normalized) {
+        outBuf = norm.buffer;
+        outMime = norm.mimeType;
+        const base = String(clientFileName || 'video').replace(/\.[^.]+$/, '');
+        outName = `${base || 'video'}.mp4`;
+        try {
+          assertFileSizeAllowed(outBuf.length, docType, outMime);
+        } catch (e) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: e.message || 'Файл слишком большой после нормализации',
+          });
+        }
+      } else if (norm.mimeType === 'video/mp4') {
+        outMime = 'video/mp4';
+      }
+    } catch (e) {
+      fastify.log.warn({ err: e.message }, 'video normalize unexpected error');
+    }
+  }
+
   const storageKey = storageKeyForRequest(row);
   const declaredMime = normalize(sourceMimeType != null ? sourceMimeType : mimeType);
   const saved = await upsertRequestFile(
@@ -257,9 +312,9 @@ async function finalizeCustomsUpload(fastify, request, reply, {
     row.id,
     storageKey,
     docType,
-    buf,
-    normalize(mimeType) || 'application/octet-stream',
-    clientFileName,
+    outBuf,
+    outMime,
+    outName,
     {
       sourceFileName: clientFileName,
       sourceMimeType: declaredMime || null,
@@ -982,34 +1037,53 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return;
       }
 
+      const bodyKeys = stateBodyKeysPresent(request.body);
       const ext = normalize(request.body.external1cId);
       if (!ext) {
+        fastify.log.warn(
+          { bodyKeys, result: 'external1cId_empty' },
+          '1c state rejected',
+        );
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'external1cId пустой' });
       }
 
       const data = await fetchRequestByExternal1cId(fastify.pool, ext);
       if (!data) {
+        fastify.log.warn(
+          {
+            external1cId: ext,
+            bodyKeys,
+            vinInBody: bodyKeys.includes('vin'),
+            result: 'not_found',
+          },
+          '1c state: заявка не найдена',
+        );
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Заявка с таким external1cId не найдена' });
       }
 
       const b = request.body;
+      const vinBefore = data.row.vin;
       const fields = [];
       const values = [];
+      const appliedColumns = [];
 
       if (b.status !== undefined) {
         fields.push('status = ?');
         values.push(b.status);
+        appliedColumns.push('status');
       }
       if (b.ownerFullName !== undefined) {
         const v = normalize(b.ownerFullName);
         fields.push('owner_full_name = ?');
         values.push(v || null);
+        appliedColumns.push('ownerFullName');
       }
       if (b.carMake !== undefined) {
         const v = normalize(b.carMake);
         if (v) {
           fields.push('car_make = ?');
           values.push(v);
+          appliedColumns.push('carMake');
         }
       }
       if (b.carModel !== undefined) {
@@ -1017,6 +1091,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
         if (v) {
           fields.push('car_model = ?');
           values.push(v);
+          appliedColumns.push('carModel');
         }
       }
       if (b.vin !== undefined) {
@@ -1024,19 +1099,32 @@ module.exports = async function customsRequestsRoutes(fastify) {
         if (v) {
           fields.push('vin = ?');
           values.push(v);
+          appliedColumns.push('vin');
         }
       }
       if (b.engineSpec !== undefined) {
         fields.push('engine_spec = ?');
         values.push(normalize(b.engineSpec) || null);
+        appliedColumns.push('engineSpec');
       }
       if (b.engineVolume !== undefined) {
         fields.push('engine_volume = ?');
         values.push(normalize(b.engineVolume) || null);
+        appliedColumns.push('engineVolume');
       }
       if (b.statusSubType !== undefined) {
         const sub = normalizeStatusSubType(b.statusSubType);
         if (sub && !isKnownStatusSubType(sub)) {
+          fastify.log.warn(
+            {
+              requestId: data.row.id,
+              external1cId: ext,
+              bodyKeys,
+              statusSubType: sub,
+              result: 'unknown_statusSubType',
+            },
+            '1c state rejected',
+          );
           return reply.code(400).send({
             error: 'VALIDATION_ERROR',
             message: `Неизвестный statusSubType: ${sub}`,
@@ -1044,11 +1132,13 @@ module.exports = async function customsRequestsRoutes(fastify) {
         }
         fields.push('status_sub_type = ?');
         values.push(sub || null);
+        appliedColumns.push('statusSubType');
         if (b.status === undefined && sub) {
           const suggested = suggestedStatusForSubType(sub);
           if (suggested) {
             fields.push('status = ?');
             values.push(suggested);
+            appliedColumns.push('status');
           }
         }
       }
@@ -1056,23 +1146,28 @@ module.exports = async function customsRequestsRoutes(fastify) {
         const dt = normalize(b.statusSubTypeDateTime);
         fields.push('status_sub_type_datetime = ?');
         values.push(dt || null);
+        appliedColumns.push('statusSubTypeDateTime');
       }
       if (b.dealType !== undefined) {
         fields.push('deal_type = ?');
         values.push(normalize(b.dealType) || null);
+        appliedColumns.push('dealType');
       }
       if (b.advancePayment !== undefined) {
         fields.push('advance_payment_json = ?');
         values.push(moneyAmountToJsonPayload(b.advancePayment));
+        appliedColumns.push('advancePayment');
       }
       if (b.actualPayment !== undefined) {
         fields.push('actual_payment_json = ?');
         values.push(moneyAmountToJsonPayload(b.actualPayment));
+        appliedColumns.push('actualPayment');
       }
       if (b.managerExternal1cId !== undefined) {
         const managerExternal1cId = normalize(b.managerExternal1cId);
         fields.push('manager_external_1c_id = ?');
         values.push(managerExternal1cId || null);
+        appliedColumns.push('managerExternal1cId');
         if (
           b.status === undefined &&
           managerExternal1cId &&
@@ -1080,16 +1175,28 @@ module.exports = async function customsRequestsRoutes(fastify) {
         ) {
           fields.push('status = ?');
           values.push('in_progress');
+          appliedColumns.push('status');
         }
       }
       if (b.managerFullName !== undefined) {
         fields.push('manager_full_name = ?');
         values.push(normalize(b.managerFullName) || null);
+        appliedColumns.push('managerFullName');
       }
 
       const id = data.row.id;
 
       if (!fields.length) {
+        fastify.log.warn(
+          {
+            requestId: id,
+            external1cId: ext,
+            bodyKeys,
+            ...stateVinDiagnostics(b, vinBefore, vinBefore, []),
+            result: 'no_fields',
+          },
+          '1c state: нет полей для обновления',
+        );
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Нет полей для обновления' });
       }
 
@@ -1100,11 +1207,34 @@ module.exports = async function customsRequestsRoutes(fastify) {
           values,
         );
         if (!result.affectedRows) {
+          fastify.log.warn(
+            {
+              requestId: id,
+              external1cId: ext,
+              bodyKeys,
+              appliedColumns,
+              result: 'update_not_found',
+            },
+            '1c state: UPDATE не затронул строку',
+          );
           return reply.code(404).send({ error: 'NOT_FOUND' });
         }
       }
 
       const updated = await fetchRequestById(fastify.pool, id);
+      fastify.log.info(
+        {
+          requestId: id,
+          external1cId: ext,
+          bodyKeys,
+          appliedColumns,
+          ...stateVinDiagnostics(b, vinBefore, updated.row.vin, appliedColumns),
+          statusBefore: data.row.status,
+          statusAfter: updated.row.status,
+          result: 'ok',
+        },
+        '1c state applied',
+      );
       notifyStateChangedFrom1C(fastify, {
         requestId: id,
         external1cId: updated.row.external_1c_id,
@@ -1195,7 +1325,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const [rows] = await fastify.pool.query(
-        `SELECT stored_name, preview_stored_name
+        `SELECT stored_name, preview_stored_name, doc_type
          FROM customs_request_files
          WHERE id = ? AND request_id = ? AND deleted_at IS NULL
          LIMIT 1`,
@@ -1203,6 +1333,13 @@ module.exports = async function customsRequestsRoutes(fastify) {
       );
       if (!rows.length) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      if (isSvhManagerRequest(request) && !isSvhCarMediaDocType(rows[0].doc_type)) {
+        return reply.code(403).send({
+          error: 'FORBIDDEN',
+          message: 'Менеджер СВХ может удалять только фото/видео машины (svh_car_photo_*, svh_car_video_*)',
+        });
       }
 
       const [result] = await fastify.pool.query(

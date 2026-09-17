@@ -85,22 +85,59 @@ final class RequestDraftAttachmentsSpace {
       final srcFile = File(src);
       if (!await srcFile.exists()) return src;
       final draftDir = await ensureDraftDirectory(draftId);
-      final ext = p.extension(src).isNotEmpty ? p.extension(src).toLowerCase() : '.jpg';
+      final prepared = await prepareImageForUpload(src);
+      final ext = p.extension(prepared).isNotEmpty
+          ? p.extension(prepared).toLowerCase()
+          : '.jpg';
       final name =
           'photo_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}$ext';
       final destPath = p.join(draftDir.path, name);
-      if (_isCompressibleImageExt(ext)) {
-        final bytes = await _compressImageTo1Mb(srcFile.path);
-        if (bytes != null) {
-          await File(destPath).writeAsBytes(bytes, flush: true);
-          return destPath;
-        }
+      if (prepared == src) {
+        await srcFile.copy(destPath);
+      } else {
+        await File(prepared).copy(destPath);
       }
-      await srcFile.copy(destPath);
       return destPath;
     } catch (e, st) {
       AppLog.error(
         'Копирование снимка в папку черновика заявки',
+        tag: 'RequestDraftAttachmentsSpace',
+        error: e,
+        stackTrace: st,
+      );
+      return src;
+    }
+  }
+
+  /// То же сжатие, что при создании заявки (~1 МБ JPEG).  
+  /// Не изображение / сбой — исходный [sourcePath].
+  static Future<String> prepareImageForUpload(String sourcePath) async {
+    final src = sourcePath.trim();
+    if (src.isEmpty || !_isCopyableFilesystemPath(src)) return src;
+    try {
+      final srcFile = File(src);
+      if (!await srcFile.exists()) return src;
+      final ext =
+          p.extension(src).isNotEmpty ? p.extension(src).toLowerCase() : '.jpg';
+      if (!_isCompressibleImageExt(ext)) return src;
+
+      final bytes = await _compressImageTo1Mb(src);
+      if (bytes == null || bytes.isEmpty) return src;
+
+      final dir = await getTemporaryDirectory();
+      final outDir = Directory(p.join(dir.path, 'request_upload_images'));
+      if (!await outDir.exists()) {
+        await outDir.create(recursive: true);
+      }
+      final destPath = p.join(
+        outDir.path,
+        'img_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}.jpg',
+      );
+      await File(destPath).writeAsBytes(bytes, flush: true);
+      return destPath;
+    } catch (e, st) {
+      AppLog.error(
+        'Сжатие фото перед upload',
         tag: 'RequestDraftAttachmentsSpace',
         error: e,
         stackTrace: st,

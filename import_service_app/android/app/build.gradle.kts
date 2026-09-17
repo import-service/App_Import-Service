@@ -40,6 +40,18 @@ android {
         versionName = flutter.versionName
     }
 
+    // server — APK с нашего API (самоустановка). store — Play / RuStore (без REQUEST_INSTALL_PACKAGES).
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("server") {
+            dimension = "distribution"
+            isDefault = true
+        }
+        create("store") {
+            dimension = "distribution"
+        }
+    }
+
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
             create("release") {

@@ -583,17 +583,82 @@ async function notifySvhManagerCredentials(
   );
 }
 
+const ANDROID_APK_PUBLISHED_SUBJECT = 'Новая версия APK — Импорт Сервис';
+
+/**
+ * Письмо на CUSTOMS_REQUEST_MAIL_TO: выложена новая версия APK на сервер.
+ * @returns {Promise<{ success: boolean, messageId?: string, error?: string }>}
+ */
+async function notifyAndroidApkPublished(
+  smtpConfig,
+  { versionCode, versionName, apkUrl, sizeBytes },
+  log,
+) {
+  const appName = smtpConfig.appName || 'Импорт Сервис';
+  const to = normalize(smtpConfig.customsRequestMailTo) || normalize(smtpConfig.to);
+  if (!to) {
+    return { success: false, error: 'No APK notify recipients' };
+  }
+
+  const code = Number(versionCode) || 0;
+  const name = normalize(versionName) || String(code);
+  const url = normalize(apkUrl) || '';
+  const sizeMb =
+    Number.isFinite(Number(sizeBytes)) && Number(sizeBytes) > 0
+      ? `${(Number(sizeBytes) / (1024 * 1024)).toFixed(1)} МБ`
+      : '—';
+  const when = new Date().toISOString();
+
+  const text = [
+    `На сервер загружена новая версия приложения «${appName}».`,
+    '',
+    `Версия: ${name} (${code})`,
+    `Размер: ${sizeMb}`,
+    url ? `Скачать: ${url}` : '',
+    `Время: ${when}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = `
+    <h2>Новая версия APK — ${escapeHtml(appName)}</h2>
+    <table cellpadding="6" cellspacing="0" border="0">
+      <tr><td><b>Версия</b></td><td>${escapeHtml(name)} (${escapeHtml(String(code))})</td></tr>
+      <tr><td><b>Размер</b></td><td>${escapeHtml(sizeMb)}</td></tr>
+      ${
+        url
+          ? `<tr><td><b>Скачать</b></td><td><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></td></tr>`
+          : ''
+      }
+      <tr><td><b>Время</b></td><td>${escapeHtml(when)}</td></tr>
+    </table>
+  `;
+
+  return sendPlainEmail(
+    smtpConfig,
+    {
+      to,
+      subject: `${ANDROID_APK_PUBLISHED_SUBJECT}: ${name}+${code}`,
+      html,
+      text,
+    },
+    log,
+  );
+}
+
 module.exports = {
   NEW_CUSTOMS_REQUEST_SUBJECT,
   CLIENT_REQUEST_ACCEPTED_SUBJECT,
   CLIENT_RATING_SUBJECT,
   APP_FEEDBACK_SUBJECT,
+  ANDROID_APK_PUBLISHED_SUBJECT,
   sendPlainEmail,
   notifyNewCustomsRequest,
   notifyClientRegistrationAccepted,
   notifyClientCustomsRequestAccepted,
   notifyClientRequestRating,
   notifyAppFeedback,
+  notifyAndroidApkPublished,
   notifySvhManagerCredentials,
   escapeHtml,
 };

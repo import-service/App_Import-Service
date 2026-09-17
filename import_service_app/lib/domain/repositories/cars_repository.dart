@@ -57,6 +57,12 @@ abstract class CarsRepository {
     required List<RequestFileUploadEntry> items,
   });
 
+  /// Soft-delete файла: `DELETE /api/customs-requests/:id/files/:fileId`.
+  Future<Either<Failure, void>> deleteRequestFile({
+    required String requestId,
+    required String fileId,
+  });
+
   /// Оценка заявки 1–5 (только `delivered`/`closed`, один раз).
   Future<Either<Failure, CarListItem>> submitRequestRating({
     required String requestId,

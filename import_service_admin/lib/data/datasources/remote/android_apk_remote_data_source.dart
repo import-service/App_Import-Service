@@ -50,4 +50,18 @@ class AndroidApkRemoteDataSource {
       throw ErrorHandler.handle(e);
     }
   }
+
+  /// Полная проверка файла на диске (размер + sha256).
+  Future<Map<String, dynamic>> verify() async {
+    try {
+      final response = await _dio.get<dynamic>('admin/android-apk/verify');
+      final data = response.data;
+      if (data is! Map) {
+        throw const UnknownServerException('Некорректный ответ verify APK');
+      }
+      return data.map((k, v) => MapEntry(k.toString(), v));
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
 }

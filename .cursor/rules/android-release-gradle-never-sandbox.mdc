@@ -16,12 +16,12 @@ alwaysApply: true
 ## Жёсткие правила для агента
 
 1. **Release APK/AAB** — только через скрипт:
-   ```powershell
+```powershell
    cd D:\Projects\import_servis
-   .\scripts\build-release-android.ps1 -AlsoAab
+   .\scripts\build-release-android.ps1 -AlsoStoreAab
    # + на сервер:
-   .\scripts\build-release-android.ps1 -AlsoAab -UploadApk
-   ```
+   .\scripts\build-release-android.ps1 -AlsoStoreAab -UploadApk
+```
 2. Перед сборкой скрипт выставляет `GRADLE_USER_HOME=%USERPROFILE%\.gradle` и **отказывается** работать, если путь содержит `cursor-sandbox-cache`.
 3. **Не** запускать параллельно два `flutter build` / несколько Java Gradle.
 4. Если `assembleRelease` > **10 минут** без новой строки в логе — **стоп** процессов этой сборки, `gradlew --stop`, разбор (кэш/HOME), **не** третий подряд слепой рестарт.

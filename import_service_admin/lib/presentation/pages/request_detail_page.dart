@@ -315,9 +315,9 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
         }
         return;
       }
-      final uri = Uri.tryParse(url);
+    final uri = Uri.tryParse(url);
       if (uri != null && await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       if (mounted) {
@@ -540,59 +540,59 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: AppTheme.pageBackground,
-        appBar: AppBar(
-          title: const Text('Заявка'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
+      backgroundColor: AppTheme.pageBackground,
+      appBar: AppBar(
+        title: const Text('Заявка'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+        actions: [
+          FutureBuilder<CustomsRequest>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: 'Удалить заявку',
+                onPressed: _sending ? null : () => _deleteRequest(snapshot.data!),
+                icon: const Icon(Icons.delete_outline, color: AppTheme.accentRed),
+              );
+            },
           ),
-          actions: [
-            FutureBuilder<CustomsRequest>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const SizedBox.shrink();
-                return IconButton(
-                  tooltip: 'Удалить заявку',
-                  onPressed: _sending ? null : () => _deleteRequest(snapshot.data!),
-                  icon: const Icon(Icons.delete_outline, color: AppTheme.accentRed),
-                );
-              },
-            ),
           ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Информация'),
               Tab(text: 'Документы'),
-            ],
+        ],
           ),
-        ),
-        body: FutureBuilder<CustomsRequest>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              final panel = buildRetryErrorPanel(
-                error: snapshot.error,
-                onRetry: _reload,
-              );
-              if (panel != null) return panel;
-              return const SizedBox.shrink();
-            }
-            final item = snapshot.data!;
-            return Stack(
+      ),
+      body: FutureBuilder<CustomsRequest>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            final panel = buildRetryErrorPanel(
+              error: snapshot.error,
+              onRetry: _reload,
+            );
+            if (panel != null) return panel;
+            return const SizedBox.shrink();
+          }
+          final item = snapshot.data!;
+          return Stack(
               children: [
                 TabBarView(
-                  children: [
-                    RefreshIndicator(
-                      onRefresh: () async {
-                        _reload();
-                        await _future;
-                      },
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            children: [
+              RefreshIndicator(
+                onRefresh: () async {
+                  _reload();
+                  await _future;
+                },
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                         children: _buildInfoSections(context, item),
                       ),
                     ),
@@ -607,17 +607,17 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
                       ),
                     ),
                   ],
-                ),
-                if (_sending)
-                  const Positioned.fill(
-                    child: ColoredBox(
-                      color: Color(0x44000000),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
+              ),
+              if (_sending)
+                const Positioned.fill(
+                  child: ColoredBox(
+                    color: Color(0x44000000),
+                    child: Center(child: CircularProgressIndicator()),
                   ),
-              ],
-            );
-          },
+                ),
+            ],
+          );
+        },
         ),
       ),
     );

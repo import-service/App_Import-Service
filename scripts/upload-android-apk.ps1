@@ -43,4 +43,16 @@ Write-Host $manifestJson
 if ($manifestJson -notmatch [regex]::Escape($localHash)) {
   throw "Remote sha256 does not match local APK ($localHash)"
 }
+
+$localSize = (Get-Item -LiteralPath $ApkPath).Length
+$head = curl.exe -sSI 'https://157-22-173-7.sslip.io/api/app/android-apk/download'
+$contentLengthLine = ($head | Select-String -Pattern '(?i)^Content-Length:\s*(\d+)' | Select-Object -First 1)
+if (-not $contentLengthLine) {
+  throw 'Download response missing Content-Length'
+}
+$remoteSize = [int64]$contentLengthLine.Matches[0].Groups[1].Value
+Write-Host "Size check local=$localSize remote=$remoteSize"
+if ($remoteSize -ne $localSize) {
+  throw "Remote Content-Length $remoteSize != local $localSize (broken upload?)"
+}
 Write-Host 'UPLOAD_OK'

@@ -1,14 +1,19 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:import_service_app/core/constants/api_config.dart';
+import 'package:import_service_app/core/constants/customs_catalog.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
-import 'package:import_service_app/domain/entities/customs_doc_type.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
+
+final Map<String, Future<String?>> _videoThumbInflight = {};
 
 bool isRequestFileVideo(CustomsRequestFile file) {
   final mime = file.mimeType?.trim().toLowerCase() ?? '';
@@ -55,6 +60,39 @@ String? requestFileThumbnailUrl(CustomsRequestFile file) {
     return file.fileUrl?.trim();
   }
   return null;
+}
+
+/// Группа карусели: фото только внутри своего раздела UI.
+String imageCarouselGroupKey(CustomsRequestFile file) {
+  final code = CustomsDocType.normalizeCode(file.docType ?? '');
+  if (isSvhCarGalleryDocType(code)) return 'svh_car_photos';
+  if (isSvhCarVideoDocType(code)) return 'svh_car_videos';
+  if (isOtherUploadDocType(code)) return 'other';
+  if (isTransitArchiveDocType(code)) return 'transit_archive';
+  if (isFinalDocType(code)) return 'final';
+  switch (docCategoryFor(code)) {
+    case CustomsDocCategory.creation:
+      return 'creation';
+    case CustomsDocCategory.signing:
+      return 'signing';
+    case CustomsDocCategory.payment:
+      return 'payment';
+    case CustomsDocCategory.finalDoc:
+      return 'final';
+    case CustomsDocCategory.other:
+      return 'other:$code';
+  }
+}
+
+/// Соседи по карусели: только изображения той же секции, что и [selected].
+List<CustomsRequestFile> imageCarouselPeers(
+  CustomsRequestFile selected,
+  List<CustomsRequestFile> all,
+) {
+  final key = imageCarouselGroupKey(selected);
+  return all
+      .where((f) => isRequestFileImage(f) && imageCarouselGroupKey(f) == key)
+      .toList();
 }
 
 /// URL для скачивания / полноразмерного просмотра / плеера.
@@ -278,6 +316,121 @@ bool looksLikeChatPdf({
   return probe.contains('.pdf');
 }
 
+String _videoThumbCacheKey(String seed) {
+  final digest = sha1.convert(utf8.encode(seed.trim()));
+  return digest.toString().substring(0, 20);
+}
+
+Future<Directory> _videoThumbDir() async {
+  final root = await getTemporaryDirectory();
+  final dir = Directory(p.join(root.path, 'video_thumbs'));
+  if (!await dir.exists()) {
+    await dir.create(recursive: true);
+  }
+  return dir;
+}
+
+/// Путь к закэшированному JPEG-кадру (если уже есть).
+Future<String?> cachedRequestVideoThumbnailPath({
+  required String cacheSeed,
+}) async {
+  final seed = cacheSeed.trim();
+  if (seed.isEmpty) return null;
+  final dir = await _videoThumbDir();
+  final path = p.join(dir.path, '${_videoThumbCacheKey(seed)}.jpg');
+  if (await File(path).exists()) return path;
+  return null;
+}
+
+Future<String?> _thumbnailFromLocalVideo({
+  required String videoPath,
+  required String cacheSeed,
+}) async {
+  final seed = cacheSeed.trim();
+  if (seed.isEmpty || videoPath.trim().isEmpty) return null;
+  if (!await File(videoPath).exists()) return null;
+  final existing = await cachedRequestVideoThumbnailPath(cacheSeed: seed);
+  if (existing != null) return existing;
+  final dir = await _videoThumbDir();
+  final outPath = p.join(dir.path, '${_videoThumbCacheKey(seed)}.jpg');
+  try {
+    final generated = await VideoThumbnail.thumbnailFile(
+      video: videoPath,
+      thumbnailPath: dir.path,
+      imageFormat: ImageFormat.JPEG,
+      maxWidth: 256,
+      quality: 70,
+    );
+    if (generated != null && await File(generated).exists()) {
+      if (generated != outPath) {
+        await File(generated).copy(outPath);
+        try {
+          await File(generated).delete();
+        } catch (_) {}
+      }
+      return outPath;
+    }
+  } catch (e, st) {
+    AppLog.error(
+      'video thumbnail from local failed',
+      tag: 'RequestFile',
+      error: e,
+      stackTrace: st,
+    );
+  }
+  return null;
+}
+
+/// Кадр-превью видео: кэш → локальный файл → download+auth → thumbnail.
+Future<String?> ensureRequestVideoThumbnail({
+  required CustomsRequestFile file,
+  String? resolvedUrl,
+  String? localVideoPath,
+}) async {
+  final url = resolvedUrl?.trim() ?? '';
+  final local = localVideoPath?.trim() ?? '';
+  final seed = url.isNotEmpty
+      ? url
+      : (local.isNotEmpty ? local : (file.docType ?? file.fileName ?? ''));
+  if (seed.isEmpty) return null;
+
+  final cached = await cachedRequestVideoThumbnailPath(cacheSeed: seed);
+  if (cached != null) return cached;
+
+  final inflight = _videoThumbInflight[seed];
+  if (inflight != null) return inflight;
+
+  final future = () async {
+    if (local.isNotEmpty) {
+      final fromLocal = await _thumbnailFromLocalVideo(
+        videoPath: local,
+        cacheSeed: seed,
+      );
+      if (fromLocal != null) return fromLocal;
+    }
+    if (url.isNotEmpty &&
+        (url.startsWith('http://') || url.startsWith('https://'))) {
+      final downloaded = await downloadAuthenticatedRequestFile(url, file);
+      if (downloaded != null) {
+        return _thumbnailFromLocalVideo(
+          videoPath: downloaded,
+          cacheSeed: seed,
+        );
+      }
+    } else if (url.isNotEmpty && !url.startsWith('http')) {
+      return _thumbnailFromLocalVideo(videoPath: url, cacheSeed: seed);
+    }
+    return null;
+  }();
+
+  _videoThumbInflight[seed] = future;
+  try {
+    return await future;
+  } finally {
+    _videoThumbInflight.remove(seed);
+  }
+}
+
 /// Скачать файл с Bearer (Dio). Возвращает локальный путь или `null`.
 Future<String?> downloadAuthenticatedRequestFile(
   String url,
@@ -288,12 +441,15 @@ Future<String?> downloadAuthenticatedRequestFile(
   try {
     final dir = await getTemporaryDirectory();
     final savePath = p.join(dir.path, requestFileDownloadName(file));
+    final video = isRequestFileVideo(file);
     await sl<Dio>().download(
       trimmed,
       savePath,
       options: Options(
         responseType: ResponseType.bytes,
         followRedirects: true,
+        receiveTimeout: video ? const Duration(minutes: 10) : null,
+        sendTimeout: video ? const Duration(minutes: 10) : null,
       ),
     );
     if (!await File(savePath).exists()) return null;

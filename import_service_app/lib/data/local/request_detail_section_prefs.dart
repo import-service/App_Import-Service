@@ -40,5 +40,6 @@ abstract final class RequestDetailSectionKeys {
   /// Фото авто + архив СВХ + итоговые (СБКТС/ЭПТС).
   static const filesIssueHandover = 'files_issue_handover';
   static const filesSvhCarGallery = 'files_svh_car_gallery';
+  static const filesSvhCarVideos = 'files_svh_car_videos';
   static const filesOther = 'files_other';
 }

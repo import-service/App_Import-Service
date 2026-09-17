@@ -34,10 +34,12 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, dynamic>? _apkStatus;
   String? _apkError;
   bool _uploadingApk = false;
+  bool _verifyingApk = false;
   final _apkVersionCodeCtrl = TextEditingController();
   final _apkVersionNameCtrl = TextEditingController();
   Uint8List? _apkBytes;
   String? _apkFileName;
+  String? _apkVerifyResult;
 
   @override
   void initState() {
@@ -133,6 +135,85 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  String _fmtMb(Object? bytes) {
+    final n = bytes is num ? bytes.toDouble() : double.tryParse('$bytes');
+    if (n == null || n <= 0) return '—';
+    return '${(n / (1024 * 1024)).toStringAsFixed(1)} МБ';
+  }
+
+  int? _asInt(Object? v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse('$v');
+  }
+
+  String _apkStatusText() {
+    if (_apkStatus == null) return 'Статус неизвестен';
+    if (_apkStatus!['available'] != true) return 'APK ещё не загружен';
+    final code = _apkStatus!['versionCode'];
+    final name = _apkStatus!['versionName'];
+    final updated = _apkStatus!['updatedAt'];
+    final size = _apkStatus!['sizeBytes'] ?? _apkStatus!['fileSizeBytes'];
+    final sizeMatches = _apkStatus!['sizeMatches'];
+    final sha = _apkStatus!['sha256']?.toString() ?? '';
+    final shaShort =
+        sha.length > 12 ? '${sha.substring(0, 12)}…' : sha;
+    final sizeLine = sizeMatches == false
+        ? 'Размер: ${_fmtMb(size)} ⚠ не совпадает с файлом на диске'
+        : 'Размер: ${_fmtMb(size)}';
+    return 'Опубликован: build $code'
+        '${name != null ? ' ($name)' : ''}'
+        '\n$sizeLine'
+        '${shaShort.isNotEmpty ? '\nSHA256: $shaShort' : ''}'
+        '${updated != null ? '\n$updated' : ''}';
+  }
+
+  Future<void> _verifyApkOnServer() async {
+    if (_verifyingApk) return;
+    setState(() {
+      _verifyingApk = true;
+      _apkVerifyResult = null;
+    });
+    try {
+      final result = await sl<AndroidApkRemoteDataSource>().verify();
+      if (!mounted) return;
+      final ok = result['ok'] == true;
+      final msg = ok
+          ? 'Проверка OK: ${_fmtMb(result['sizeBytes'])}, '
+              'sha совпадает, ZIP magic OK'
+          : 'Проверка FAIL: sizeMatches=${result['sizeMatches']}, '
+              'shaMatches=${result['shaMatches']}, '
+              'zipMagicOk=${result['zipMagicOk']} '
+              '(файл ${_fmtMb(result['sizeBytes'])}, '
+              'манифест ${_fmtMb(result['manifestSizeBytes'])})';
+      setState(() {
+        _apkVerifyResult = msg;
+        if (result['available'] == true) {
+          _apkStatus = {
+            ...?_apkStatus,
+            'available': true,
+            'versionCode': result['versionCode'],
+            'versionName': result['versionName'],
+            'sizeBytes': result['sizeBytes'],
+            'fileSizeBytes': result['sizeBytes'],
+            'sizeMatches': result['sizeMatches'],
+            'sha256': result['sha256'],
+            'updatedAt': result['updatedAt'],
+            'apkUrl': result['apkUrl'],
+          };
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is ServerException ? e.message : 'Не удалось проверить APK';
+      setState(() => _apkVerifyResult = msg);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) setState(() => _verifyingApk = false);
+    }
+  }
+
   Future<void> _uploadApk() async {
     final code = int.tryParse(_apkVersionCodeCtrl.text.trim());
     if (code == null || code < 1) {
@@ -147,7 +228,11 @@ class _DashboardPageState extends State<DashboardPage> {
       );
       return;
     }
-    setState(() => _uploadingApk = true);
+    final localSize = _apkBytes!.length;
+    setState(() {
+      _uploadingApk = true;
+      _apkVerifyResult = null;
+    });
     try {
       final result = await sl<AndroidApkRemoteDataSource>().upload(
         fileBytes: _apkBytes!,
@@ -156,14 +241,27 @@ class _DashboardPageState extends State<DashboardPage> {
         versionName: _apkVersionNameCtrl.text.trim(),
       );
       if (!mounted) return;
+      final remoteSize = _asInt(result['sizeBytes']);
+      final sizeOk = remoteSize == localSize;
+      final sizeMatches = result['sizeMatches'] != false;
+      final verify = await sl<AndroidApkRemoteDataSource>().verify();
+      if (!mounted) return;
+      final integrityOk = verify['ok'] == true;
+      final msg = !sizeOk
+          ? 'ОШИБКА: локальный размер ${_fmtMb(localSize)} ≠ на сервере ${_fmtMb(remoteSize)}'
+          : !integrityOk
+              ? 'ОШИБКА после выкладки: проверка sha/размера не прошла'
+              : 'APK опубликован: ${_fmtMb(localSize)}, проверка OK';
       setState(() {
         _apkStatus = result;
         _apkBytes = null;
         _apkFileName = null;
+        _apkVerifyResult = msg;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('APK опубликован на сервере')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      if (!sizeOk || !sizeMatches || !integrityOk) {
+        // оставляем статус видимым
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -322,15 +420,19 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    _apkStatus == null
-                        ? 'Статус неизвестен'
-                        : _apkStatus!['available'] == true
-                            ? 'Опубликован: build ${_apkStatus!['versionCode']}'
-                                '${_apkStatus!['versionName'] != null ? ' (${_apkStatus!['versionName']})' : ''}'
-                                '${_apkStatus!['updatedAt'] != null ? '\n${_apkStatus!['updatedAt']}' : ''}'
-                            : 'APK ещё не загружен',
-                  ),
+                  Text(_apkStatusText()),
+                  if (_apkVerifyResult != null) ...[
+                    const Gap(8),
+                    Text(
+                      _apkVerifyResult!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: _apkVerifyResult!.startsWith('ОШИБКА') ||
+                                    _apkVerifyResult!.startsWith('Проверка FAIL')
+                                ? AppTheme.accentRed
+                                : const Color(0xFF2E7D32),
+                          ),
+                    ),
+                  ],
                   const Gap(12),
                   TextField(
                     controller: _apkVersionCodeCtrl,
@@ -375,6 +477,20 @@ class _DashboardPageState extends State<DashboardPage> {
                             : const Icon(Icons.cloud_upload_outlined),
                         label: const Text('Опубликовать'),
                       ),
+                      if (_apkStatus != null && _apkStatus!['available'] == true)
+                        OutlinedButton.icon(
+                          onPressed: (_uploadingApk || _verifyingApk)
+                              ? null
+                              : _verifyApkOnServer,
+                          icon: _verifyingApk
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.verified_outlined),
+                          label: const Text('Проверить на сервере'),
+                        ),
                       if (_apkStatus != null && _apkStatus!['available'] == true)
                         OutlinedButton.icon(
                           onPressed: () async {

@@ -7,9 +7,12 @@
 #   .\scripts\app-run-android.ps1 -WarmGradle
 #   .\scripts\app-run-android.ps1 -ShowVersion
 #   .\scripts\app-run-android.ps1 -Device 97c277d3
+#   .\scripts\app-run-android.ps1 -Flavor store
 
 param(
   [string]$Device = '',
+  [ValidateSet('server', 'store')]
+  [string]$Flavor = 'server',
   [switch]$NoPub,
   [switch]$WarmGradle,
   [switch]$ShowVersion,
@@ -65,20 +68,21 @@ try {
   }
 
   if ($WarmGradle) {
-    Write-Host 'Warm Gradle: flutter build apk --debug'
-    flutter build apk --debug
+    Write-Host "Warm Gradle: flutter build apk --debug --flavor $Flavor"
+    flutter build apk --debug --flavor $Flavor "--dart-define=APP_DISTRIBUTION=$Flavor"
     Write-Host 'Done. Next: .\scripts\app-run-android.ps1 -NoPub'
     return
   }
 
   $id = Get-FlutterDeviceId $Device
-  Write-Host "flutter run -d $id $(if ($NoPub) { '--no-pub' } else { '' })"
+  $define = "--dart-define=APP_DISTRIBUTION=$Flavor"
+  Write-Host "flutter run -d $id --flavor $Flavor $define $(if ($NoPub) { '--no-pub' } else { '' })"
   Write-Host 'Watch console for [AppUpdate]. Check install: -ShowVersion'
 
   if ($NoPub) {
-    flutter run -d $id --no-pub
+    flutter run -d $id --flavor $Flavor $define --no-pub
   } else {
-    flutter run -d $id
+    flutter run -d $id --flavor $Flavor $define
   }
 } finally {
   Pop-Location

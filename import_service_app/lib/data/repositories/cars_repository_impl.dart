@@ -460,9 +460,69 @@ final class CarsRepositoryImpl implements CarsRepository {
       );
     } on ServerException catch (e) {
       AppLog.error('attachRequestFiles', error: e, tag: 'CarsRepo');
-      return Left(ServerFailure(e.message));
+      final recovered = await getVehicle(requestId);
+      return recovered.fold<Either<Failure, CarListItem>>(
+        (_) => Left(ServerFailure(e.message)),
+        (item) {
+          final expected = items
+              .map((e) => normalizeDocType(e.docType))
+              .where((c) => c.isNotEmpty)
+              .toSet();
+          final uploaded = expected.any((code) => _itemHasDocType(item, code));
+          if (uploaded) {
+            AppLog.trace(
+              'attachRequestFiles: recovered after error, files present',
+              tag: 'CarsRepo',
+            );
+            return Right(item);
+          }
+          return Left(ServerFailure(e.message));
+        },
+      );
     } catch (e, st) {
       AppLog.error('attachRequestFiles', error: e, stackTrace: st, tag: 'CarsRepo');
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> deleteRequestFile({
+    required String requestId,
+    required String fileId,
+  }) async {
+    if (requestId.isEmpty || fileId.isEmpty) {
+      return const Left(CacheFailure('Пустой идентификатор файла'));
+    }
+    try {
+      if (_session.isDemo) {
+        await Future<void>.delayed(_networkLatency);
+        CarListItem? current;
+        for (final e in _carInventory.items) {
+          if (e.id == requestId) {
+            current = e;
+            break;
+          }
+        }
+        if (current == null) {
+          return const Left(CacheFailure('Заявка не найдена'));
+        }
+        final nextFiles =
+            current.files.where((f) => (f.id ?? '') != fileId).toList();
+        await _carInventory.upsertItem(current.copyWith(files: nextFiles));
+        return const Right(null);
+      }
+      await _remoteDataSource.deleteRequestFile(
+        requestId: requestId,
+        fileId: fileId,
+      );
+      final refreshed = await _remoteDataSource.getRequestById(requestId);
+      await _carInventory.upsertItem(refreshed);
+      return const Right(null);
+    } on ServerException catch (e) {
+      AppLog.error('deleteRequestFile', error: e, tag: 'CarsRepo');
+      return Left(ServerFailure(e.message));
+    } catch (e, st) {
+      AppLog.error('deleteRequestFile', error: e, stackTrace: st, tag: 'CarsRepo');
       return Left(CacheFailure(e.toString()));
     }
   }

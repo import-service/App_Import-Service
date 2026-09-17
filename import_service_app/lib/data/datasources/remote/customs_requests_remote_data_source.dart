@@ -301,19 +301,26 @@ final class CustomsRequestsRemoteDataSource {
         'file': await MultipartFile.fromFile(localPath, filename: fileName),
       });
       AppLog.trace(
-        'upload $uploadIndex/$uploadTotal docType=$docType requestId=$requestId',
+        'upload $uploadIndex/$uploadTotal docType=$docType requestId=$requestId '
+        'file=$fileName',
         tag: 'UploadV2',
       );
       final response = await _dio.post<dynamic>(
         'customs-requests/upload',
         data: form,
-        options: Options(contentType: 'multipart/form-data'),
+        options: Options(
+          contentType: 'multipart/form-data',
+          // Видео до 100 МБ — дефолтные 15 с send/receive рвут запрос (файл уже на сервере).
+          sendTimeout: const Duration(minutes: 10),
+          receiveTimeout: const Duration(minutes: 10),
+        ),
       );
       return _parseUploadResponse(response.data);
     } on DioException catch (e, st) {
       final mapped = ErrorHandler.handle(e);
       AppLog.error(
-        'Upload failed docType=$docType',
+        'Upload failed docType=$docType type=${e.type} '
+        'status=${e.response?.statusCode} msg=${mapped.message}',
         tag: 'UploadV2',
         error: e,
         stackTrace: st,
@@ -444,6 +451,37 @@ final class CustomsRequestsRemoteDataSource {
       );
     }
     return batch.item;
+  }
+
+  /// `DELETE /api/customs-requests/:id/files/:fileId`
+  Future<void> deleteRequestFile({
+    required String requestId,
+    required String fileId,
+  }) async {
+    final path =
+        'customs-requests/${Uri.encodeComponent(requestId)}/files/${Uri.encodeComponent(fileId)}';
+    try {
+      await _dio.delete<dynamic>(path);
+    } on DioException catch (e, st) {
+      final mapped = ErrorHandler.handle(e);
+      AppLog.error(
+        'Delete request file failed: $path',
+        tag: 'CustomsRequestsRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw mapped;
+    } on ServerException {
+      rethrow;
+    } catch (e, st) {
+      AppLog.error(
+        'Unexpected delete file failure',
+        tag: 'CustomsRequestsRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw const UnknownServerException('Не удалось удалить файл');
+    }
   }
 
   /// `POST /api/customs-requests/:id/rating`

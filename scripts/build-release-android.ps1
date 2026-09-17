@@ -1,18 +1,31 @@
-# Release Android APK (+ optional AAB) with a stable Gradle home (never Cursor sandbox cache).
+# Release Android APK (+ optional store AAB/APK) with a stable Gradle home (never Cursor sandbox cache).
 # From monorepo root:
 #   .\scripts\build-release-android.ps1
-#   .\scripts\build-release-android.ps1 -AlsoAab
-#   .\scripts\build-release-android.ps1 -AlsoAab -UploadApk
+#   .\scripts\build-release-android.ps1 -UploadApk
+#   .\scripts\build-release-android.ps1 -AlsoStoreAab
+#   .\scripts\build-release-android.ps1 -AlsoStoreAab -AlsoStoreApk
+#
+# Flavors:
+#   server — APK на наш сервер (REQUEST_INSTALL_PACKAGES + самоустановка)
+#   store  — Play / RuStore (без REQUEST_INSTALL_PACKAGES)
 param(
-  [switch]$AlsoAab,
+  [switch]$AlsoStoreAab,
+  [switch]$AlsoStoreApk,
   [switch]$UploadApk,
-  [switch]$SkipPubGet
+  [switch]$SkipPubGet,
+  # Устарело: раньше -AlsoAab. Теперь store AAB = -AlsoStoreAab.
+  [switch]$AlsoAab
 )
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $AppDir = Join-Path $RepoRoot 'import_service_app'
 $TempDir = 'D:\Temp'
+
+if ($AlsoAab) {
+  Write-Warning '-AlsoAab устарел → используем -AlsoStoreAab (flavor store)'
+  $AlsoStoreAab = $true
+}
 
 # CRITICAL: never use Cursor sandbox Gradle cache (...\Temp\cursor-sandbox-cache\...).
 $stableGradleHome = Join-Path $env:USERPROFILE '.gradle'
@@ -56,30 +69,65 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "flutter pub get failed: $LASTEXITCODE" }
   }
 
-  Write-Host 'Building APK (release)...'
+  Write-Host 'Building server APK (release, flavor=server)...'
   $apkSw = [System.Diagnostics.Stopwatch]::StartNew()
-  flutter build apk --release
-  if ($LASTEXITCODE -ne 0) { throw "flutter build apk failed: $LASTEXITCODE" }
+  flutter build apk --release --flavor server --dart-define=APP_DISTRIBUTION=server
+  if ($LASTEXITCODE -ne 0) { throw "flutter build apk (server) failed: $LASTEXITCODE" }
   $apkSw.Stop()
-  Write-Host ("APK done in {0:N1} min" -f $apkSw.Elapsed.TotalMinutes)
+  Write-Host ("Server APK done in {0:N1} min" -f $apkSw.Elapsed.TotalMinutes)
 
-  $apkSrc = Join-Path $AppDir 'build\app\outputs\flutter-apk\app-release.apk'
+  $apkSrcCandidates = @(
+    (Join-Path $AppDir 'build\app\outputs\flutter-apk\app-server-release.apk'),
+    (Join-Path $AppDir 'build\app\outputs\apk\server\release\app-server-release.apk')
+  )
+  $apkSrc = $apkSrcCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+  if (-not $apkSrc) {
+    throw "Server APK not found. Tried: $($apkSrcCandidates -join ', ')"
+  }
   $apkDst = Join-Path $TempDir "import_service_app_1_$buildNumber.apk"
   Copy-Item -Force $apkSrc $apkDst
-  Write-Host "APK -> $apkDst"
+  Write-Host "Server APK -> $apkDst"
 
-  if ($AlsoAab) {
-    Write-Host 'Building AAB (release)...'
+  if ($AlsoStoreAab) {
+    Write-Host 'Building store AAB (release, flavor=store)...'
     $aabSw = [System.Diagnostics.Stopwatch]::StartNew()
-    flutter build appbundle --release
-    if ($LASTEXITCODE -ne 0) { throw "flutter build appbundle failed: $LASTEXITCODE" }
+    flutter build appbundle --release --flavor store --dart-define=APP_DISTRIBUTION=store
+    if ($LASTEXITCODE -ne 0) { throw "flutter build appbundle (store) failed: $LASTEXITCODE" }
     $aabSw.Stop()
-    Write-Host ("AAB done in {0:N1} min" -f $aabSw.Elapsed.TotalMinutes)
+    Write-Host ("Store AAB done in {0:N1} min" -f $aabSw.Elapsed.TotalMinutes)
 
-    $aabSrc = Join-Path $AppDir 'build\app\outputs\bundle\release\app-release.aab'
+    $aabSrcCandidates = @(
+      (Join-Path $AppDir 'build\app\outputs\bundle\storeRelease\app-store-release.aab'),
+      (Join-Path $AppDir 'build\app\outputs\bundle\storeRelease\app.aab')
+    )
+    $aabSrc = $aabSrcCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $aabSrc) {
+      throw "Store AAB not found. Tried: $($aabSrcCandidates -join ', ')"
+    }
     $aabDst = Join-Path $TempDir "import_service_app_1_$buildNumber.aab"
     Copy-Item -Force $aabSrc $aabDst
-    Write-Host "AAB -> $aabDst"
+    Write-Host "Store AAB -> $aabDst"
+  }
+
+  if ($AlsoStoreApk) {
+    Write-Host 'Building store APK (release, flavor=store)...'
+    $storeApkSw = [System.Diagnostics.Stopwatch]::StartNew()
+    flutter build apk --release --flavor store --dart-define=APP_DISTRIBUTION=store
+    if ($LASTEXITCODE -ne 0) { throw "flutter build apk (store) failed: $LASTEXITCODE" }
+    $storeApkSw.Stop()
+    Write-Host ("Store APK done in {0:N1} min" -f $storeApkSw.Elapsed.TotalMinutes)
+
+    $storeApkSrcCandidates = @(
+      (Join-Path $AppDir 'build\app\outputs\flutter-apk\app-store-release.apk'),
+      (Join-Path $AppDir 'build\app\outputs\apk\store\release\app-store-release.apk')
+    )
+    $storeApkSrc = $storeApkSrcCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $storeApkSrc) {
+      throw "Store APK not found. Tried: $($storeApkSrcCandidates -join ', ')"
+    }
+    $storeApkDst = Join-Path $TempDir "import_service_app_store_1_$buildNumber.apk"
+    Copy-Item -Force $storeApkSrc $storeApkDst
+    Write-Host "Store APK -> $storeApkDst"
   }
 
   if ($UploadApk) {
