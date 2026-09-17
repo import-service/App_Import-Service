@@ -193,6 +193,14 @@ final class AppUpdateService {
         return;
       }
 
+      // Разрешение на установку — ДО скачивания, иначе после настроек
+      // пользователь остаётся без продолжения установки.
+      final allowed = await _ensureUnknownSourcesPermission(
+        context: dialogCtx,
+        strings: strings,
+      );
+      if (!allowed) return;
+
       if (dialogCtx != null) {
         dialogOpen = true;
         unawaited(
@@ -331,15 +339,23 @@ final class AppUpdateService {
       );
       await closeDialog();
 
-      final canInstall = await ApkInstaller.canRequestPackageInstalls();
-      if (!canInstall) {
+      // Повторная проверка на случай, если разрешение сняли во время скачивания.
+      final stillAllowed = await ApkInstaller.canRequestPackageInstalls();
+      if (!stillAllowed) {
         _feedback(
           strings: strings.text('appUpdateServerNeedInstallPermission'),
           kind: AppFeedbackKind.warning,
         );
+        final (resumed, listener) = _armResumeWait();
         await ApkInstaller.openUnknownAppSettings();
-        // После возврата из настроек пользователь снова нажмёт «скачать».
-        return;
+        await _waitAppResume(resumed: resumed, listener: listener);
+        if (!await ApkInstaller.canRequestPackageInstalls()) {
+          _feedback(
+            strings: strings.text('appUpdateServerNeedInstallPermission'),
+            kind: AppFeedbackKind.warning,
+          );
+          return;
+        }
       }
 
       await ApkInstaller.installApk(file.path);
@@ -405,6 +421,84 @@ final class AppUpdateService {
   BuildContext? _dialogContext(BuildContext? preferred) {
     if (preferred != null && preferred.mounted) return preferred;
     return appRouter.routerDelegate.navigatorKey.currentContext;
+  }
+
+  /// Ждём возврат приложения на передний план (после экрана настроек).
+  /// Listener должен быть активен **до** открытия настроек.
+  Future<void> _waitAppResume({
+    required Completer<void> resumed,
+    required AppLifecycleListener listener,
+  }) async {
+    try {
+      await resumed.future.timeout(const Duration(minutes: 5));
+    } on TimeoutException {
+      // Пользователь не вернулся — выходим без ошибки.
+    } finally {
+      listener.dispose();
+    }
+    // Система иногда обновляет canRequestPackageInstalls с задержкой.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+  }
+
+  (Completer<void>, AppLifecycleListener) _armResumeWait() {
+    final resumed = Completer<void>();
+    final listener = AppLifecycleListener(
+      onResume: () {
+        if (!resumed.isCompleted) resumed.complete();
+      },
+    );
+    return (resumed, listener);
+  }
+
+  /// Запросить разрешение на установку из неизвестных источников ДО скачивания.
+  /// `true` — можно качать и ставить; `false` — отмена / отказано.
+  Future<bool> _ensureUnknownSourcesPermission({
+    required BuildContext? context,
+    required JsonStringsService strings,
+  }) async {
+    if (await ApkInstaller.canRequestPackageInstalls()) return true;
+
+    final ctx = _dialogContext(context);
+    if (ctx != null) {
+      final openSettings = await showDialog<bool>(
+        context: ctx,
+        useRootNavigator: true,
+        barrierDismissible: false,
+        builder: (dCtx) => AlertDialog(
+          title: Text(strings.text('appUpdateServerNeedInstallPermissionTitle')),
+          content: Text(strings.text('appUpdateServerNeedInstallPermissionBody')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop(false),
+              child: Text(strings.text('appUpdateServerCancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dCtx).pop(true),
+              child: Text(strings.text('appUpdateServerOpenSettings')),
+            ),
+          ],
+        ),
+      );
+      if (openSettings != true) return false;
+    }
+
+    final (resumed, listener) = _armResumeWait();
+    await ApkInstaller.openUnknownAppSettings();
+    await _waitAppResume(resumed: resumed, listener: listener);
+
+    if (await ApkInstaller.canRequestPackageInstalls()) {
+      _feedback(
+        strings: strings.text('appUpdateServerPermissionGranted'),
+        kind: AppFeedbackKind.success,
+      );
+      return true;
+    }
+
+    _feedback(
+      strings: strings.text('appUpdateServerNeedInstallPermission'),
+      kind: AppFeedbackKind.warning,
+    );
+    return false;
   }
 
   /// `null` = нет данных (можно повторить). Иначе результат сравнения.
