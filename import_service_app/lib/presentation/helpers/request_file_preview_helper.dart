@@ -211,34 +211,50 @@ Future<String> normalizeImagePathIfNeeded(String path) async {
 }
 
 /// Скачать произвольный URL с Bearer (вложения чата и т.п.).
+/// [cacheStamp] — версия файла (id/размер/updatedAt): тот же stamp не качает повторно.
 Future<String?> downloadAuthenticatedUrl({
   required String url,
   required String saveFileName,
+  String? cacheStamp,
+  Duration? receiveTimeout,
 }) async {
   final trimmed = url.trim();
   if (trimmed.isEmpty) return null;
   final name = saveFileName.trim().isEmpty
       ? 'file.bin'
       : saveFileName.replaceAll(RegExp(r'[^\w.\- ()\u0400-\u04FF]'), '_');
+  final ext = p.extension(name);
   try {
+    final cached = await _mediaCacheFile(
+      _mediaCacheKey(trimmed, stamp: cacheStamp),
+      ext.isEmpty ? '.bin' : ext,
+    );
+    if (await cached.exists() && await cached.length() > 32) {
+      return cached.path;
+    }
     final dir = await getTemporaryDirectory();
-    final savePath = p.join(dir.path, name);
+    final partPath = p.join(dir.path, '${p.basename(cached.path)}.part');
     await sl<Dio>().download(
       trimmed,
-      savePath,
+      partPath,
       options: Options(
         responseType: ResponseType.bytes,
         followRedirects: true,
+        receiveTimeout: receiveTimeout,
+        sendTimeout: receiveTimeout,
       ),
     );
-    if (!await File(savePath).exists()) return null;
-    if (await fileHasPdfMagic(savePath)) {
-      return await normalizePdfPathIfNeeded(savePath);
+    if (!await File(partPath).exists()) return null;
+    var finalPath = partPath;
+    if (await fileHasPdfMagic(partPath)) {
+      finalPath = await normalizePdfPathIfNeeded(partPath);
+    } else if (await fileHasJpegMagic(partPath) || await fileHasPngMagic(partPath)) {
+      finalPath = await normalizeImagePathIfNeeded(partPath);
     }
-    if (await fileHasJpegMagic(savePath) || await fileHasPngMagic(savePath)) {
-      return await normalizeImagePathIfNeeded(savePath);
+    if (finalPath != cached.path) {
+      await File(finalPath).copy(cached.path);
     }
-    return savePath;
+    return cached.path;
   } catch (e, st) {
     AppLog.error(
       'downloadAuthenticatedUrl name=$name',
@@ -248,6 +264,24 @@ Future<String?> downloadAuthenticatedUrl({
     );
     return null;
   }
+}
+
+String requestFileCacheStamp(CustomsRequestFile file) =>
+    '${file.id ?? ''}|${file.fileSizeBytes ?? ''}|${file.updatedAt ?? file.createdAt ?? ''}';
+
+String _mediaCacheKey(String url, {String? stamp}) {
+  final raw = (stamp == null || stamp.isEmpty) ? url : '$stamp|$url';
+  return sha256.convert(utf8.encode(raw)).toString();
+}
+
+Future<File> _mediaCacheFile(String key, String extension) async {
+  final root = await getApplicationCacheDirectory();
+  final dir = Directory(p.join(root.path, 'request_media'));
+  if (!await dir.exists()) await dir.create(recursive: true);
+  var ext = extension.trim().toLowerCase();
+  if (ext.isNotEmpty && !ext.startsWith('.')) ext = '.$ext';
+  if (ext.isEmpty || ext == '.') ext = '.bin';
+  return File(p.join(dir.path, '$key$ext'));
 }
 
 /// Relative `/api/...` → абсолютный URL API.
@@ -432,46 +466,20 @@ Future<String?> ensureRequestVideoThumbnail({
   }
 }
 
-/// Скачать файл с Bearer (Dio). Возвращает локальный путь или `null`.
+/// Скачать файл заявки с Bearer. Повтор того же файла берётся из кэша.
 Future<String?> downloadAuthenticatedRequestFile(
   String url,
   CustomsRequestFile file,
 ) async {
   final trimmed = url.trim();
   if (trimmed.isEmpty) return null;
-  try {
-    final dir = await getTemporaryDirectory();
-    final savePath = p.join(dir.path, requestFileDownloadName(file));
-    final video = isRequestFileVideo(file);
-    await sl<Dio>().download(
-      trimmed,
-      savePath,
-      options: Options(
-        responseType: ResponseType.bytes,
-        followRedirects: true,
-        receiveTimeout: video ? const Duration(minutes: 10) : null,
-        sendTimeout: video ? const Duration(minutes: 10) : null,
-      ),
-    );
-    if (!await File(savePath).exists()) return null;
-    if (await fileHasPdfMagic(savePath) || isRequestFilePdf(file)) {
-      return await normalizePdfPathIfNeeded(savePath);
-    }
-    if (await fileHasJpegMagic(savePath) ||
-        await fileHasPngMagic(savePath) ||
-        isRequestFileImage(file)) {
-      return await normalizeImagePathIfNeeded(savePath);
-    }
-    return savePath;
-  } catch (e, st) {
-    AppLog.error(
-      'downloadAuthenticatedRequestFile docType=${file.docType}',
-      tag: 'RequestFile',
-      error: e,
-      stackTrace: st,
-    );
-    return null;
-  }
+  final video = isRequestFileVideo(file);
+  return downloadAuthenticatedUrl(
+    url: trimmed,
+    saveFileName: requestFileDownloadName(file),
+    cacheStamp: requestFileCacheStamp(file),
+    receiveTimeout: video ? const Duration(minutes: 10) : null,
+  );
 }
 
 Future<bool> shouldOpenAsInAppPdf(String localPath, CustomsRequestFile file) async {

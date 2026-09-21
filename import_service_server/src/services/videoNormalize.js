@@ -33,10 +33,32 @@ function needsVideoNormalize(probe) {
   if (!audio) return true;
   const acodec = String(audio.codec_name || '').toLowerCase();
   if (acodec !== 'aac') return true;
+  if (Number(audio.channels) !== 2) return true;
+  const width = Number(video.width) || 0;
+  const height = Number(video.height) || 0;
+  // MediaCodec на части OEM падает, если сторона не кратна 16.
+  if (width % 16 !== 0 || height % 16 !== 0) return true;
   const fmt = probe.format || {};
   const formatName = String(fmt.format_name || '').toLowerCase();
   if (formatName && !formatName.includes('mp4') && !formatName.includes('mov')) return true;
+  if (videoHasOddOrientation(video)) return true;
+  const sar = String(video.sample_aspect_ratio || '');
+  if (sar && sar !== '1:1' && sar !== 'N/A' && sar !== '0:1') return true;
   return false;
+}
+
+/** Поворот в метаданных, а не в пикселях — на ПК картинка «лёжа». */
+function videoHasOddOrientation(video) {
+  const tags = video.tags || {};
+  const rotate = Math.abs(Number(tags.rotate || 0));
+  if (Number.isFinite(rotate) && rotate % 360 !== 0) return true;
+  const sides = Array.isArray(video.side_data_list) ? video.side_data_list : [];
+  return sides.some((s) => {
+    const type = String(s.side_data_type || '').toLowerCase();
+    if (!type.includes('display matrix') && !type.includes('rotation')) return false;
+    const rot = Math.abs(Number(s.rotation || 0));
+    return Number.isFinite(rot) && rot % 360 !== 0;
+  });
 }
 
 async function ffprobeJson(filePath) {
@@ -64,11 +86,15 @@ async function runFfmpegNormalize(inputPath, outputPath, { hasAudio }) {
     '-profile:v',
     'baseline',
     '-level',
-    '3.1',
+    '4.0',
     '-pix_fmt',
     'yuv420p',
+    // Вписать в 1920 по длинной стороне, чётные размеры, квадратные пиксели.
+    // scale применяет поворот из метаданных, затем обнуляем rotate — и телефон, и ПК видят одинаково.
     '-vf',
-    'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+    "scale='min(1920,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/16)*16:trunc(ih/16)*16,setsar=1",
+    '-metadata:s:v:0',
+    'rotate=0',
   ];
   const audioArgs = ['-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-ar', '44100'];
   const tail = ['-movflags', '+faststart', outputPath];
@@ -115,9 +141,9 @@ async function runFfmpegNormalize(inputPath, outputPath, { hasAudio }) {
 
 /**
  * Если буфер — видео, которое стоит нормализовать → вернуть mp4 Buffer.
- * При ошибке ffmpeg возвращает исходный буфер (upload не ломаем).
+ * При ошибке ffmpeg не подменяем файл исходником: `failed: true`.
  *
- * @returns {Promise<{ buffer: Buffer, mimeType: string, ext: string, normalized: boolean, skipped: boolean, reason?: string }>}
+ * @returns {Promise<{ buffer: Buffer, mimeType: string, ext: string, normalized: boolean, skipped: boolean, failed?: boolean, reason?: string }>}
  */
 async function normalizeVideoBuffer(buffer, { force = false, log = null } = {}) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 32) {
@@ -142,13 +168,14 @@ async function normalizeVideoBuffer(buffer, { force = false, log = null } = {}) 
     try {
       probe = await ffprobeJson(inPath);
     } catch (e) {
-      if (log?.warn) log.warn({ err: e.message }, 'ffprobe failed, skip normalize');
+      if (log?.warn) log.warn({ err: e.message }, 'ffprobe failed');
       return {
         buffer,
         mimeType: 'application/octet-stream',
         ext: '.bin',
         normalized: false,
-        skipped: true,
+        skipped: false,
+        failed: true,
         reason: 'ffprobe_failed',
       };
     }
@@ -198,14 +225,15 @@ async function normalizeVideoBuffer(buffer, { force = false, log = null } = {}) 
     };
   } catch (e) {
     if (log?.warn) {
-      log.warn({ err: e.message || String(e) }, 'video normalize failed, keep original');
+      log.warn({ err: e.message || String(e) }, 'video normalize failed');
     }
     return {
       buffer,
       mimeType: 'video/mp4',
       ext: '.mp4',
       normalized: false,
-      skipped: true,
+      skipped: false,
+      failed: true,
       reason: 'ffmpeg_failed',
     };
   } finally {

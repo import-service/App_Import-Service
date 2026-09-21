@@ -50,6 +50,7 @@ import 'package:import_service_app/presentation/widgets/requests/request_detail_
 import 'package:import_service_app/presentation/widgets/requests/request_detail_files_sections.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_deliverable_doc_row.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_finances_block.dart';
+import 'package:import_service_app/presentation/widgets/requests/cached_auth_image.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_file_video_thumb.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_owner_section.dart';
 import 'package:import_service_app/presentation/helpers/request_file_picker.dart';
@@ -734,10 +735,6 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final showThumbImage =
         localFile != null || (thumbUrl != null && thumbUrl.isNotEmpty);
     final tappable = onTap != null && hasOpenTarget;
-    final token = sl<AuthSessionController>().accessToken?.trim();
-    final headers = (token != null && token.isNotEmpty)
-        ? <String, String>{'Authorization': 'Bearer $token'}
-        : null;
 
     final borderColor = highlight
         ? AppTheme.accentRed.withValues(alpha: 0.55)
@@ -753,7 +750,6 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         file: f,
         resolvedFullUrl: _resolveFileUrl(requestFileFullUrl(f)),
         resolvedPreviewUrl: thumbUrl,
-        authHeaders: headers,
         size: 64,
       );
     } else if (showThumbImage) {
@@ -769,13 +765,13 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                 color: AppTheme.textSecondary.withValues(alpha: 0.85),
               ),
             )
-          : Image.network(
-              thumbUrl!,
-              headers: headers,
+          : CachedAuthImage(
+              url: thumbUrl!,
+              cacheStamp: requestFileCacheStamp(f),
               fit: BoxFit.cover,
               width: 64,
               height: 64,
-              errorBuilder: (_, _, _) => Icon(
+              error: Icon(
                 Icons.insert_drive_file_outlined,
                 size: 24,
                 color: AppTheme.textSecondary.withValues(alpha: 0.85),
@@ -1298,6 +1294,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
           thumbUrl: thumbUrl,
           title: docTypeLabel(f, sl<JsonStringsService>()),
           sourceIndex: i,
+          cacheStamp: requestFileCacheStamp(f),
         ),
       );
     }
@@ -1464,12 +1461,14 @@ final class _CarouselPhotoItem {
     required this.thumbUrl,
     required this.title,
     required this.sourceIndex,
+    required this.cacheStamp,
   });
 
   final String fullUrl;
   final String thumbUrl;
   final String title;
   final int sourceIndex;
+  final String cacheStamp;
 }
 
 class _RequestPhotoCarouselPage extends StatefulWidget {
@@ -1535,6 +1534,7 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
     final path = await downloadAuthenticatedUrl(
       url: item.fullUrl,
       saveFileName: _saveFileName(item),
+      cacheStamp: item.cacheStamp,
     );
     if (path != null) _localPathByIndex[_index] = path;
     return path;
@@ -1597,10 +1597,6 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
   @override
   Widget build(BuildContext context) {
     final s = sl<JsonStringsService>();
-    final token = widget.authToken?.trim();
-    final headers = (token != null && token.isNotEmpty)
-        ? <String, String>{'Authorization': 'Bearer $token'}
-        : null;
     final current = widget.items[_index];
     return Scaffold(
       backgroundColor: Colors.black,
@@ -1648,17 +1644,11 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 4,
-                    child: Image.network(
-                      item.fullUrl,
-                      headers: headers,
+                    child: CachedAuthImage(
+                      url: item.fullUrl,
+                      cacheStamp: item.cacheStamp,
                       fit: BoxFit.contain,
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(color: Colors.white70),
-                        );
-                      },
-                      errorBuilder: (_, _, _) => const Column(
+                      error: const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
@@ -1711,11 +1701,11 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(7),
-                      child: Image.network(
-                        item.thumbUrl,
-                        headers: headers,
+                      child: CachedAuthImage(
+                        url: item.thumbUrl,
+                        cacheStamp: item.cacheStamp,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const ColoredBox(
+                        error: const ColoredBox(
                           color: Color(0xFF2B2B2B),
                           child: Icon(
                             Icons.broken_image_outlined,

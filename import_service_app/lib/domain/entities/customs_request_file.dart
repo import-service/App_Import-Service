@@ -11,6 +11,7 @@ final class CustomsRequestFile extends Equatable {
     this.fileUrl,
     this.previewUrl,
     this.createdAt,
+    this.updatedAt,
   });
 
   final String? id;
@@ -21,6 +22,8 @@ final class CustomsRequestFile extends Equatable {
   final String? fileUrl;
   final String? previewUrl;
   final String? createdAt;
+  /// Момент замены файла на сервере — ключ сброса кэша.
+  final String? updatedAt;
 
   factory CustomsRequestFile.fromJson(Map<String, dynamic> json) {
     final size = json['fileSizeBytes'] ?? json['file_size_bytes'];
@@ -33,6 +36,7 @@ final class CustomsRequestFile extends Equatable {
       fileUrl: json['fileUrl'] as String? ?? json['file_url'] as String?,
       previewUrl: json['previewUrl'] as String? ?? json['preview_url'] as String?,
       createdAt: json['createdAt'] as String? ?? json['created_at'] as String?,
+      updatedAt: json['updatedAt'] as String? ?? json['updated_at'] as String?,
     );
   }
 
@@ -45,11 +49,12 @@ final class CustomsRequestFile extends Equatable {
         if (fileUrl != null) 'fileUrl': fileUrl,
         if (previewUrl != null) 'previewUrl': previewUrl,
         if (createdAt != null) 'createdAt': createdAt,
+        if (updatedAt != null) 'updatedAt': updatedAt,
       };
 
   @override
   List<Object?> get props =>
-      [id, docType, fileName, mimeType, fileSizeBytes, fileUrl, previewUrl, createdAt];
+      [id, docType, fileName, mimeType, fileSizeBytes, fileUrl, previewUrl, createdAt, updatedAt];
 
   /// Превью для списков/миниатюр; для видео без poster — null. Скачивание — [fileUrl].
   String? get displayImageUrl {

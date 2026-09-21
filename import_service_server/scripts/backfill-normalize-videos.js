@@ -91,9 +91,10 @@ async function main() {
       }
 
       const result = await normalizeVideoBuffer(buffer, { force: true, log: console });
-      if (!result.normalized) {
-        console.log(`skip id=${row.id} reason=${result.reason} ${storedName}`);
-        skipped += 1;
+      if (result.failed || !result.normalized) {
+        console.error(`fail id=${row.id} reason=${result.reason || 'not_normalized'} ${storedName}`);
+        if (result.failed) failed += 1;
+        else skipped += 1;
         continue;
       }
 

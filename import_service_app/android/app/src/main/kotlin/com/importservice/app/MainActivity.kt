@@ -1,16 +1,40 @@
 package com.importservice.app
 
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    private var installReceiverRegistered = false
+
+    private val installStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val status = intent.getIntExtra(
+                PackageInstaller.EXTRA_STATUS,
+                PackageInstaller.STATUS_FAILURE,
+            )
+            if (status != PackageInstaller.STATUS_PENDING_USER_ACTION) return
+            val confirm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_INTENT)
+            } ?: return
+            confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(confirm)
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -48,12 +72,14 @@ class MainActivity : FlutterActivity() {
                         result.error("ARG", "path required", null)
                         return@setMethodCallHandler
                     }
-                    try {
-                        installApk(path)
-                        result.success(true)
-                    } catch (e: Exception) {
-                        result.error("INSTALL", e.message, null)
-                    }
+                    Thread {
+                        try {
+                            installApk(path)
+                            runOnUiThread { result.success(true) }
+                        } catch (e: Exception) {
+                            runOnUiThread { result.error("INSTALL", e.message, null) }
+                        }
+                    }.start()
                 }
                 else -> result.notImplemented()
             }
@@ -81,22 +107,53 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun ensureInstallReceiver() {
+        if (installReceiverRegistered) return
+        val filter = IntentFilter("$packageName.INSTALL_APK_STATUS")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(installStatusReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(installStatusReceiver, filter)
+        }
+        installReceiverRegistered = true
+    }
+
+    /** Системный установщик (кнопка «Установить»), без шторки «чем открыть файл». */
     private fun installApk(path: String) {
         val file = File(path)
         if (!file.exists() || !file.isFile) {
             throw IllegalArgumentException("APK not found: $path")
         }
-        val uri = FileProvider.getUriForFile(
-            this,
-            "$packageName.apkprovider",
-            file,
+        ensureInstallReceiver()
+        val installer = packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(
+            PackageInstaller.SessionParams.MODE_FULL_INSTALL,
         )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        params.setSize(file.length())
+        params.setAppPackageName(packageName)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
         }
-        startActivity(intent)
+        val sessionId = installer.createSession(params)
+        val session = installer.openSession(sessionId)
+        try {
+            file.inputStream().use { input ->
+                session.openWrite("base.apk", 0, file.length()).use { output ->
+                    input.copyTo(output)
+                    session.fsync(output)
+                }
+            }
+            val callback = Intent("$packageName.INSTALL_APK_STATUS").setPackage(packageName)
+            val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            val pending = PendingIntent.getBroadcast(this, sessionId, callback, pendingFlags)
+            session.commit(pending.intentSender)
+        } catch (e: Exception) {
+            session.abandon()
+            throw e
+        } finally {
+            session.close()
+        }
     }
 
     private fun resolveInstallerPackageName(): String? {

@@ -283,6 +283,13 @@ async function finalizeCustomsUpload(fastify, request, reply, {
   if (looksVideo) {
     try {
       const norm = await normalizeVideoBuffer(outBuf, { log: fastify.log });
+      if (norm.failed) {
+        return reply.code(422).send({
+          error: 'VIDEO_NORMALIZE_FAILED',
+          message:
+            'Не удалось подготовить видео для просмотра. Запишите ролик ещё раз или выберите файл до 100 МБ.',
+        });
+      }
       if (norm.normalized) {
         outBuf = norm.buffer;
         outMime = norm.mimeType;
@@ -301,6 +308,11 @@ async function finalizeCustomsUpload(fastify, request, reply, {
       }
     } catch (e) {
       fastify.log.warn({ err: e.message }, 'video normalize unexpected error');
+      return reply.code(422).send({
+        error: 'VIDEO_NORMALIZE_FAILED',
+        message:
+          'Не удалось подготовить видео для просмотра. Запишите ролик ещё раз или выберите файл до 100 МБ.',
+      });
     }
   }
 

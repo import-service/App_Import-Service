@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/presentation/helpers/request_file_preview_helper.dart';
+import 'package:import_service_app/presentation/widgets/requests/cached_auth_image.dart';
 
 /// Миниатюра видео: server previewUrl или локальный кадр после download+auth.
 class RequestFileVideoThumb extends StatefulWidget {
@@ -12,14 +13,12 @@ class RequestFileVideoThumb extends StatefulWidget {
     required this.file,
     this.resolvedFullUrl,
     this.resolvedPreviewUrl,
-    this.authHeaders,
     this.size = 64,
   });
 
   final CustomsRequestFile file;
   final String? resolvedFullUrl;
   final String? resolvedPreviewUrl;
-  final Map<String, String>? authHeaders;
   final double size;
 
   @override
@@ -92,13 +91,13 @@ class _RequestFileVideoThumbState extends State<RequestFileVideoThumb> {
 
     Widget? image;
     if (preview != null && preview.isNotEmpty) {
-      image = Image.network(
-        preview,
-        headers: widget.authHeaders,
+      image = CachedAuthImage(
+        url: preview,
+        cacheStamp: requestFileCacheStamp(widget.file),
         fit: BoxFit.cover,
         width: size,
         height: size,
-        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        error: const SizedBox.shrink(),
       );
     } else if (_localThumbPath != null && File(_localThumbPath!).existsSync()) {
       image = Image.file(
