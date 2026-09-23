@@ -6,6 +6,7 @@ class Organization extends Equatable {
     required this.id1c,
     required this.login,
     required this.role,
+    this.roles = const <String>[],
     required this.orgType,
     required this.companyName,
     required this.inn,
@@ -19,6 +20,7 @@ class Organization extends Equatable {
   final String id1c;
   final String login;
   final String role;
+  final List<String> roles;
   final String orgType;
   final String companyName;
   final String inn;
@@ -28,6 +30,9 @@ class Organization extends Equatable {
   final String? deletedAt;
 
   bool get isDeleted => deletedAt != null && deletedAt!.isNotEmpty;
+
+  List<String> get effectiveRoles =>
+      roles.isNotEmpty ? roles : (role.isNotEmpty ? <String>[role] : const <String>[]);
 
   @override
   List<Object?> get props => [id];

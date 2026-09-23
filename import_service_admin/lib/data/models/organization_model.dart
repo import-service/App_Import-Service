@@ -6,6 +6,7 @@ class OrganizationModel {
     required this.id1c,
     required this.login,
     required this.role,
+    this.roles = const <String>[],
     required this.orgType,
     required this.companyName,
     required this.inn,
@@ -19,6 +20,7 @@ class OrganizationModel {
   final String id1c;
   final String login;
   final String role;
+  final List<String> roles;
   final String orgType;
   final String companyName;
   final String inn;
@@ -28,11 +30,23 @@ class OrganizationModel {
   final String? deletedAt;
 
   factory OrganizationModel.fromJson(Map<String, dynamic> json) {
+    final rolesRaw = json['roles'];
+    final roles = <String>[];
+    if (rolesRaw is List) {
+      for (final item in rolesRaw) {
+        final s = item?.toString().trim() ?? '';
+        if (s.isNotEmpty) roles.add(s);
+      }
+    }
+    final role = json['role'] as String? ?? '';
     return OrganizationModel(
       id: json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}') ?? 0,
       id1c: (json['id_1c'] ?? json['id1c'] ?? '') as String? ?? '',
       login: json['login'] as String? ?? '',
-      role: json['role'] as String? ?? '',
+      role: role,
+      roles: roles.isNotEmpty
+          ? roles
+          : (role.isNotEmpty ? <String>[role] : const <String>[]),
       orgType: (json['orgType'] ?? json['org_type'] ?? '') as String? ?? '',
       companyName: (json['companyName'] ?? json['company_name'] ?? '') as String? ?? '',
       inn: json['inn'] as String? ?? '',
@@ -48,6 +62,7 @@ class OrganizationModel {
         id1c: id1c,
         login: login,
         role: role,
+        roles: roles,
         orgType: orgType,
         companyName: companyName,
         inn: inn,

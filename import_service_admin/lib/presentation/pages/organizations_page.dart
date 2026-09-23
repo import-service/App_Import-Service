@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
+import 'package:import_service_admin/core/error/exceptions.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
 import 'package:import_service_admin/domain/entities/organization.dart';
 import 'package:import_service_admin/domain/repositories/organizations_repository.dart';
@@ -38,33 +41,113 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
   }
 
   void _openDetail(Organization org) {
-    showDialog<void>(
+    unawaited(_showOrgRolesDialog(org));
+  }
+
+  Future<void> _showOrgRolesDialog(Organization org) async {
+    const options = <({String code, String label})>[
+      (code: 'user', label: 'Клиент'),
+      (code: 'svh_manager', label: 'Менеджер СВХ'),
+      (code: 'declarant_manager', label: 'Менеджер-декларант'),
+    ];
+    final selected = <String>{...org.effectiveRoles};
+    var saving = false;
+
+    await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(org.companyName.isNotEmpty ? org.companyName : org.login),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _DetailRow('ID', '${org.id}'),
-              _DetailRow('1С ID', org.id1c),
-              _DetailRow('Логин', org.login),
-              _DetailRow('Роль', org.role),
-              _DetailRow('Тип', org.orgType),
-              _DetailRow('ИНН', org.inn),
-              _DetailRow('Телефон', org.phone),
-              if (org.isDeleted) const _DetailRow('Статус', 'Удалена'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Закрыть'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setLocal) {
+            return AlertDialog(
+              title: Text(
+                org.companyName.isNotEmpty ? org.companyName : org.login,
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _DetailRow('ID', '${org.id}'),
+                    _DetailRow('1С ID', org.id1c),
+                    _DetailRow('Логин', org.login),
+                    _DetailRow('Роль (primary)', org.role),
+                    _DetailRow('Тип', org.orgType),
+                    _DetailRow('ИНН', org.inn),
+                    _DetailRow('Телефон', org.phone),
+                    if (org.isDeleted) const _DetailRow('Статус', 'Удалена'),
+                    const Gap(12),
+                    Text(
+                      'Роли интерфейса (можно несколько)',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const Gap(8),
+                    for (final opt in options)
+                      CheckboxListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        value: selected.contains(opt.code),
+                        title: Text(opt.label),
+                        subtitle: Text(opt.code),
+                        onChanged: saving
+                            ? null
+                            : (v) {
+                                setLocal(() {
+                                  if (v == true) {
+                                    selected.add(opt.code);
+                                  } else {
+                                    selected.remove(opt.code);
+                                  }
+                                });
+                              },
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Закрыть'),
+                ),
+                FilledButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (selected.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Выберите хотя бы одну роль'),
+                              ),
+                            );
+                            return;
+                          }
+                          setLocal(() => saving = true);
+                          try {
+                            await sl<OrganizationsRepository>().updateRoles(
+                              org.id,
+                              selected.toList(growable: false),
+                            );
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                            _reload();
+                          } catch (e) {
+                            setLocal(() => saving = false);
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e is ServerException ? e.message : '$e',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: Text(saving ? 'Сохранение…' : 'Сохранить роли'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -147,7 +230,7 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
                                     : org.login,
                               ),
                               subtitle: Text(
-                                '${org.inn} · ${org.login}',
+                                '${org.effectiveRoles.join(', ')} · ${org.inn} · ${org.login}',
                               ),
                               trailing: org.isDeleted
                                   ? const Icon(Icons.archive_outlined,

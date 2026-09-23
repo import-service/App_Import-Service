@@ -23,6 +23,11 @@ const {
 } = require('../services/backgroundJobs');
 const { sendBroadcast } = require('../services/broadcast');
 const { toOrganizationDto } = require('../util/organizationDto');
+const {
+  normalizeRolesInput,
+  pickPrimaryRole,
+  ALLOWED_ORG_ROLES,
+} = require('../util/organizationRoles');
 const { notifySvhManagerCredentials } = require('../services/emailNotification');
 const {
   buildSvhCarPhotosZipBuffer,
@@ -36,7 +41,7 @@ const {
 } = require('../services/transitArchivePhotosZip');
 
 const ORGANIZATION_SELECT =
-  'id, id_1c, login, role, org_type, company_name, inn, phone, created_at, updated_at, deleted_at';
+  'id, id_1c, login, role, roles, org_type, company_name, inn, phone, created_at, updated_at, deleted_at';
 
 const detailDtoOptions = { includeFiles: true, mergeVehicleFiles: true };
 
@@ -476,6 +481,61 @@ module.exports = async function adminRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
 
+      return reply.send({ item: toOrganizationDto(rows[0]) });
+    },
+  );
+
+  fastify.patch(
+    '/admin/organizations/:id/roles',
+    {
+      onRequest: [fastify.authenticateAdmin],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['roles'],
+          properties: {
+            roles: {
+              type: 'array',
+              minItems: 1,
+              items: { type: 'string', enum: [...ALLOWED_ORG_ROLES] },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      let roles;
+      try {
+        roles = normalizeRolesInput(request.body.roles, { required: true });
+      } catch (e) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.message });
+      }
+      const primary = pickPrimaryRole(roles);
+
+      const [existing] = await fastify.pool.query(
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      if (!existing.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      await fastify.pool.query(
+        `UPDATE organizations
+         SET roles = CAST(? AS JSON), role = ?, updated_at = CURRENT_TIMESTAMP(3)
+         WHERE id = ?`,
+        [JSON.stringify(roles), primary, id],
+      );
+
+      const [rows] = await fastify.pool.query(
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
+        [id],
+      );
       return reply.send({ item: toOrganizationDto(rows[0]) });
     },
   );

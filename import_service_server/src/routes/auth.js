@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const { expiresInToMs } = require('../util/time');
+const { rolesFromRow, pickPrimaryRole } = require('../util/organizationRoles');
 
 module.exports = async function authRoutes(fastify) {
   fastify.post(
@@ -77,7 +78,7 @@ module.exports = async function authRoutes(fastify) {
   fastify.get('/auth/me', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const sub = request.user.sub;
     const [rows] = await fastify.pool.query(
-      `SELECT id, id_1c, login, role, org_type, company_name, inn, phone, created_at, updated_at, deleted_at
+      `SELECT id, id_1c, login, role, roles, org_type, company_name, inn, phone, created_at, updated_at, deleted_at
        FROM organizations
        WHERE id = ? AND deleted_at IS NULL
        LIMIT 1`,
@@ -87,11 +88,13 @@ module.exports = async function authRoutes(fastify) {
       return reply.code(401).send({ error: 'USER_NOT_FOUND' });
     }
     const u = rows[0];
+    const roles = rolesFromRow(u);
     return reply.send({
       id: u.id,
       id_1c: u.id_1c,
       login: u.login,
-      role: u.role,
+      role: u.role || pickPrimaryRole(roles),
+      roles,
       orgType: u.org_type,
       companyName: u.company_name,
       inn: u.inn,

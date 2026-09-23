@@ -63,4 +63,24 @@ class OrganizationsRemoteDataSource {
       throw ErrorHandler.handle(e);
     }
   }
+
+  Future<Organization> updateRoles(int id, List<String> roles) async {
+    try {
+      final response = await _dio.patch<dynamic>(
+        'admin/organizations/$id/roles',
+        data: <String, dynamic>{'roles': roles},
+      );
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ roles');
+      }
+      final item = data['item'];
+      if (item is! Map<String, dynamic>) {
+        throw const NotFoundException();
+      }
+      return OrganizationModel.fromJson(item).toEntity();
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
 }

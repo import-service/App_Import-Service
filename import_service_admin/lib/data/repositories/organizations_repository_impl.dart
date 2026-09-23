@@ -23,4 +23,8 @@ class OrganizationsRepositoryImpl implements OrganizationsRepository {
 
   @override
   Future<Organization> getById(int id) => _remote.getById(id);
+
+  @override
+  Future<Organization> updateRoles(int id, List<String> roles) =>
+      _remote.updateRoles(id, roles);
 }

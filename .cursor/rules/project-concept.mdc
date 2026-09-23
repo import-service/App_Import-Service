@@ -262,3 +262,13 @@ alwaysApply: true
 6. HTML `/docs` (вкладка ТЗ)
 
 Агентские rules (`agent-server.mdc`, …) — только зона каталога, **не** отдельные флоу.
+
+---
+
+## 15. Роли организаций (этап D1)
+
+- Колонка `organizations.roles` (JSON) + primary `role` для JWT.
+- Коды: `user`, `svh_manager`, `declarant_manager`, `admin`.
+- Админка: карточка org → чекбоксы → `PATCH /admin/organizations/:id/roles`.
+- `/auth/me` отдаёт `roles[]` (+ `role` primary). Shell МП пока только по primary (`session_role`).
+- Дальше: shell декларанта, переключение ролей, фильтр менеджеров, пуш подстатуса.
