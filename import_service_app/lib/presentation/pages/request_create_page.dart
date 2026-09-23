@@ -60,6 +60,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   final _personNameController = TextEditingController();
   final _personPhoneController = TextEditingController();
   final _personSnilsController = TextEditingController();
+  final _personInnController = TextEditingController();
   final _brandController = TextEditingController();
   final _modelController = TextEditingController();
   final _vinController = TextEditingController();
@@ -131,6 +132,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
         personFullName: _personNameController.text,
         personPhone: _normalizePhoneForApi(_personPhoneController.text),
         personSnils: _snilsDigits(_personSnilsController.text),
+        personInn: _innDigits(_personInnController.text),
         carBrand: _brandController.text,
         carModel: _modelController.text,
         vin: _vinController.text.trim().toUpperCase(),
@@ -177,6 +179,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final s = sl<JsonStringsService>();
     final email = _companyEmailController.text.trim();
     final innDigits = _innDigits(_companyInnController.text);
+    final personInnDigits = _innDigits(_personInnController.text);
     final vin = _vinController.text.trim().toUpperCase();
     final personPhoneDigits = _phoneDigits(_personPhoneController.text);
     final companyPhoneDigits = _phoneDigits(_companyPhoneController.text);
@@ -185,6 +188,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final personName = _personNameController.text.trim();
     if (_companyNameController.text.trim().isEmpty ||
         innDigits.isEmpty ||
+        personInnDigits.isEmpty ||
         personName.isEmpty ||
         _brandController.text.trim().isEmpty ||
         _modelController.text.trim().isEmpty ||
@@ -210,6 +214,13 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (!_isValidInn(innDigits, _innFieldOrganizationType)) {
       sl<AppFeedbackService>().show(
         s.innFormatErrorFor(_innFieldOrganizationType),
+        kind: AppFeedbackKind.error,
+      );
+      return false;
+    }
+    if (!_isValidInn(personInnDigits, OrganizationType.person)) {
+      sl<AppFeedbackService>().show(
+        s.innFormatErrorFor(OrganizationType.person),
         kind: AppFeedbackKind.error,
       );
       return false;
@@ -247,6 +258,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   bool get _isSubmitEnabled {
     final email = _companyEmailController.text.trim();
     final innDigits = _innDigits(_companyInnController.text);
+    final personInnDigits = _innDigits(_personInnController.text);
     final vin = _vinController.text.trim().toUpperCase();
     final personPhoneDigits = _phoneDigits(_personPhoneController.text);
     final companyPhoneDigits = _phoneDigits(_companyPhoneController.text);
@@ -254,6 +266,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final personName = _personNameController.text.trim();
     final hasRequiredText = _companyNameController.text.trim().isNotEmpty &&
         innDigits.isNotEmpty &&
+        personInnDigits.isNotEmpty &&
         personName.isNotEmpty &&
         _brandController.text.trim().isNotEmpty &&
         _modelController.text.trim().isNotEmpty &&
@@ -265,6 +278,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (!hasRequiredText) return false;
     final formatsOk = _isValidEmail(email) &&
         _isValidInn(innDigits, _innFieldOrganizationType) &&
+        _isValidInn(personInnDigits, OrganizationType.person) &&
         isValidRuPhoneDigits(companyPhoneDigits) &&
         isValidRuPhoneDigits(personPhoneDigits) &&
         isValidSnilsDigits(snilsRaw) &&
@@ -286,6 +300,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     final personName = _personNameController.text.trim();
     final personPhone = _phoneDigits(_personPhoneController.text);
     final personSnils = _snilsDigits(_personSnilsController.text);
+    final personInn = _innDigits(_personInnController.text);
     final carBrand = _brandController.text.trim();
     final carModel = _modelController.text.trim();
     final vin = _vinController.text.trim().toUpperCase();
@@ -297,12 +312,13 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
             : s.text('requestCompanyNameLabel'),
       );
     }
-    if (companyInn.isEmpty) return missing(_innFieldLabel(s));
+    if (companyInn.isEmpty) return missing(s.text('innLabelLegal'));
     if (companyEmail.isEmpty) return missing(s.text('requestCompanyEmailLabel'));
     if (companyPhone.isEmpty) return missing(s.text('requestCompanyPhoneLabel'));
     if (personName.isEmpty) return missing(s.text('requestPersonNameLabel'));
     if (personPhone.isEmpty) return missing(s.text('requestPersonPhoneLabel'));
     if (personSnils.isEmpty) return missing(s.text('requestSnilsLabel'));
+    if (personInn.isEmpty) return missing(s.text('innLabelPerson'));
     if (carBrand.isEmpty) return missing(s.text('requestCarBrandLabel'));
     if (carModel.isEmpty) return missing(s.text('requestCarModelLabel'));
     if (vin.isEmpty) return missing(s.text('requestVinLabel'));
@@ -310,6 +326,9 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     if (!_isValidEmail(companyEmail)) return s.emailFormatError;
     if (!_isValidInn(companyInn, _innFieldOrganizationType)) {
       return s.innFormatErrorFor(_innFieldOrganizationType);
+    }
+    if (!_isValidInn(personInn, OrganizationType.person)) {
+      return s.innFormatErrorFor(OrganizationType.person);
     }
     if (!isValidRuPhoneDigits(companyPhone) || !isValidRuPhoneDigits(personPhone)) {
       return s.phoneFormatError;
@@ -598,19 +617,23 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
   void _clampInnToOrgType() =>
       clampInnController(_companyInnController, _innFieldOrganizationType);
 
-  /// Юрлицо (ООО) — 10; физлицо/ИП — 12. Подпись в скобках.
+  /// Юрлицо (ООО) — 10; физлицо/ИП — 12. Подпись для поля ЮЛ/ИП.
   OrganizationType get _innFieldOrganizationType => _organizationType;
 
-  String _innFieldLabel(JsonStringsService s) =>
+  String _companyInnLabel(JsonStringsService s) =>
       _organizationType == OrganizationType.ooo
           ? s.text('innLabelLegal')
           : s.text('innLabelPerson');
 
-  /// Черновик: физлицо / авто / файлы — из draft; юрлицо всегда из профиля.
+  /// Черновик: физлицо / авто / файлы — из draft; юрлицо из профиля + ИНН из draft.
   void _applyDraft(RequestFormModel f) {
     _personNameController.text = f.personFullName;
     _personPhoneController.text = PhoneRuInputFormatter.formatDisplay(f.personPhone);
     _personSnilsController.text = SnilsInputFormatter.formatDigits(f.personSnils);
+    _personInnController.text = InnInputFormatter.formatDigits(
+      f.personInn,
+      maxDigits: OrganizationType.person.innMaxDigits,
+    );
     _brandController.text = f.carBrand;
     _modelController.text = f.carModel;
     _vinController.text = f.vin;
@@ -635,6 +658,12 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
       additionalFile2Paths: f.additionalFile2Paths,
     );
     _prefillOrgFromProfile(sl<AuthSessionController>());
+    if (f.companyInn.trim().isNotEmpty) {
+      _companyInnController.text = InnInputFormatter.formatDigits(
+        f.companyInn,
+        maxDigits: _innFieldOrganizationType.innMaxDigits,
+      );
+    }
     setState(() {});
   }
 
@@ -682,6 +711,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     _personNameController.addListener(_onAnyFieldChanged);
     _personPhoneController.addListener(_onAnyFieldChanged);
     _personSnilsController.addListener(_onAnyFieldChanged);
+    _personInnController.addListener(_onAnyFieldChanged);
     _brandController.addListener(_onAnyFieldChanged);
     _modelController.addListener(_onAnyFieldChanged);
     _vinController.addListener(_onAnyFieldChanged);
@@ -710,6 +740,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     _personNameController.removeListener(_onAnyFieldChanged);
     _personPhoneController.removeListener(_onAnyFieldChanged);
     _personSnilsController.removeListener(_onAnyFieldChanged);
+    _personInnController.removeListener(_onAnyFieldChanged);
     _brandController.removeListener(_onAnyFieldChanged);
     _modelController.removeListener(_onAnyFieldChanged);
     _vinController.removeListener(_onAnyFieldChanged);
@@ -721,6 +752,7 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
     _personNameController.dispose();
     _personPhoneController.dispose();
     _personSnilsController.dispose();
+    _personInnController.dispose();
     _brandController.dispose();
     _modelController.dispose();
     _vinController.dispose();
@@ -748,57 +780,81 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RequestLabeledInputField(
-                label: _organizationType == OrganizationType.person
-                    ? s.text('requestPersonApplicantNameLabel')
-                    : s.text('requestCompanyNameLabel'),
-                hintText: _organizationType == OrganizationType.person
-                    ? s.text('requestPersonApplicantNameHint')
-                    : s.text('requestCompanyNameHint'),
-                controller: _companyNameController,
-                textCapitalization: TextCapitalization.words,
+              _formSection(
+                title: s.text('requestFormCompanySectionTitle'),
+                tint: AppTheme.isDark
+                    ? const Color(0xFF1A2A38)
+                    : const Color(0xFFE8F1F8),
+                children: [
+                  RequestLabeledInputField(
+                    label: _organizationType == OrganizationType.person
+                        ? s.text('requestPersonApplicantNameLabel')
+                        : s.text('requestCompanyNameLabel'),
+                    hintText: _organizationType == OrganizationType.person
+                        ? s.text('requestPersonApplicantNameHint')
+                        : s.text('requestCompanyNameHint'),
+                    controller: _companyNameController,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 14),
+                  RequestLabeledInputField(
+                    label: s.text('requestCompanyEmailLabel'),
+                    hintText: s.emailLabel,
+                    controller: _companyEmailController,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 14),
+                  AppPhoneRuField(
+                    label: s.text('requestCompanyPhoneLabel'),
+                    controller: _companyPhoneController,
+                    validate: false,
+                  ),
+                  const SizedBox(height: 14),
+                  AppInnField(
+                    key: ValueKey('company_inn_${_innFieldOrganizationType.name}'),
+                    label: _companyInnLabel(s),
+                    controller: _companyInnController,
+                    organizationType: _innFieldOrganizationType,
+                    validate: false,
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-              RequestLabeledInputField(
-                label: s.text('requestCompanyEmailLabel'),
-                hintText: s.emailLabel,
-                controller: _companyEmailController,
-                keyboardType: TextInputType.emailAddress,
+              const SizedBox(height: 16),
+              _formSection(
+                title: s.text('requestFormPersonSectionTitle'),
+                tint: AppTheme.isDark
+                    ? const Color(0xFF24322C)
+                    : const Color(0xFFE8F3EE),
+                children: [
+                  RequestLabeledInputField(
+                    label: s.text('requestPersonNameLabel'),
+                    hintText: s.text('requestPersonNameHint'),
+                    controller: _personNameController,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 14),
+                  AppPhoneRuField(
+                    label: s.text('requestPersonPhoneLabel'),
+                    controller: _personPhoneController,
+                    validate: false,
+                  ),
+                  const SizedBox(height: 14),
+                  AppSnilsField(
+                    label: s.text('requestSnilsLabel'),
+                    controller: _personSnilsController,
+                    validate: false,
+                  ),
+                  const SizedBox(height: 14),
+                  AppInnField(
+                    key: const ValueKey('person_inn'),
+                    label: s.text('innLabelPerson'),
+                    controller: _personInnController,
+                    organizationType: OrganizationType.person,
+                    validate: false,
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-              AppPhoneRuField(
-                label: s.text('requestCompanyPhoneLabel'),
-                controller: _companyPhoneController,
-                validate: false,
-              ),
-              const SizedBox(height: 14),
-              RequestLabeledInputField(
-                label: s.text('requestPersonNameLabel'),
-                hintText: s.text('requestPersonNameHint'),
-                controller: _personNameController,
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 14),
-              AppPhoneRuField(
-                label: s.text('requestPersonPhoneLabel'),
-                controller: _personPhoneController,
-                validate: false,
-              ),
-              const SizedBox(height: 14),
-              AppSnilsField(
-                label: s.text('requestSnilsLabel'),
-                controller: _personSnilsController,
-                validate: false,
-              ),
-              const SizedBox(height: 14),
-              AppInnField(
-                key: ValueKey('inn_${_innFieldOrganizationType.name}'),
-                label: _innFieldLabel(s),
-                controller: _companyInnController,
-                organizationType: _innFieldOrganizationType,
-                validate: false,
-              ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               RequestLabeledInputField(
                 label: s.text('requestCarBrandLabel'),
                 hintText: s.text('requestCarBrandHint'),
@@ -1138,6 +1194,38 @@ class _RequestCreatePageState extends State<RequestCreatePage> {
           label: Text(s.text('requestAddOwnedVehicle')),
         ),
       ],
+    );
+  }
+
+  Widget _formSection({
+    required String title,
+    required Color tint,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      decoration: BoxDecoration(
+        color: tint,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppTheme.primaryBlue,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 10),
+          ...children,
+        ],
+      ),
     );
   }
 

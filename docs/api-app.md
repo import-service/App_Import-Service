@@ -99,6 +99,7 @@
 - `id` (string)
 - `ownerFullName`
 - `legalEntityName`, `legalEmail`, `legalPhone`, **`legalInn`** (ИНН ЮЛ/ИП из анкеты; алиас в ответе `inn`)
+- `individualFullName`, `individualPhone`, `individualSnils`, **`individualInn`** (ИНН физлица «кому везут», 12 цифр)
 - `carMake`, `carModel`, `vin`
 - `status`, `statusSubType`, `statusSubTypeDateTime`
 - `engineSpec`, `engineVolume`

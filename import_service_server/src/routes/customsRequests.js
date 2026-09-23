@@ -8,6 +8,7 @@ const {
   moneyAmountToJsonPayload,
   MONEY_AMOUNT_SCHEMA,
   resolveLegalInnFromBody,
+  resolveIndividualInnFromBody,
 } = require('../util/customsRequestDto');
 const {
   questionnaireFromBody,
@@ -160,6 +161,7 @@ function validateCreateBody(body) {
   }
 
   resolveLegalInnFromBody(body, { required: true });
+  resolveIndividualInnFromBody(body, { required: true });
 }
 
 function rejectDeprecatedStateFields(body, reply) {
@@ -508,6 +510,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
             individualFullName: { type: 'string', minLength: 1, maxLength: 255 },
             individualPhone: { type: 'string', minLength: 1, maxLength: 30 },
             individualSnils: { type: 'string', minLength: 1, maxLength: 32 },
+            individualInn: { type: 'string', minLength: 12, maxLength: 12 },
             carMake: { type: 'string', minLength: 1, maxLength: 255 },
             carModel: { type: 'string', minLength: 1, maxLength: 255 },
             vin: { type: 'string', minLength: 1, maxLength: 32 },
@@ -549,6 +552,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const legalInn = resolveLegalInnFromBody(request.body, { required: true });
+      const individualInn = resolveIndividualInnFromBody(request.body, { required: true });
       const questionnaire = questionnaireFromBody(request.body);
       const questionnaireDb = questionnaireToDbValues(questionnaire);
       const orgId = mpOrganizationId(request);
@@ -566,10 +570,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
         const [insertResult] = await conn.query(
           `INSERT INTO customs_requests
              (organization_id, external_1c_id, manager_external_1c_id, legal_entity_name, legal_email, legal_phone, legal_inn,
-              individual_full_name, individual_phone, individual_snils, car_make, car_model, vin,
+              individual_full_name, individual_phone, individual_snils, individual_inn, car_make, car_model, vin,
               has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars,
               previous_import_dates, owned_vehicles, comment_text, is_test, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             orgId,
             null,
@@ -581,6 +585,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
             normalize(request.body.individualFullName),
             normalize(request.body.individualPhone),
             normalize(request.body.individualSnils),
+            individualInn,
             normalize(request.body.carMake),
             normalize(request.body.carModel),
             normalize(request.body.vin),
@@ -897,6 +902,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
             individualFullName: { type: 'string', minLength: 1, maxLength: 255 },
             individualPhone: { type: 'string', minLength: 1, maxLength: 30 },
             individualSnils: { type: 'string', minLength: 1, maxLength: 32 },
+            individualInn: { type: 'string', minLength: 12, maxLength: 12 },
             carMake: { type: 'string', minLength: 1, maxLength: 255 },
             carModel: { type: 'string', minLength: 1, maxLength: 255 },
             vin: { type: 'string', minLength: 1, maxLength: 32 },
@@ -951,8 +957,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       let legalInnPatch;
+      let individualInnPatch;
       try {
         legalInnPatch = resolveLegalInnFromBody(request.body, { required: false });
+        individualInnPatch = resolveIndividualInnFromBody(request.body, { required: false });
       } catch (e) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.message });
       }
@@ -983,6 +991,11 @@ module.exports = async function customsRequestsRoutes(fastify) {
       if (legalInnPatch !== undefined) {
         fields.push('legal_inn = ?');
         values.push(legalInnPatch);
+      }
+
+      if (individualInnPatch !== undefined) {
+        fields.push('individual_inn = ?');
+        values.push(individualInnPatch);
       }
 
       if (request.body.hasSunroof !== undefined) {

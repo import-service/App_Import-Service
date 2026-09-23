@@ -26,10 +26,11 @@ Subagent/Task — только после утверждённого плана 
 | `approve-before-any-action.mdc` | **№1** — план + утверждение **до** любых тулов |
 | `import-platform-workspace.mdc` | Структура монорепо, порядок end-to-end |
 | `feature-delivery-workflow.mdc` | План → утверждение → код (фичи) |
+| `agent-docs-keep-fresh.mdc` | После фичи/UI — обновлять агентские `.mdc` (карта флоу МП) |
 | `agent-invariants-never-break.mdc` | commit/push/релиз только по просьбе |
 | `agent-does-setup-never-user-chores.mdc` | Агент сам: analyze, деплой, setup (**после** утверждения задачи) |
 | `mandatory-verify-after-code-changes.mdc` | analyze перед «готово» |
-| `project-concept.mdc` | МП ↔ сервер ↔ 1С |
+| `project-concept.mdc` | МП ↔ сервер ↔ 1С (+ роли МП: клиент / СВХ) |
 | `monorepo-scope.mdc` | Границы по задаче, не по «трём агентам» |
 
 ## Пакетные правила
@@ -49,7 +50,8 @@ Subagent/Task — только после утверждённого плана 
 | `docs/request-lifecycle.md` | Заявки, статусы, upload |
 | `docs/api-app.md`, `docs/api-1c.md` | HTTP API |
 | `docs/catalog-reference.md` | docType, statusSubType |
-| `import_service_app/.cursor/rules/app-runtime-architecture.mdc` | Runtime МП |
+| `import_service_app/.cursor/rules/app-runtime-architecture.mdc` | Runtime МП (клиент + СВХ, APK, кэш) |
+| `.cursor/rules/agent-docs-keep-fresh.mdc` | После фичи — обновлять agent `.mdc` |
 
 **Прод:** https://157-22-173-7.sslip.io/docs
 

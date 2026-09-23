@@ -10,9 +10,12 @@ function normalize(v) {
   return String(v ?? '').trim();
 }
 
-function buildCreatePayloadFromBody(requestId, body) {
+function buildCreatePayloadFromBody(requestId, body, orgMeta = {}) {
   const files = Array.isArray(body.files) ? body.files : [];
   const legalInn = normalize(String(body.legalInn ?? body.inn ?? '').replace(/\D/g, ''));
+  const individualInn = normalize(
+    String(body.individualInn ?? body.individual_inn ?? body.personInn ?? '').replace(/\D/g, ''),
+  );
   const q = questionnaireFromBody(body);
   return {
     requestId,
@@ -24,6 +27,10 @@ function buildCreatePayloadFromBody(requestId, body) {
     individualFullName: normalize(body.individualFullName),
     individualPhone: normalize(body.individualPhone),
     individualSnils: normalize(body.individualSnils),
+    individualInn: individualInn || null,
+    organizationId: orgMeta.organizationId ?? body.organizationId ?? null,
+    organizationLogin: orgMeta.organizationLogin ?? body.organizationLogin ?? null,
+    organizationName: orgMeta.organizationName ?? body.organizationName ?? null,
     carMake: normalize(body.carMake),
     carModel: normalize(body.carModel),
     vin: normalize(body.vin),
@@ -44,8 +51,9 @@ function buildCreatePayloadFromBody(requestId, body) {
   };
 }
 
-function buildCreatePayloadFromRow(requestId, row, fileRows) {
+function buildCreatePayloadFromRow(requestId, row, fileRows, orgMeta = {}) {
   const legalInn = normalize(String(row.legal_inn ?? '').replace(/\D/g, ''));
+  const individualInn = normalize(String(row.individual_inn ?? '').replace(/\D/g, ''));
   const q = questionnaireFromRow(row);
   return {
     requestId,
@@ -57,6 +65,10 @@ function buildCreatePayloadFromRow(requestId, row, fileRows) {
     individualFullName: normalize(row.individual_full_name),
     individualPhone: normalize(row.individual_phone),
     individualSnils: normalize(row.individual_snils),
+    individualInn: individualInn || null,
+    organizationId: orgMeta.organizationId ?? row.organization_id ?? null,
+    organizationLogin: orgMeta.organizationLogin ?? null,
+    organizationName: orgMeta.organizationName ?? null,
     carMake: normalize(row.car_make),
     carModel: normalize(row.car_model),
     vin: normalize(row.vin),
@@ -235,8 +247,28 @@ async function submitCustomsRequestTo1C(fastify, requestId, payloadBuilder) {
   }
 }
 
+async function loadOrganizationMeta(pool, organizationId) {
+  if (organizationId == null) return {};
+  const [orgRows] = await pool.query(
+    `SELECT id, login, company_name, inn FROM organizations WHERE id = ? LIMIT 1`,
+    [organizationId],
+  );
+  if (!orgRows.length) return { organizationId };
+  const o = orgRows[0];
+  return {
+    organizationId: o.id,
+    organizationLogin: o.login != null ? String(o.login) : null,
+    organizationName: o.company_name != null ? String(o.company_name) : null,
+    organizationInn: o.inn != null ? String(o.inn).replace(/\D/g, '') : null,
+  };
+}
+
 async function submitCustomsRequestTo1CFromBody(fastify, requestId, body) {
-  return submitCustomsRequestTo1C(fastify, requestId, () => buildCreatePayloadFromBody(requestId, body));
+  const orgId = body?.organizationId ?? null;
+  const orgMeta = await loadOrganizationMeta(fastify.pool, orgId);
+  return submitCustomsRequestTo1C(fastify, requestId, () =>
+    buildCreatePayloadFromBody(requestId, body, orgMeta),
+  );
 }
 
 async function submitCustomsRequestTo1CFromDb(fastify, requestId) {
@@ -252,8 +284,9 @@ async function submitCustomsRequestTo1CFromDb(fastify, requestId) {
      FROM customs_request_files WHERE request_id = ? AND deleted_at IS NULL ORDER BY id ASC`,
     [requestId],
   );
+  const orgMeta = await loadOrganizationMeta(fastify.pool, rows[0].organization_id);
   return submitCustomsRequestTo1C(fastify, requestId, () =>
-    buildCreatePayloadFromRow(requestId, rows[0], fileRows),
+    buildCreatePayloadFromRow(requestId, rows[0], fileRows, orgMeta),
   );
 }
 

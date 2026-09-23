@@ -13,6 +13,7 @@ void main() {
       personFullName: 'Иванов И.И.',
       personPhone: '+79990000002',
       personSnils: '11223344595',
+      personInn: '500100732259',
       carBrand: 'Toyota',
       carModel: 'Camry',
       vin: 'VIN12345678901234',

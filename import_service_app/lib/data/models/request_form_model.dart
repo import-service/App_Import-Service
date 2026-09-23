@@ -25,7 +25,7 @@ final class OwnedVehicleItem {
 }
 
 final class RequestFormModel {
-  static const int trackedFieldCount = 22;
+  static const int trackedFieldCount = 23;
 
   const RequestFormModel({
     this.organizationType = OrganizationType.ooo,
@@ -36,6 +36,7 @@ final class RequestFormModel {
     required this.personFullName,
     required this.personPhone,
     required this.personSnils,
+    required this.personInn,
     required this.carBrand,
     required this.carModel,
     required this.vin,
@@ -67,6 +68,7 @@ final class RequestFormModel {
   final String personFullName;
   final String personPhone;
   final String personSnils;
+  final String personInn;
   final String carBrand;
   final String carModel;
   final String vin;
@@ -108,6 +110,7 @@ final class RequestFormModel {
     if (m.personFullName.trim().isNotEmpty) n++;
     if (m.personPhone.trim().isNotEmpty) n++;
     if (m.personSnils.trim().isNotEmpty) n++;
+    if (m.personInn.trim().isNotEmpty) n++;
     if (m.carBrand.trim().isNotEmpty) n++;
     if (m.carModel.trim().isNotEmpty) n++;
     if (m.vin.trim().isNotEmpty) n++;
@@ -144,6 +147,7 @@ final class RequestFormModel {
       personFullName: (json['personFullName'] as String?) ?? '',
       personPhone: (json['personPhone'] as String?) ?? '',
       personSnils: (json['personSnils'] as String?) ?? '',
+      personInn: _readPersonInn(json),
       carBrand: (json['carBrand'] as String?) ?? '',
       carModel: (json['carModel'] as String?) ?? '',
       vin: (json['vin'] as String?) ?? '',
@@ -184,6 +188,7 @@ final class RequestFormModel {
         'personFullName': personFullName,
         'personPhone': personPhone,
         'personSnils': personSnils,
+        'personInn': personInn,
         'carBrand': carBrand,
         'carModel': carModel,
         'vin': vin,
@@ -209,6 +214,16 @@ final class RequestFormModel {
 
   static String _readCompanyInn(Map<String, dynamic> json) {
     for (final key in ['companyInn', 'inn', 'legalInn', 'legal_inn']) {
+      final raw = json[key];
+      if (raw == null) continue;
+      final text = raw.toString().trim();
+      if (text.isNotEmpty) return text.replaceAll(RegExp(r'\D'), '');
+    }
+    return '';
+  }
+
+  static String _readPersonInn(Map<String, dynamic> json) {
+    for (final key in ['personInn', 'individualInn', 'individual_inn']) {
       final raw = json[key];
       if (raw == null) continue;
       final text = raw.toString().trim();

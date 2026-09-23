@@ -6,9 +6,18 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_api_availability/google_api_availability.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
+import 'package:import_service_app/core/push/push_ios_diagnostics.dart';
 import 'package:import_service_app/core/push/request_remote_update.dart';
 import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/firebase_options.dart';
+
+void _pushDiag(String message) {
+  if (!kIsWeb && Platform.isIOS) {
+    PushIosDiagnostics.log(message);
+  } else {
+    AppLog.trace(message, tag: 'Push');
+  }
+}
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -88,9 +97,10 @@ final class PushNotificationsService {
       await FirebaseMessaging.instance.setAutoInitEnabled(false);
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
       _bootstrapped = true;
-      AppLog.trace('firebase bootstrap ok (auto-init off)', tag: 'Push');
+      _pushDiag('firebase bootstrap ok (auto-init off) platform=$platformName');
       return true;
     } catch (e, st) {
+      _pushDiag('firebase bootstrap FAILED: $e');
       AppLog.error(
         'firebase bootstrap failed',
         tag: 'Push',
@@ -120,11 +130,13 @@ final class PushNotificationsService {
         sound: true,
         provisional: false,
       );
-      AppLog.trace(
-        'permission=${settings.authorizationStatus.name}',
-        tag: 'Push',
+      _pushDiag(
+        'permission=${settings.authorizationStatus.name} '
+        'alert=${settings.alert.name} badge=${settings.badge.name} '
+        'sound=${settings.sound.name}',
       );
     } catch (e, st) {
+      _pushDiag('permission request FAILED: $e');
       AppLog.error(
         'push permission request failed',
         tag: 'Push',
@@ -133,15 +145,35 @@ final class PushNotificationsService {
       );
     }
 
+    if (!kIsWeb && Platform.isIOS) {
+      try {
+        await messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        _pushDiag('foreground presentation options set (alert/badge/sound)');
+      } catch (e, st) {
+        _pushDiag('foreground presentation FAILED: $e');
+        AppLog.error(
+          'iOS foreground presentation failed',
+          tag: 'Push',
+          error: e,
+          stackTrace: st,
+        );
+      }
+    }
+
     messaging.onTokenRefresh.listen((token) {
+      _pushDiag('onTokenRefresh len=${token.length}');
       _setToken(token, source: 'onTokenRefresh');
     });
 
     FirebaseMessaging.onMessage.listen((message) {
-      AppLog.trace(
-        'push fg: message=${message.messageId ?? '-'}'
-        ' title=${message.notification?.title ?? ''}',
-        tag: 'Push',
+      _pushDiag(
+        'FG message id=${message.messageId ?? '-'} '
+        'title=${message.notification?.title ?? '-'} '
+        'dataType=${message.data['type'] ?? '-'}',
       );
       final update = _extractRemoteUpdate(message);
       if (update != null) {
@@ -154,9 +186,9 @@ final class PushNotificationsService {
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      AppLog.trace(
-        'push opened: message=${message.messageId ?? '-'}',
-        tag: 'Push',
+      _pushDiag(
+        'OPENED from notification id=${message.messageId ?? '-'} '
+        'dataType=${message.data['type'] ?? '-'}',
       );
       final update = _extractRemoteUpdate(message);
       if (update != null) {
@@ -258,6 +290,24 @@ final class PushNotificationsService {
     return status.toString();
   }
 
+  Future<bool> _waitForApnsToken(FirebaseMessaging messaging) async {
+    const attempts = 8;
+    for (var i = 0; i < attempts; i++) {
+      try {
+        final apns = await messaging.getAPNSToken();
+        if (apns != null && apns.isNotEmpty) {
+          _pushDiag('APNs token OK len=${apns.length} attempt ${i + 1}');
+          return true;
+        }
+        _pushDiag('APNs token empty attempt ${i + 1}/$attempts');
+      } catch (e) {
+        _pushDiag('APNs getAPNSToken failed attempt ${i + 1}: $e');
+      }
+      await Future<void>.delayed(Duration(seconds: i == 0 ? 1 : 2));
+    }
+    return false;
+  }
+
   Future<void> _enableFcmAutoInitOnce() async {
     if (_autoInitEnabled) return;
     await FirebaseMessaging.instance.setAutoInitEnabled(true);
@@ -284,15 +334,26 @@ final class PushNotificationsService {
     await _enableFcmAutoInitOnce();
 
     final messaging = FirebaseMessaging.instance;
+
+    if (!kIsWeb && Platform.isIOS) {
+      final apnsOk = await _waitForApnsToken(messaging);
+      if (!apnsOk) {
+        _pushDiag('APNs MISSING — FCM getToken likely to fail');
+        AppLog.error(
+          'APNs token not available — FCM getToken likely to fail on iOS',
+          tag: 'Push',
+        );
+      }
+    }
+
     Object? lastError;
     StackTrace? lastStack;
 
     for (var i = 0; i < _tokenRetryDelays.length; i++) {
       final delay = _tokenRetryDelays[i];
       if (delay > Duration.zero) {
-        AppLog.trace(
+        _pushDiag(
           'getToken retry ${i + 1}/${_tokenRetryDelays.length} after ${delay.inSeconds}s',
-          tag: 'Push',
         );
         await Future<void>.delayed(delay);
       }
@@ -300,34 +361,38 @@ final class PushNotificationsService {
         if (i > 0) {
           try {
             await messaging.deleteToken();
-            AppLog.trace('deleteToken ok before retry ${i + 1}', tag: 'Push');
+            _pushDiag('deleteToken ok before retry ${i + 1}');
           } catch (e) {
-            AppLog.trace('deleteToken skipped: $e', tag: 'Push');
+            _pushDiag('deleteToken skipped: $e');
           }
         }
         final token = await messaging.getToken();
         if (token != null && token.isNotEmpty) {
+          _pushDiag(
+            'FCM token OK len=${token.length} attempt ${i + 1} '
+            'prefix=${token.substring(0, token.length < 12 ? token.length : 12)}…',
+          );
           _setToken(token, source: 'getToken attempt ${i + 1}');
           return token;
         }
-        AppLog.trace('getToken returned empty on attempt ${i + 1}', tag: 'Push');
+        _pushDiag('getToken returned empty on attempt ${i + 1}');
       } catch (e, st) {
         lastError = e;
         lastStack = st;
-        AppLog.trace(
-          'getToken attempt ${i + 1} failed: $e',
-          tag: 'Push',
-        );
+        _pushDiag('getToken attempt ${i + 1} FAILED: $e');
       }
     }
 
     if (lastError != null) {
+      _pushDiag('ensureFcmToken EXHAUSTED: $lastError');
       AppLog.error(
         'ensureFcmToken exhausted retries',
         tag: 'Push',
         error: lastError,
         stackTrace: lastStack,
       );
+    } else {
+      _pushDiag('ensureFcmToken EXHAUSTED: empty token, no exception');
     }
     return null;
   }
@@ -337,7 +402,7 @@ final class PushNotificationsService {
     if (trimmed.isEmpty) return;
     final changed = _currentToken != trimmed;
     _currentToken = trimmed;
-    AppLog.trace('fcm token ($source): ${trimmed.substring(0, 8)}…', tag: 'Push');
+    _pushDiag('fcm token ($source): ${trimmed.substring(0, 8)}…');
     // tokenRefreshStream — только нативный refresh; getToken иначе дублирует POST push/tokens.
     if (changed && source == 'onTokenRefresh') {
       _tokenRefreshController.add(trimmed);

@@ -66,36 +66,45 @@ main()
 
 ## 4. Навигация
 
-**Файл:** `lib/presentation/router/app_router.dart`
+**Файл:** `lib/presentation/router/app_router.dart`  
+**Роль → home:** `lib/core/auth/session_role.dart` (`homeLocationForSession`).
 
-| Маршрут | Экран |
-|---------|--------|
-| `/login` | Вход, демо-кнопка |
-| `/home` | Shell: вкладки «Мои авто» / «Чаты» / профиль |
-| `/request/:id` | Деталка заявки |
-| `/request/:id/chat` | Чат |
+| Маршрут | Кто | Экран |
+|---------|-----|--------|
+| `/login` | все | Вход, демо-кнопка (демо = клиентский shell) |
+| `/home` | клиент | Shell: «Мои авто» / «Чаты» / профиль |
+| `/svh-home` | `svh_manager` | Shell СВХ: авто / чаты / профиль (+ QR) |
+| `/request/:id` | клиент | Деталка заявки |
+| `/svh-request/:id` | СВХ | Та же `CarRequestDetailPage` (режим СВХ) |
+| `/request/:id/chat`, org chat | по роли | Чат заявки / орг |
 
-**Redirect:** `hasActiveSession` (JWT **или** демо) → без сессии только `/login`.
+**Redirect:** без сессии → `/login`; после логина → `homeLocationForSession`; клиент ↔ СВХ shell **не** смешивать (`/home` ⇄ `/svh-home`).
 
-**Не в GoRouter:** `RequestCreatePage`, `RequestFilesUploadPage`, `CarsFiltersPage` — открываются через `Navigator.push` / `MaterialPageRoute` с **extra/result**, не ломая shell.
+**Не в GoRouter:** `RequestCreatePage`, `RequestFilesUploadPage`, `CarsFiltersPage`, `SvhQrScanPage` — `Navigator.push` / result, не ломая shell.
 
 ---
 
-## 5. Авторизация
+## 5. Авторизация и роли
+
+**Роль в сессии:** `AuthSessionController.role` из профиля после login/me (organizations.role / JWT).  
+Константа СВХ: `kSvhManagerRole = 'svh_manager'`. Проверка: `isSvhManagerSession(session)`.
 
 ```text
 LoginPage._login()
   → AuthService.login() → POST auth/login
-  → session.setToken + SecureStorage
-  → refreshProfile / me
-  → registerPushTokenIfNeeded()  ← ensureFcmToken + POST push token
-  → CarInventoryCubit.replaceAll([]) + CarsRepository.listVehicles()
-  → context.go('/home')
+  → session.setToken + SecureStorage + role
+  → registerPushTokenIfNeeded()
+  → clear inventory/drafts
+  → если НЕ СВХ: CarsRepository.listVehicles()
+  → context.go(homeLocationForSession(session))  // /home или /svh-home
+  → AppUpdateBootstrap.scheduleAfterLogin()
 ```
 
-**Ошибки входа:** `presentation/helpers/login_error_message.dart` → i18n. **Не** показывать `INVALID_CREDENTIALS` и другие коды API.
+**Ошибки входа:** `login_error_message.dart` → i18n. **Не** показывать сырые коды API.
 
-**Восстановление сессии:** в `initDependencies` — read token → `session.restore` → `refreshProfile`. Push-токен — в `main` postFrame, если уже авторизован.
+**Восстановление сессии:** `initDependencies` — token → `session.restore` → `refreshProfile` (роль снова из me). Push — postFrame в `main`.
+
+**Не путать:** менеджер сделки в 1С (`managerExternal1cId` на заявке) ≠ менеджер СВХ в МП (`role=svh_manager`).
 
 ---
 
@@ -114,6 +123,9 @@ LoginPage._login()
 ---
 
 ## 7. Создание заявки (полный поток)
+
+Форма: блок **клиента (организация)** и блок **физлица «кому везут»** (разные цвета).  
+`companyInn` → `legalInn` (10/12); `personInn` → `individualInn` (**строго 12**).
 
 ```text
 Home → RequestCreatePage (форма + черновик)
@@ -165,13 +177,16 @@ Home → RequestCreatePage (форма + черновик)
 
 ## 9. Push (FCM)
 
-**Файлы:** `push_notifications_service.dart`, `main.dart`, `auth_service.dart` (`registerPushTokenIfNeeded`)
+**Файлы:** `push_notifications_service.dart`, `push_ios_diagnostics.dart`, `main.dart`, `auth_service.dart`
+
+На **iOS** в профиле — блок «Диагностика push» (`PushIosDiagnostics`). Тест с VPS: `node scripts/send-test-push.js <login-email>`.
 
 ```text
 AndroidManifest: firebase_messaging_auto_init_enabled=false
 bootstrap → setAutoInitEnabled(false)
 postFrame initialize → permission, listeners
-ensureFcmToken → ждать GMS → setAutoInitEnabled(true) → getToken с retry
+iOS: wait getAPNSToken → ensureFcmToken; foreground presentation options
+ensureFcmToken → ждать GMS (Android) → setAutoInitEnabled(true) → getToken с retry
 onTokenRefresh → register on server
 MyApp слушает requestOpenStream / requestUpdateStream
   request_files_update → refresh detail + RequestAttentionCubit.markFileHighlights
@@ -181,7 +196,52 @@ MyApp слушает requestOpenStream / requestUpdateStream
 
 ---
 
-## 10. UI-обратная связь и i18n
+## 10. Менеджер СВХ (отдельный продукт в том же APK)
+
+**Файлы:** `session_role.dart`, `svh_home_page.dart`, `svh_cars_tab_view.dart`, `svh_qr_scan_page.dart`, `svh_bottom_nav_bar.dart`, деталка — `car_request_detail_page.dart` + `customs_catalog.dart` (`isSvhManagerAllowedDocType`).
+
+| Что может | Что нельзя |
+|-----------|------------|
+| Список авто СВХ, поиск VIN, QR → фильтр VIN | Создавать клиентскую анкету / демо-seed как клиент |
+| Upload: `svh_car_photo_1…80`, `svh_car_video_1…3`, `transit_archive_*`, `add_doc1/2` | Подписи `*_sign`, оплаты, паспорт/инвойс клиента |
+| Чаты / профиль (общие вкладки) | Ходить в `/home` client shell |
+
+**Устарело:** `svh_request_detail_page.dart` — роутер ведёт на `CarRequestDetailPage`.
+
+**Сервер:** видео при upload нормализуются (ffmpeg); при провале — `422 VIDEO_NORMALIZE_FAILED`, оригинал **не** хранить.
+
+---
+
+## 11. Обновление приложения (APK / сторы)
+
+**Канал сборки:** `--dart-define=APP_DISTRIBUTION=server|store` (`app_distribution.dart`).  
+**Файлы:** `core/app_update/*`, профиль `profile_tab_view.dart` (`isActive` — refresh манифеста при показе вкладки).
+
+**Flavor server:**
+
+1. Разрешение unknown sources **до** скачивания (`_ensureUnknownSourcesPermission` + resume).
+2. Прогресс: connecting / downloading / verifying.
+3. Установка: native `PackageInstaller.Session` (`MainActivity.kt`) — системный Install, **не** `ACTION_VIEW` / share sheet.
+4. Профиль: локальная версия + **Android:** сервер / Google / RuStore; **iOS:** App Store (без server APK и без кнопки скачивания).
+
+**Flavor store:** Play / RuStore / ссылки; без `REQUEST_INSTALL_PACKAGES`.
+
+Манифест API: `GET /api/app/android-apk`, download URL на проде.
+
+---
+
+## 12. Медиа: кэш, превью, сохранить / поделиться
+
+**Файлы:** `request_file_preview_helper.dart`, `cached_auth_image.dart`, `request_video_player_page.dart`, `request_file_video_thumb.dart`.
+
+- Диск-кэш: `request_media/` в cache dir; ключ `sha256(stamp|url)`; stamp = `id|fileSizeBytes|updatedAt`.
+- Повторное открытие / Share — из кэша, без повторной загрузки.
+- **Скачать** → галерея (`gal`: `Gal.putImage` / `Gal.putVideo`), **не** share sheet.
+- **Поделиться** → `share_plus` / `shareLocalRequestFile`.
+
+---
+
+## 13. UI-обратная связь и i18n
 
 - SnackBar: **только** `sl<AppFeedbackService>().show(text, kind: AppFeedbackKind.*)`
 - Строки: **только** `assets/i18n/ru.json` + `zh.json`, геттеры `JsonStringsService`
@@ -189,7 +249,7 @@ MyApp слушает requestOpenStream / requestUpdateStream
 
 ---
 
-## 11. Ошибки сети
+## 14. Ошибки сети
 
 ```text
 DioException → ErrorHandler.handle → ServerException
@@ -201,7 +261,7 @@ Presentation → маппинг в человекочитаемый текст (
 
 ---
 
-## 12. Где что менять (матрица задач)
+## 15. Где что менять (матрица задач)
 
 | Задача | Трогать | Не трогать без нужды |
 |--------|---------|----------------------|
@@ -209,41 +269,49 @@ Presentation → маппинг в человекочитаемый текст (
 | Новый docType | `customs_catalog.dart`, docs, labels, file slots на create/upload | auth, router redirect |
 | Upload / retry | `customs_requests_remote_data_source.dart`, `cars_repository_impl.dart`, create page progress | `request_files_upload_page` init lists |
 | Деталка / файлы | `car_request_detail_page`, `request_detail_files_sections.dart`, grouper | demo seed unless needed |
+| СВХ роль / слоты | `session_role`, `svh_*`, `isSvhManagerAllowedDocType`, detail page | client create form |
+| APK update / профиль | `app_update/*`, `MainActivity` installer, `profile_tab_view` | store AAB signing |
+| Кэш медиа / галерея | `request_file_preview_helper`, `cached_auth_image` | upload batch |
 | Push тип | `push_notifications_service`, `main.dart` listener, server contract | file upload page |
-| Новый экран в shell | `home_page`, `go_router` если нужен deep link | `initDependencies` порядок |
+| Новый экран в shell | `home_page` / `svh_home_page`, `go_router` | `initDependencies` порядок |
 
 ---
 
-## 13. Инварианты (нарушение = регрессия)
+## 16. Инварианты (нарушение = регрессия)
 
-1. **Данные → сессия → навигация** (список загружен до `go` после login).
-2. **Файловые слоты:** изменяемые `List<String>.from`, один файл, `target.add`, `maxPhotos: 1`.
+1. **Данные → сессия → навигация** (роль → правильный home; у клиента список до/с `go`).
+2. **Файловые слоты клиента:** изменяемые `List<String>.from`, один файл, `target.add`, `maxPhotos: 1`.
 3. **FCM:** bootstrap без getToken; token после UI; register после login/restore.
-4. **Demo:** только по кнопке; prod-список не сидится автоматически.
+4. **Demo:** только по кнопке; prod-список не сидится автоматически; демо ≠ СВХ.
 5. **Upload v2:** create без files; не вызывать `POST …/:id/files`.
 6. **UI-строки и ошибки:** i18n + AppFeedbackService; не сырые коды API.
 7. **Cubit-списки:** `emit` с **новым** списком, не мутировать `state.items` на месте.
+8. **СВХ:** только allowed docTypes; не открывать client `/home`.
+9. **Server APK install:** PackageInstaller session, не share/ACTION_VIEW; permission до download.
 
 ---
 
-## 14. Ручной smoke после изменений
+## 17. Ручной smoke после изменений
 
-- [ ] Cold start → login (или restore) → home, список
-- [ ] Демо → home, seed
+- [ ] Cold start → login клиент → `/home`, список
+- [ ] Login `svh_manager` → `/svh-home`, QR/VIN, upload фото/видео
+- [ ] Демо → home, seed (не СВХ)
 - [ ] Создание заявки → **фото в слот** → submit / retry upload
-- [ ] Деталка → группы файлов
+- [ ] Деталка → группы файлов; повторное открытие фото/видео из кэша
+- [ ] Профиль (server): версия в скобках, скачивание APK → системный Install
 - [ ] Logcat: FCM token после старта; нет `Unhandled Exception` после камеры
 
 ---
 
-## 15. Связанные документы
+## 18. Связанные документы
 
 | Документ | Когда |
 |----------|--------|
 | `app-context-map.mdc` | Где лежит файл/виджет |
+| `../../.cursor/rules/agent-docs-keep-fresh.mdc` | Обязательный апдейт agent docs после фичи |
 | `api-upload-v2-migration.mdc` | Контракт upload v2 |
 | `pitfalls-and-regression-guards.mdc` | Чек-лист ловушек |
 | `presentation-widgets.mdc` | Новые виджеты |
 | `AGENTS.md` | Точка входа для агента |
 
-**При изменении архитектурного потока** — обнови **этот файл** (§7–§9), иначе следующий агент снова сломает то же место.
+**При любом новом флоу/UI/роли** — обнови **этот файл** и `app-context-map.mdc` (см. `agent-docs-keep-fresh.mdc`).

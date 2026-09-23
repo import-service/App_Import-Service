@@ -5,7 +5,7 @@ const { questionnaireFromRow } = require('./customsRequestQuestionnaire');
 const CUSTOMS_REQUEST_SELECT = `
   id, organization_id, external_1c_id, manager_external_1c_id, manager_full_name,
   legal_entity_name, legal_email, legal_phone, legal_inn,
-  individual_full_name, individual_phone, individual_snils,
+  individual_full_name, individual_phone, individual_snils, individual_inn,
   owner_full_name,
   car_make, car_model, vin,
   has_sunroof, has_all_wheel_drive, imported_last_12_months, owns_other_cars,
@@ -120,6 +120,44 @@ function resolveLegalInnFromBody(body, { required = false } = {}) {
   return validateLegalInnDigits(readLegalInnFromBody(body), { required: true });
 }
 
+function readIndividualInnFromBody(body) {
+  if (!body || typeof body !== 'object') return '';
+  for (const key of ['individualInn', 'individual_inn', 'personInn']) {
+    if (body[key] !== undefined && body[key] !== null) {
+      return String(body[key]).replace(/\D/g, '');
+    }
+  }
+  return '';
+}
+
+function validateIndividualInnDigits(digits, { required = false } = {}) {
+  const v = String(digits ?? '').replace(/\D/g, '');
+  if (!v) {
+    if (required) {
+      throw new Error('VALIDATION_ERROR: individualInn обязателен (12 цифр)');
+    }
+    return null;
+  }
+  if (v.length !== 12) {
+    throw new Error('VALIDATION_ERROR: individualInn должен содержать 12 цифр');
+  }
+  return v;
+}
+
+/** ИНН физлица («кому везут»); undefined — поле не передано. */
+function resolveIndividualInnFromBody(body, { required = false } = {}) {
+  const hasKey =
+    body &&
+    (body.individualInn !== undefined ||
+      body.individual_inn !== undefined ||
+      body.personInn !== undefined);
+  if (!hasKey) {
+    if (required) return validateIndividualInnDigits('', { required: true });
+    return undefined;
+  }
+  return validateIndividualInnDigits(readIndividualInnFromBody(body), { required: true });
+}
+
 function moneyAmountToJsonPayload(body) {
   const amount = normalizeMoneyAmount(body);
   return amount ? JSON.stringify({ amount }) : null;
@@ -216,6 +254,10 @@ function toCustomsRequestDto(fastify, request, row, fileRows, options) {
     individualFullName: String(row.individual_full_name),
     individualPhone: String(row.individual_phone),
     individualSnils: String(row.individual_snils),
+    individualInn:
+      row.individual_inn != null && String(row.individual_inn).trim() !== ''
+        ? String(row.individual_inn).trim()
+        : null,
     hasSunroof: Boolean(row.has_sunroof),
     hasAllWheelDrive: Boolean(row.has_all_wheel_drive),
     importedLast12Months: questionnaire.importedLast12Months,
@@ -319,4 +361,6 @@ module.exports = {
   readLegalInnFromBody,
   validateLegalInnDigits,
   resolveLegalInnFromBody,
+  resolveIndividualInnFromBody,
+  validateIndividualInnDigits,
 };

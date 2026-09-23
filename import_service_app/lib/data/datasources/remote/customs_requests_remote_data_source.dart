@@ -266,6 +266,7 @@ final class CustomsRequestsRemoteDataSource {
       'individualFullName': form.personFullName.trim(),
       'individualPhone': form.personPhone.trim(),
       'individualSnils': form.personSnils.trim(),
+      'individualInn': form.personInn.trim(),
       'carMake': form.carBrand.trim(),
       'carModel': form.carModel.trim(),
       'vin': form.vin.trim(),

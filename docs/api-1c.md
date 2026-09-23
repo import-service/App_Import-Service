@@ -92,6 +92,8 @@
 |------|----------|
 | `requestId` | number — id заявки у нас |
 | `legalEntityName`, `legalEmail`, `legalPhone`, `legalInn` | данные организации из анкеты |
+| `individualFullName`, `individualPhone`, `individualSnils`, `individualInn` | физлицо «кому везут»; `individualInn` — строго 12 цифр |
+| `organizationId`, `organizationLogin`, `organizationName` | пользователь/организация приложения (логин в МП) |
 | `individualFullName`, `individualPhone`, `individualSnils` | … |
 | `carMake`, `carModel`, `vin` | … |
 | `hasSunroof`, `hasAllWheelDrive` | boolean |

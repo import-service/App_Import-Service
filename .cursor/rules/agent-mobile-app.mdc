@@ -8,9 +8,11 @@ alwaysApply: false
 
 **Сначала:** `.cursor/rules/project-concept.mdc`, `docs/request-lifecycle.md`, `import_service_app/.cursor/rules/app-runtime-architecture.mdc`.
 
+После фичи/UI в МП — обновить `app-runtime-architecture.mdc` + `app-context-map.mdc` (корневое `agent-docs-keep-fresh.mdc`).
+
 ## Зона ответственности
 
-- `import_service_app/` — UI, Cubit, роутер, push, файлы заявки.
+- `import_service_app/` — UI, Cubit, роутер, push, файлы заявки, роли клиент / `svh_manager`.
 - End-to-end задачи: правки app **вместе** с server/docs по утверждённому плану.
 
 ## Спеки
@@ -21,9 +23,10 @@ alwaysApply: false
 
 ## Фокус МП (кратко)
 
-- Create: `POST /customs-requests` без files → N×upload
+- Роли: клиент → `/home`; СВХ → `/svh-home` (`session_role.dart`)
+- Create (клиент): `POST /customs-requests` без files → N×upload
 - 11 обязательных docType при создании — project-concept §7
-- Demo только по кнопке на логине
+- Demo только по кнопке на логине (не СВХ)
 - SnackBar: `AppFeedbackService`; i18n: `assets/i18n/*.json`
 
 ## Пакетные rules

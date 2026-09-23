@@ -34,15 +34,18 @@ alwaysApply: true
 
 ## Документация для агента
 
+После любой фичи/UI — синхронизировать agent `.mdc` (`agent-docs-keep-fresh.mdc`).
+
 ### Канон продукта и API
 
 | Документ | Назначение |
 |----------|------------|
-| `.cursor/rules/project-concept.mdc` | МП ↔ сервер ↔ 1С, статусы, docType |
+| `.cursor/rules/project-concept.mdc` | МП ↔ сервер ↔ 1С, статусы, docType, роли МП |
+| `import_service_app/.cursor/rules/app-runtime-architecture.mdc` | Флоу МП (клиент + СВХ, APK, кэш) |
 | `docs/request-lifecycle.md` | Жизненный цикл заявки |
 | `docs/api-app.md`, `docs/api-1c.md` | HTTP-контракты |
 | `docs/catalog-reference.md` | Коды docType, statusSubType, dealType |
-| https://157-22-173-7.sslip.io/docs | HTML на проде |
+| https://157-22-173-7.sslip.io/docs | HTML на проде (люди/1С) |
 
 ### Пакетные rules
 

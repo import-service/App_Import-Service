@@ -175,6 +175,7 @@ function buildNewCustomsRequestEmail({ requestId, body, legalInn, appName }) {
     `  ФИО: ${normalize(body.individualFullName)}`,
     `  Телефон: ${normalize(body.individualPhone)}`,
     `  СНИЛС: ${normalize(body.individualSnils)}`,
+    `  ИНН: ${normalize(body.individualInn) || '—'}`,
     '',
     'Автомобиль:',
     `  Марка: ${normalize(body.carMake)}`,

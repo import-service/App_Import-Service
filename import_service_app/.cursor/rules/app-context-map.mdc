@@ -105,7 +105,18 @@ alwaysApply: true
 | `presentation/widgets/forms/input_formatters/*` | Маски (ИНН, телефон, VIN) |
 | `presentation/widgets/navigation/home_bottom_nav_bar.dart` | Нижняя навигация главной |
 | `presentation/widgets/tabs/cars_tab_view.dart` | Вкладка «Мои авто»: один UI для демо и прод (список из мока или пусто + черновики) |
-| `presentation/widgets/tabs/profile_tab_view.dart` | Вкладка профиля |
-| `presentation/pages/request_create_page.dart` | Создание / редактирование заявки |
+| `presentation/widgets/tabs/svh_cars_tab_view.dart` | Список авто для менеджера СВХ (+ VIN search) |
+| `presentation/widgets/tabs/profile_tab_view.dart` | Профиль; `isActive` → refresh версии APK с сервера; скачать APK |
+| `presentation/widgets/navigation/svh_bottom_nav_bar.dart` | Нижняя навигация shell СВХ |
+| `presentation/pages/svh_home_page.dart` | Shell менеджера СВХ |
+| `presentation/pages/svh_qr_scan_page.dart` | QR → VIN для фильтра списка СВХ |
+| `presentation/pages/svh_request_detail_page.dart` | Устарело; роутер → `CarRequestDetailPage` |
+| `presentation/pages/request_create_page.dart` | Создание / редактирование заявки (только клиент) |
+| `presentation/pages/request_video_player_page.dart` | Плеер видео заявки + Скачать/Поделиться |
+| `presentation/widgets/requests/cached_auth_image.dart` | Картинка с auth + диск-кэш по stamp |
+| `presentation/widgets/requests/request_file_video_thumb.dart` | Превью видео (кэш) |
+| `presentation/helpers/request_file_preview_helper.dart` | Кэш медиа, share, save to gallery (`gal`) |
 | `presentation/helpers/login_error_message.dart` | Коды API → текст SnackBar на входе |
+| `core/auth/session_role.dart` | `svh_manager` → `/svh-home` |
+| `core/app_update/*` | Server APK / store update, bootstrap после логина |
 | `core/util/single_file_path_list.dart` | `mutableSlotPaths`, `singleFilePathList` — один файл, изменяемые списки |

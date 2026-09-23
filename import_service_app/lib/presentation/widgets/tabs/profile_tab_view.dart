@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:import_service_app/core/app_update/app_update_service.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
+import 'package:import_service_app/core/push/push_ios_diagnostics.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -78,67 +81,75 @@ class ProfileTabView extends StatefulWidget {
 class _ProfileTabViewState extends State<ProfileTabView> {
   String? _versionLabel;
   String? _serverVersionLabel;
+  String? _googlePlayVersionLabel;
+  String? _ruStoreVersionLabel;
+  String? _appStoreVersionLabel;
   bool _serverApkAvailable = false;
   bool _serverUpdateBusy = false;
+
+  bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+  bool get _isIos => !kIsWeb && Platform.isIOS;
 
   @override
   void initState() {
     super.initState();
     if (widget.isActive) {
-      unawaited(_loadLocalAndServerVersions());
+      unawaited(_loadVersions());
     } else {
-      unawaited(_loadVersion());
+      unawaited(_loadLocalVersionOnly());
     }
   }
 
   @override
   void didUpdateWidget(covariant ProfileTabView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // IndexedStack не пересоздаёт вкладку — при каждом показе профиля тянем манифест.
     if (widget.isActive && !oldWidget.isActive) {
-      unawaited(_checkServerUpdate());
+      unawaited(_loadVersions());
     }
   }
 
-  Future<void> _loadLocalAndServerVersions() async {
-    await _loadVersion();
-    await _checkServerUpdate();
+  Future<void> _loadLocalVersionOnly() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _versionLabel = '${info.version}+${info.buildNumber}';
+      });
+    } catch (_) {}
   }
 
-  Future<void> _checkServerUpdate() async {
-    if (widget.isDemo) return;
+  Future<void> _loadVersions() async {
+    if (widget.isDemo) {
+      await _loadLocalVersionOnly();
+      return;
+    }
     try {
-      final info = await sl<AppUpdateService>().fetchServerApkInfo();
+      final snap = await sl<AppUpdateService>().loadProfileVersionInfo();
       if (!mounted) return;
-      if (info == null || !info.available) {
-        setState(() {
-          _serverApkAvailable = false;
-          _serverVersionLabel = null;
-        });
-        return;
-      }
-      final name = (info.versionName ?? '').trim();
-      final code = info.versionCode;
-      final label = name.isNotEmpty && code != null
-          ? '$name+$code'
-          : (name.isNotEmpty
-              ? name
-              : (code != null ? '$code' : null));
       setState(() {
-        _serverApkAvailable = true;
-        _serverVersionLabel = label;
+        _versionLabel = snap.localLabel;
+        _serverVersionLabel = _isAndroid ? snap.serverApkLabel : null;
+        _googlePlayVersionLabel = _isAndroid ? snap.googlePlayLabel : null;
+        _ruStoreVersionLabel = _isAndroid ? snap.ruStoreLabel : null;
+        _appStoreVersionLabel = _isIos ? snap.appStoreLabel : null;
+        _serverApkAvailable =
+            _isAndroid && (snap.serverApkLabel?.trim().isNotEmpty ?? false);
       });
     } catch (e, st) {
       AppLog.error(
-        'profile server apk version check failed',
+        'profile version load failed',
         tag: 'Profile',
         error: e,
         stackTrace: st,
       );
+      await _loadLocalVersionOnly();
       if (!mounted) return;
       setState(() {
         _serverApkAvailable = false;
         _serverVersionLabel = null;
+        _googlePlayVersionLabel = null;
+        _ruStoreVersionLabel = null;
+        _appStoreVersionLabel = null;
       });
     }
   }
@@ -173,7 +184,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
   }
 
   Future<void> _onServerUpdate() async {
-    if (_serverUpdateBusy) return;
+    if (!_isAndroid || _serverUpdateBusy) return;
     setState(() => _serverUpdateBusy = true);
     try {
       final newer = await sl<AppUpdateService>().isServerApkUpdateAvailable();
@@ -184,20 +195,10 @@ class _ProfileTabViewState extends State<ProfileTabView> {
       }
       await sl<AppUpdateService>().installFromServer(context);
       if (!mounted) return;
-      await _checkServerUpdate();
+      await _loadVersions();
     } finally {
       if (mounted) setState(() => _serverUpdateBusy = false);
     }
-  }
-
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      setState(() {
-        _versionLabel = '${info.version}+${info.buildNumber}';
-      });
-    } catch (_) {}
   }
 
   String _displayOrEmpty(String? raw, JsonStringsService s) {
@@ -361,7 +362,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
             },
           ),
           const SizedBox(height: 16),
-          if (_serverApkAvailable)
+          if (_isAndroid && _serverApkAvailable)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: AppPrimaryOutlinedWideButton(
@@ -394,24 +395,71 @@ class _ProfileTabViewState extends State<ProfileTabView> {
           if (_versionLabel != null) ...[
             const SizedBox(height: 12),
             Text(
-              () {
-                final base =
-                    '${s.text('profileAppVersionLabel')} $_versionLabel';
-                final server = _serverVersionLabel;
-                if (server == null || server.isEmpty) return base;
-                final paren = s
-                    .text('profileServerVersionParen')
-                    .replaceAll('{version}', server);
-                return '$base ($paren)';
-              }(),
+              _buildVersionFooter(s),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
             ),
           ],
+          if (_isIos) ...[
+            const SizedBox(height: 12),
+            Text(
+              s.text('profilePushDiagnosticsTitle'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            SelectableText(
+              PushIosDiagnostics.text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    height: 1.35,
+                  ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  String _buildVersionFooter(JsonStringsService s) {
+    final local = _versionLabel ?? '—';
+    final parts = <String>[
+      '${s.text('profileAppVersionLabel')} $local',
+    ];
+    if (_isAndroid) {
+      final server = _serverVersionLabel?.trim();
+      if (server != null && server.isNotEmpty) {
+        parts.add(
+          s.text('profileServerVersionParen').replaceAll('{version}', server),
+        );
+      }
+      final play = _googlePlayVersionLabel?.trim();
+      if (play != null && play.isNotEmpty) {
+        parts.add(
+          s.text('profileGooglePlayVersionParen').replaceAll('{version}', play),
+        );
+      }
+      final ru = _ruStoreVersionLabel?.trim();
+      if (ru != null && ru.isNotEmpty) {
+        parts.add(
+          s.text('profileRuStoreVersionParen').replaceAll('{version}', ru),
+        );
+      }
+    } else if (_isIos) {
+      final appStore = _appStoreVersionLabel?.trim();
+      if (appStore != null && appStore.isNotEmpty) {
+        parts.add(
+          s.text('profileAppStoreVersionParen').replaceAll('{version}', appStore),
+        );
+      }
+    }
+    return parts.join(' · ');
   }
 }

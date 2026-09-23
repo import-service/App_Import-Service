@@ -158,13 +158,14 @@
   "individualFullName": "Иванов Иван Иванович",
   "individualPhone": "+79991112233",
   "individualSnils": "123-456-789 00",
+  "individualInn": "500100732259",
   "carMake": "Toyota",
   "carModel": "Crown",
   "vin": "VIN12345678901234",
   "previousImportDates": ["2025-11-02"],
   "ownedVehicles": [{ "name": "Toyota Camry", "year": 2018 }]
-}</pre><p><code>legalInn</code> / <code>inn</code> — ИНН в анкете (10/12 цифр). <code>docType: inn</code> — отдельный файл при upload.</p>
-<p><b>Ввоз за 12 мес. и другие авто:</b> не галочки. Массивы <code>previousImportDates</code> (<code>YYYY-MM-DD</code>) и <code>ownedVehicles</code> (<code>name</code>, <code>year</code>). Пустой массив = нет. Сервер выставляет <code>importedLast12Months</code> / <code>ownsOtherCars</code> сам.</p>
+}</pre><p><code>legalInn</code> / <code>inn</code> — ИНН ЮЛ/ИП в анкете (10/12 цифр). <code>individualInn</code> — ИНН физлица «кому везут» (строго 12 цифр). <code>docType: inn</code> — отдельный файл при upload.</p>
+<p><b>Ввоз за 12 мес. и другие авто:</b> не галочки. Массивы <code>previousImportDates</code> (<code>YYYY-MM-DD</code>) и <code>ownedVehicles</code> (<code>name</code>, <code>year</code>). Пустой массив = нет. Сервер выставляет <code>importedLast12Months</code> / <code>ownsOtherCars</code> сам. В create в 1С также уходят <code>organizationId</code> / <code>organizationLogin</code> (пользователь приложения).</p>
 <p><b>Дальше (МП):</b> N× <code>POST /api/customs-requests/upload</code> с <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code>. На последнем файле сервер создаёт заявку в 1С.</p><p><b>Success:</b></p><pre>{
   "id": "1",
   "status": "new",
@@ -629,6 +630,7 @@
   "individualFullName": "Иванов Иван Иванович",
   "individualPhone": "+79991112233",
   "individualSnils": "123-456-789 00",
+  "individualInn": "500100732259",
   "carMake": "Toyota",
   "carModel": "Crown",
   "vin": "VIN12345678901234",

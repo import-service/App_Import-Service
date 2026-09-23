@@ -29,6 +29,23 @@ const String kRuStoreUrl =
 const String kAppStoreUrl =
     'https://apps.apple.com/ru/app/id$kIosAppStoreId';
 
+/// Снимок версий для футера профиля.
+final class AppProfileVersionInfo {
+  const AppProfileVersionInfo({
+    required this.localLabel,
+    this.serverApkLabel,
+    this.googlePlayLabel,
+    this.ruStoreLabel,
+    this.appStoreLabel,
+  });
+
+  final String localLabel;
+  final String? serverApkLabel;
+  final String? googlePlayLabel;
+  final String? ruStoreLabel;
+  final String? appStoreLabel;
+}
+
 /// Проверка обновления и диалог — один раз за жизнь процесса (cold start).
 /// Logout / демо флаг не сбрасывают (см. [AppUpdateBootstrap]).
 final class AppUpdateService {
@@ -150,6 +167,57 @@ final class AppUpdateService {
 
   /// Манифест APK с сервера (для подписи версии в профиле).
   Future<AndroidServerApkInfo?> fetchServerApkInfo() => _serverApk.fetchManifest();
+
+  /// Версии для футера профиля: локальная + сторы (+ server APK только Android).
+  Future<AppProfileVersionInfo> loadProfileVersionInfo() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final localLabel = '${packageInfo.version}+${packageInfo.buildNumber}';
+    String? serverLabel;
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        final info = await fetchServerApkInfo();
+        if (info != null && info.available) {
+          final name = (info.versionName ?? '').trim();
+          final code = info.versionCode;
+          if (name.isNotEmpty && code != null) {
+            serverLabel = '$name+$code';
+          } else if (name.isNotEmpty) {
+            serverLabel = name;
+          } else if (code != null) {
+            serverLabel = '$code';
+          }
+        }
+      } catch (e, st) {
+        AppLog.error(
+          'profile server apk version check failed',
+          tag: 'AppUpdate',
+          error: e,
+          stackTrace: st,
+        );
+      }
+    }
+
+    final stores = await _fetchStoreVersions();
+    String? labelOf(String storeId) {
+      for (final s in stores) {
+        if (s.store != storeId) continue;
+        final name = (s.versionName ?? '').trim();
+        if (name.isNotEmpty) {
+          return s.versionCode != null ? '$name+${s.versionCode}' : name;
+        }
+        if (s.versionCode != null) return '${s.versionCode}';
+      }
+      return null;
+    }
+
+    return AppProfileVersionInfo(
+      localLabel: localLabel,
+      serverApkLabel: serverLabel,
+      googlePlayLabel: labelOf('google_play'),
+      ruStoreLabel: labelOf('rustore'),
+      appStoreLabel: labelOf('app_store'),
+    );
+  }
 
   /// Есть ли на сервере APK новее установленного.
   Future<bool> isServerApkUpdateAvailable() =>

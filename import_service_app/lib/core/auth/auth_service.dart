@@ -6,6 +6,7 @@ import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_storage_keys.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
+import 'package:import_service_app/core/push/push_ios_diagnostics.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/storage/secure_storage_service.dart';
 import 'package:import_service_app/data/datasources/remote/auth_remote_data_source.dart';
@@ -168,6 +169,7 @@ class AuthService {
             '')
         .trim();
     if (token.isEmpty) {
+      PushIosDiagnostics.log('register skipped: FCM token empty');
       AppLog.error(
         'push register skipped: FCM token empty after ensureFcmToken',
         tag: 'PushToken',
@@ -184,11 +186,18 @@ class AuthService {
           'appVersion': packageInfo.version,
         },
       );
+      PushIosDiagnostics.log(
+        'POST push/tokens OK platform=${_pushNotifications.platformName} '
+        'app=${packageInfo.version} tokenLen=${token.length}',
+      );
       AppLog.trace('push token registered', tag: 'PushToken');
     } on DioException catch (e, st) {
       final statusCode = e.response?.statusCode;
       final message = _responseMessage(e.response?.data);
       final errorCode = _responseErrorCode(e.response?.data);
+      PushIosDiagnostics.log(
+        'POST push/tokens FAIL code=$statusCode err=$errorCode msg=$message',
+      );
       if (statusCode == 503 && errorCode == 'PUSH_STORAGE_NOT_READY') {
         AppLog.trace('push register warn: PUSH_STORAGE_NOT_READY', tag: 'PushToken');
         return;
