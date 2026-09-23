@@ -18,7 +18,6 @@ import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.d
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_state.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
-import 'package:import_service_app/presentation/pages/svh_qr_scan_page.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/settings_app_bar_action.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/logout_confirm_bottom_sheet.dart';
@@ -28,21 +27,18 @@ import 'package:import_service_app/presentation/widgets/tabs/profile_tab_view.da
 import 'package:import_service_app/presentation/widgets/tabs/svh_cars_tab_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Shell менеджера СВХ: Авто / Чаты / Профиль (+ QR и шестерёнка).
-class SvhHomePage extends StatefulWidget {
-  const SvhHomePage({super.key});
+/// Shell декларанта: Заявки / Чаты / Профиль (без QR и медиа СВХ).
+class DeclarantHomePage extends StatefulWidget {
+  const DeclarantHomePage({super.key});
 
   @override
-  State<SvhHomePage> createState() => _SvhHomePageState();
+  State<DeclarantHomePage> createState() => _DeclarantHomePageState();
 }
 
-class _SvhHomePageState extends State<SvhHomePage> {
+class _DeclarantHomePageState extends State<DeclarantHomePage> {
   static const int _tabCars = 0;
   static const int _tabChats = 1;
   static const int _tabProfile = 2;
-
-  final GlobalKey<SvhCarsTabViewState> _carsTabKey =
-      GlobalKey<SvhCarsTabViewState>();
 
   int _tabIndex = _tabCars;
 
@@ -58,17 +54,6 @@ class _SvhHomePageState extends State<SvhHomePage> {
           await sl<AppUpdateService>().maybePromptForUpdate(context);
         }());
       }
-    });
-  }
-
-  Future<void> _openQrScanner() async {
-    final vin = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const SvhQrScanPage()),
-    );
-    if (!mounted || vin == null || vin.trim().isEmpty) return;
-    setState(() => _tabIndex = _tabCars);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _carsTabKey.currentState?.applyVinSearch(vin.trim());
     });
   }
 
@@ -148,7 +133,7 @@ class _SvhHomePageState extends State<SvhHomePage> {
         final appBarTitle = switch (_tabIndex) {
           _tabChats => strings.chatsTabTitle,
           _tabProfile => strings.profileTabTitle,
-          _ => strings.text('svhCarsTabTitle'),
+          _ => strings.text('declarantCarsTabTitle'),
         };
 
         final goToProfileAction = IconButton(
@@ -176,20 +161,13 @@ class _SvhHomePageState extends State<SvhHomePage> {
           appBar: BrandPrimaryAppBar(
             title: appBarTitle,
             automaticallyImplyLeading: false,
-            leading: _tabIndex == _tabCars
-                ? IconButton(
-                    onPressed: _openQrScanner,
-                    icon: const Icon(Icons.qr_code_scanner),
-                    tooltip: strings.text('svhQrScanTooltip'),
-                  )
-                : null,
             actions: appBarActions,
           ),
           body: IndexedStack(
             index: _tabIndex,
             children: [
-              SvhCarsTabView(
-                key: _carsTabKey,
+              const SvhCarsTabView(
+                openAsClientDetail: true,
                 showManagerFilter: true,
               ),
               const ChatsTabView(),
@@ -219,7 +197,7 @@ class _SvhHomePageState extends State<SvhHomePage> {
             builder: (context, unreadState) {
               return HomeBottomNavBar(
                 currentIndex: _tabIndex,
-                carsLabel: strings.text('svhCarsTabTitle'),
+                carsLabel: strings.text('declarantCarsTabTitle'),
                 chatsLabel: strings.chatsTabTitle,
                 profileLabel: strings.profileTabTitle,
                 hasChatsUnread: unreadState.hasAny,

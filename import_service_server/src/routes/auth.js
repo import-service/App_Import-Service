@@ -22,7 +22,7 @@ module.exports = async function authRoutes(fastify) {
       const { login, password } = request.body;
 
       const [rows] = await fastify.pool.query(
-        'SELECT id, role, password_hash FROM organizations WHERE login = ? AND deleted_at IS NULL LIMIT 1',
+        'SELECT id, role, roles, password_hash FROM organizations WHERE login = ? AND deleted_at IS NULL LIMIT 1',
         [login],
       );
 
@@ -37,7 +37,8 @@ module.exports = async function authRoutes(fastify) {
       }
 
       const userId = user.id;
-      const role = user.role || 'user';
+      const roles = rolesFromRow(user);
+      const role = pickPrimaryRole(roles);
       // Не отзываем другие активные сессии: повторный вход (другой телефон /
       // переустановка) не должен ломать ещё живой токен на устройстве.
       // Отзыв — только через POST /auth/logout по текущему jti или по expires_at.
@@ -52,7 +53,7 @@ module.exports = async function authRoutes(fastify) {
       );
 
       const token = fastify.jwt.sign(
-        { sub: String(userId), jti, role },
+        { sub: String(userId), jti, role, roles },
         { expiresIn: fastify.config.jwtExpiresIn },
       );
 
@@ -61,6 +62,75 @@ module.exports = async function authRoutes(fastify) {
         tokenType: 'Bearer',
         expiresAt: expiresAt.toISOString(),
         role,
+        roles,
+      });
+    },
+  );
+
+  /** Переключение активной роли МП (JWT.role) среди roles организации. */
+  fastify.post(
+    '/auth/activate-role',
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['role'],
+          properties: {
+            role: { type: 'string', minLength: 1, maxLength: 64 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const sub = Number(request.user.sub);
+      const jti = request.user.jti;
+      if (!Number.isFinite(sub) || sub <= 0 || !jti) {
+        return reply.code(401).send({ error: 'UNAUTHORIZED' });
+      }
+
+      const [rows] = await fastify.pool.query(
+        `SELECT id, role, roles FROM organizations WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+        [sub],
+      );
+      if (!rows.length) {
+        return reply.code(401).send({ error: 'USER_NOT_FOUND' });
+      }
+
+      const { normalizeRoleCode, hasRole } = require('../util/organizationRoles');
+      const roles = rolesFromRow(rows[0]);
+      const nextRole = normalizeRoleCode(request.body.role);
+      if (!hasRole(roles, nextRole)) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: 'Роль не назначена организации',
+        });
+      }
+
+      const [sess] = await fastify.pool.query(
+        `SELECT expires_at FROM user_sessions
+         WHERE user_id = ? AND jti = ? AND revoked_at IS NULL
+         LIMIT 1`,
+        [sub, jti],
+      );
+      if (!sess.length) {
+        return reply.code(401).send({ error: 'SESSION_REVOKED_OR_EXPIRED' });
+      }
+      const expiresAt = new Date(sess[0].expires_at);
+      const ttlMs = Math.max(expiresAt.getTime() - Date.now(), 60_000);
+      const expiresInSec = Math.ceil(ttlMs / 1000);
+
+      const token = fastify.jwt.sign(
+        { sub: String(sub), jti, role: nextRole, roles },
+        { expiresIn: expiresInSec },
+      );
+
+      return reply.send({
+        accessToken: token,
+        tokenType: 'Bearer',
+        expiresAt: expiresAt.toISOString(),
+        role: nextRole,
+        roles,
       });
     },
   );
@@ -89,11 +159,15 @@ module.exports = async function authRoutes(fastify) {
     }
     const u = rows[0];
     const roles = rolesFromRow(u);
+    const activeRole =
+      String(request.user?.role || '').trim() ||
+      u.role ||
+      pickPrimaryRole(roles);
     return reply.send({
       id: u.id,
       id_1c: u.id_1c,
       login: u.login,
-      role: u.role || pickPrimaryRole(roles),
+      role: activeRole,
       roles,
       orgType: u.org_type,
       companyName: u.company_name,

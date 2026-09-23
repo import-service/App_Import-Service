@@ -24,6 +24,7 @@ final class CustomsRequestsRemoteDataSource {
     String? status,
     String? vin,
     String? q,
+    String? managerExternal1cId,
   }) async {
     try {
       final params = <String, dynamic>{};
@@ -43,6 +44,10 @@ final class CustomsRequestsRemoteDataSource {
       final qTrim = q?.trim() ?? '';
       if (qTrim.isNotEmpty && vinTrim.isEmpty) {
         params['q'] = qTrim;
+      }
+      final mgr = managerExternal1cId?.trim() ?? '';
+      if (mgr.isNotEmpty) {
+        params['managerExternal1cId'] = mgr;
       }
       final response = await _dio.get<dynamic>(
         'customs-requests',

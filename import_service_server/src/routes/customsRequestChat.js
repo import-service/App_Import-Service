@@ -2,12 +2,15 @@ const { verifyIntegrationBearer, authenticateUserOrIntegrationBearer } = require
 const {
   mpOrganizationId,
   isSvhManagerRequest,
+  isDeclarantManagerRequest,
+  isCatalogStaffRequest,
 } = require('../util/requestOrganizationAccess');
 const { integrationFileUploadPayload } = require('../util/integrationFileUrl');
 const { serveRequestOrChatFile, serveChatFileLegacyAlias, UPLOAD_ROOT } = require('../services/requestFileDownload');
 const {
   createMessageFrom1c,
   createMessageFromUser,
+  createMessageFromAppManager,
   markReadByUser,
   listMessageDtos,
   messageDto,
@@ -21,7 +24,7 @@ const {
 } = require('../services/chatAttachmentStorage');
 const { parseChatAttachmentJsonBody } = require('../util/uploadBase64');
 
-async function assertRequestChatAvailable(pool, requestId, orgId = null, { allowSvh = false } = {}) {
+async function assertRequestChatAvailable(pool, requestId, orgId = null, { allowStaff = false } = {}) {
   const [rows] = await pool.query(
     `SELECT id, external_1c_id, deleted_at, organization_id
      FROM customs_requests
@@ -32,7 +35,7 @@ async function assertRequestChatAvailable(pool, requestId, orgId = null, { allow
   if (!rows.length || rows[0].deleted_at) {
     return { ok: false, error: 'NOT_FOUND' };
   }
-  if (!allowSvh && orgId != null && Number(rows[0].organization_id) !== orgId) {
+  if (!allowStaff && orgId != null && Number(rows[0].organization_id) !== orgId) {
     return { ok: false, error: 'NOT_FOUND' };
   }
   if (!rows[0].external_1c_id) {
@@ -53,7 +56,7 @@ module.exports = async function customsRequestChatRoutes(fastify) {
 
       const orgId = mpOrganizationId(request);
       const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
-        allowSvh: isSvhManagerRequest(request),
+        allowStaff: isCatalogStaffRequest(request),
       });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
@@ -125,7 +128,7 @@ module.exports = async function customsRequestChatRoutes(fastify) {
 
       const orgId = mpOrganizationId(request);
       const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
-        allowSvh: isSvhManagerRequest(request),
+        allowStaff: isCatalogStaffRequest(request),
       });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
@@ -135,6 +138,22 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       }
 
       try {
+        if (isDeclarantManagerRequest(request)) {
+          const result = await createMessageFromAppManager(fastify, {
+            requestId: id,
+            userId: Number(request.user.sub),
+            text: request.body.text,
+            attachments: Array.isArray(request.body.attachments) ? request.body.attachments : [],
+            clientMessageId: request.body.clientMessageId,
+            senderName: request.user?.login || 'Менеджер',
+          });
+          const msg = result.message || {};
+          return reply.send({
+            ...msg,
+            id: result.id,
+            oneC: result.oneC,
+          });
+        }
         const result = await createMessageFromUser(fastify, {
           requestId: id,
           userId: Number(request.user.sub),
@@ -185,7 +204,7 @@ module.exports = async function customsRequestChatRoutes(fastify) {
 
       const orgId = mpOrganizationId(request);
       const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
-        allowSvh: isSvhManagerRequest(request),
+        allowStaff: isCatalogStaffRequest(request),
       });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {
@@ -367,7 +386,7 @@ module.exports = async function customsRequestChatRoutes(fastify) {
       }
       const orgId = mpOrganizationId(request);
       const ar = await assertRequestChatAvailable(fastify.pool, id, orgId, {
-        allowSvh: isSvhManagerRequest(request),
+        allowStaff: isCatalogStaffRequest(request),
       });
       if (!ar.ok) {
         if (ar.error === 'CHAT_NOT_AVAILABLE') {

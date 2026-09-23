@@ -17,6 +17,7 @@ abstract class CarsRepository {
     String? status,
     String? vin,
     String? q,
+    String? managerExternal1cId,
     bool syncInventory = true,
   });
 

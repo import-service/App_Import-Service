@@ -109,6 +109,9 @@ alwaysApply: true
 | `presentation/widgets/tabs/profile_tab_view.dart` | Профиль; `isActive` → refresh версии APK с сервера; скачать APK |
 | `presentation/widgets/navigation/svh_bottom_nav_bar.dart` | Нижняя навигация shell СВХ |
 | `presentation/pages/svh_home_page.dart` | Shell менеджера СВХ |
+| `presentation/pages/declarant_home_page.dart` | Shell декларанта |
+| `presentation/widgets/profile/profile_role_switch_section.dart` | Мульти-роль в профиле |
+| `presentation/widgets/filters/manager_filter_bar.dart` | Фильтр менеджера 1С |
 | `presentation/pages/svh_qr_scan_page.dart` | QR → VIN для фильтра списка СВХ |
 | `presentation/pages/svh_request_detail_page.dart` | Устарело; роутер → `CarRequestDetailPage` |
 | `presentation/pages/request_create_page.dart` | Создание / редактирование заявки (только клиент) |

@@ -6,6 +6,7 @@ import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/presentation/pages/car_request_detail_page.dart';
+import 'package:import_service_app/presentation/pages/declarant_home_page.dart';
 import 'package:import_service_app/presentation/pages/request_chat_page.dart';
 import 'package:import_service_app/presentation/pages/home_page.dart';
 import 'package:import_service_app/presentation/pages/login_page.dart';
@@ -24,20 +25,22 @@ final GoRouter appRouter = GoRouter(
     if (!loggedIn && !isLogin) return '/login';
     if (loggedIn && isLogin) return homeLocationForSession(session);
 
-    // Клиент не должен сидеть в shell СВХ и наоборот.
-    if (loggedIn && isSvhManagerSession(session) && path == '/home') {
-      return '/svh-home';
+    final home = homeLocationForSession(session);
+    final isSvh = isSvhManagerSession(session);
+    final isDeclarant = isDeclarantManagerSession(session);
+    final isStaff = isCatalogStaffSession(session);
+
+    // Неверный shell → домой по роли.
+    if (loggedIn && path == '/home' && isStaff) return home;
+    if (loggedIn && path == '/svh-home' && !isSvh) return home;
+    if (loggedIn && path == '/declarant-home' && !isDeclarant) return home;
+
+    if (loggedIn && !isSvh && path.startsWith('/svh-request/')) {
+      return home;
     }
-    if (loggedIn && !isSvhManagerSession(session) && path == '/svh-home') {
-      return '/home';
-    }
+    // СВХ не открывает клиентскую карточку (кроме чатов).
     if (loggedIn &&
-        !isSvhManagerSession(session) &&
-        path.startsWith('/svh-request/')) {
-      return '/home';
-    }
-    if (loggedIn &&
-        isSvhManagerSession(session) &&
+        isSvh &&
         path.startsWith('/request/') &&
         !path.endsWith('/chat') &&
         !path.contains('/chat') &&
@@ -66,6 +69,13 @@ final GoRouter appRouter = GoRouter(
       name: 'svhHome',
       builder: (BuildContext context, GoRouterState state) {
         return const SvhHomePage();
+      },
+    ),
+    GoRoute(
+      path: '/declarant-home',
+      name: 'declarantHome',
+      builder: (BuildContext context, GoRouterState state) {
+        return const DeclarantHomePage();
       },
     ),
     GoRoute(

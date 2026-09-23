@@ -140,6 +140,7 @@ class AuthService {
       external1cId: profile.external1cId,
       login: profile.login,
       role: profile.role,
+      roles: profile.roles,
       companyName: profile.companyName,
       orgType: profile.orgType,
       inn: profile.inn,
@@ -150,6 +151,15 @@ class AuthService {
       managerEmail: profile.managerEmail,
       fullName: profile.fullName,
     );
+  }
+
+  /// Переключение активной роли (JWT) среди `roles` организации.
+  Future<void> activateRole(String role) async {
+    final response = await _remote.activateRole(role);
+    final token = response.accessToken;
+    _session.setToken(token);
+    await _secureStorage.write(AuthStorageKeys.accessToken, token);
+    await refreshProfile(allowCacheFallback: false);
   }
 
   void _bindPushTokenRefresh() {

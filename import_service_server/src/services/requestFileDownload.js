@@ -4,7 +4,7 @@ const { isIntegrationBearerRequest } = require('../util/integrationAuth');
 const {
   isMpJwtRequest,
   mpOrganizationId,
-  isSvhManagerRequest,
+  isCatalogStaffRequest,
 } = require('../util/requestOrganizationAccess');
 const { getPublicBaseUrl } = require('../util/customsRequestDto');
 const {
@@ -116,7 +116,7 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
     );
 
     if (rows.length) {
-      if (isMpJwtRequest(request) && !isSvhManagerRequest(request)) {
+      if (isMpJwtRequest(request) && !isCatalogStaffRequest(request)) {
         const orgId = mpOrganizationId(request);
         if (!orgId || Number(rows[0].organization_id) !== orgId) {
           return sendFileDownloadError(reply, fastify, request, 404, {
@@ -182,7 +182,7 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
 
     if (!isIntegrationBearerRequest(request) && isMpJwtRequest(request)) {
       const orgId = mpOrganizationId(request);
-      const allowSvh = isSvhManagerRequest(request);
+      const allowSvh = isCatalogStaffRequest(request);
       if (isBroadcastChatStoredName(storedName)) {
         if (!orgId) {
           return sendFileDownloadError(reply, fastify, request, 404, {

@@ -45,6 +45,8 @@ const {
   mpOrganizationId,
   isMpJwtRequest,
   isSvhManagerRequest,
+  isDeclarantManagerRequest,
+  isCatalogStaffRequest,
   denyUnlessOwnsRequest,
 } = require('../util/requestOrganizationAccess');
 const { serveRequestOrChatFile } = require('../services/requestFileDownload');
@@ -544,10 +546,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.message });
       }
 
-      if (isSvhManagerRequest(request)) {
+      if (isCatalogStaffRequest(request)) {
         return reply.code(403).send({
           error: 'FORBIDDEN',
-          message: 'Менеджер СВХ не создаёт заявки',
+          message: 'Менеджер не создаёт заявки',
         });
       }
 
@@ -663,8 +665,8 @@ module.exports = async function customsRequestsRoutes(fastify) {
 
       const where = ['deleted_at IS NULL'];
       const args = [];
-      const svh = isSvhManagerRequest(request);
-      if (!svh) {
+      const staff = isCatalogStaffRequest(request);
+      if (!staff) {
         where.push('organization_id = ?');
         args.push(orgId);
       }
@@ -672,15 +674,20 @@ module.exports = async function customsRequestsRoutes(fastify) {
         where.push('status = ?');
         args.push(status);
       }
+      const managerExt = normalize(request.query.managerExternal1cId);
+      if (managerExt) {
+        where.push('manager_external_1c_id = ?');
+        args.push(managerExt);
+      }
       if (vin) {
         where.push('UPPER(vin) LIKE ?');
         args.push(`%${vin}%`);
       } else if (q) {
         const like = `%${q}%`;
         where.push(
-          `(vin LIKE ? OR car_make LIKE ? OR car_model LIKE ? OR individual_full_name LIKE ? OR legal_entity_name LIKE ?)`,
+          `(vin LIKE ? OR car_make LIKE ? OR car_model LIKE ? OR individual_full_name LIKE ? OR legal_entity_name LIKE ? OR manager_full_name LIKE ?)`,
         );
-        args.push(like, like, like, like, like);
+        args.push(like, like, like, like, like, like);
       }
       args.push(limit, offset);
 
@@ -715,6 +722,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
           asRole: 'svh',
           svhManagerId: orgId,
         });
+        return reply.send({ items });
+      }
+      if (isDeclarantManagerRequest(request)) {
+        const items = await listChatsForOrganization(fastify.pool, null);
         return reply.send({ items });
       }
       const items = await listChatsForOrganization(fastify.pool, orgId);
@@ -777,10 +788,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
 
-      if (isSvhManagerRequest(request)) {
+      if (isCatalogStaffRequest(request)) {
         return reply.code(403).send({
           error: 'FORBIDDEN',
-          message: 'Оценка заявки недоступна менеджеру СВХ',
+          message: 'Оценка заявки недоступна менеджеру',
         });
       }
 
@@ -936,10 +947,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
 
-      if (isSvhManagerRequest(request)) {
+      if (isCatalogStaffRequest(request)) {
         return reply.code(403).send({
           error: 'FORBIDDEN',
-          message: 'Менеджер СВХ не может изменять поля заявки',
+          message: 'Менеджер не может изменять поля заявки',
         });
       }
 

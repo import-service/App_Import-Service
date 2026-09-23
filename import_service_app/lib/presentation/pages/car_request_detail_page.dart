@@ -1351,7 +1351,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       external1cId: item.external1cId,
       managerFullName: item.managerFullName,
       isArchivedOffline: item.isArchivedOffline,
-      forSvhManager: isSvhManagerSession(sl<AuthSessionController>()),
+      forSvhManager: isCatalogStaffSession(sl<AuthSessionController>()),
     );
     final isSvhViewer = isSvhManagerSession(sl<AuthSessionController>());
     final chatUnreadKey = isSvhViewer

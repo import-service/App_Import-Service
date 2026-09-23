@@ -7,6 +7,7 @@ class AuthSessionController extends ChangeNotifier {
   String? _external1cId;
   String? _login;
   String? _role;
+  List<String> _roles = const [];
   String? _companyName;
   String? _orgType;
   String? _inn;
@@ -27,6 +28,8 @@ class AuthSessionController extends ChangeNotifier {
   String? get external1cId => _external1cId;
   String? get login => _login;
   String? get role => _role;
+  List<String> get roles => _roles;
+  bool get hasMultipleRoles => _roles.length > 1;
   String? get companyName => _companyName;
   String? get orgType => _orgType;
   String? get inn => _inn;
@@ -56,6 +59,7 @@ class AuthSessionController extends ChangeNotifier {
     _external1cId = null;
     _login = null;
     _role = null;
+    _roles = const [];
     _companyName = null;
     _orgType = null;
     _inn = null;
@@ -73,6 +77,7 @@ class AuthSessionController extends ChangeNotifier {
     String? external1cId,
     required String login,
     required String role,
+    List<String>? roles,
     String? companyName,
     String? orgType,
     String? inn,
@@ -87,6 +92,13 @@ class AuthSessionController extends ChangeNotifier {
     _external1cId = external1cId;
     _login = login;
     _role = role;
+    if (roles != null) {
+      _roles = List<String>.unmodifiable(
+        roles.map((e) => e.trim()).where((e) => e.isNotEmpty),
+      );
+    } else if (_roles.isEmpty && role.trim().isNotEmpty) {
+      _roles = List<String>.unmodifiable([role.trim()]);
+    }
     _companyName = companyName;
     _orgType = orgType;
     _inn = inn;
@@ -106,6 +118,7 @@ class AuthSessionController extends ChangeNotifier {
     _external1cId = null;
     _login = null;
     _role = null;
+    _roles = const [];
     _companyName = null;
     _orgType = null;
     _inn = null;

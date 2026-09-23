@@ -4,6 +4,7 @@ class AuthMeResponseModel {
     required this.external1cId,
     required this.login,
     required this.role,
+    this.roles = const [],
     required this.companyName,
     required this.orgType,
     required this.inn,
@@ -19,6 +20,7 @@ class AuthMeResponseModel {
   final String external1cId;
   final String login;
   final String role;
+  final List<String> roles;
   final String companyName;
   final String orgType;
   final String inn;
@@ -30,6 +32,10 @@ class AuthMeResponseModel {
   final String fullName;
 
   factory AuthMeResponseModel.fromJson(Map<String, dynamic> json) {
+    final role = _firstString(
+      json,
+      const ['role', 'userRole'],
+    );
     return AuthMeResponseModel(
       id: _firstString(
         json,
@@ -43,10 +49,8 @@ class AuthMeResponseModel {
         json,
         const ['login', 'userName', 'username', 'userLogin', 'email', 'legalEmail'],
       ),
-      role: _firstString(
-        json,
-        const ['role', 'userRole'],
-      ),
+      role: role,
+      roles: _rolesList(json, fallbackRole: role),
       companyName: _firstString(
         json,
         const ['legalEntityName', 'companyName', 'organizationName', 'orgName'],
@@ -92,6 +96,7 @@ class AuthMeResponseModel {
       'external1cId': external1cId,
       'login': login,
       'role': role,
+      'roles': roles,
       'companyName': companyName,
       'orgType': orgType,
       'inn': inn,
@@ -102,6 +107,26 @@ class AuthMeResponseModel {
       'managerEmail': managerEmail,
       'fullName': fullName,
     };
+  }
+
+  static List<String> _rolesList(
+    Map<String, dynamic> json, {
+    required String fallbackRole,
+  }) {
+    final raw = json['roles'];
+    if (raw is List) {
+      final out = <String>[];
+      final seen = <String>{};
+      for (final item in raw) {
+        final s = item?.toString().trim() ?? '';
+        if (s.isEmpty || seen.contains(s)) continue;
+        seen.add(s);
+        out.add(s);
+      }
+      if (out.isNotEmpty) return out;
+    }
+    if (fallbackRole.trim().isNotEmpty) return [fallbackRole.trim()];
+    return const [];
   }
 
   /// Берёт первое непустое строковое значение по списку ключей (API может

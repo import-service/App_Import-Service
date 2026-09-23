@@ -2,7 +2,7 @@ name: import_service_app
 description: "A new Flutter project."
 publish_to: 'none'
 # com.importservice.app
-version: 1.0.44+44
+version: 1.0.45+45
 
 environment:
   sdk: ^3.11.1

@@ -12,14 +12,26 @@ import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/presentation/models/demo_car.dart';
 import 'package:import_service_app/presentation/widgets/cards/car_card.dart';
+import 'package:import_service_app/presentation/widgets/filters/manager_filter_bar.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_search_bar_field.dart';
 
-/// Список всех заявок для менеджера СВХ (серверный поиск VIN / q + пагинация).
+/// Список всех заявок для менеджера СВХ / декларанта (серверный поиск VIN / q + пагинация).
 class SvhCarsTabView extends StatefulWidget {
-  const SvhCarsTabView({super.key, this.initialVin});
+  const SvhCarsTabView({
+    super.key,
+    this.initialVin,
+    this.openAsClientDetail = false,
+    this.showManagerFilter = false,
+  });
 
   /// Если задан (из QR) — сразу ищем по VIN.
   final String? initialVin;
+
+  /// Декларант: открывать карточку клиента (`/request/:id`), не СВХ-медиа.
+  final bool openAsClientDetail;
+
+  /// Показать фильтр по менеджеру 1С.
+  final bool showManagerFilter;
 
   @override
   State<SvhCarsTabView> createState() => SvhCarsTabViewState();
@@ -34,11 +46,15 @@ class SvhCarsTabViewState extends State<SvhCarsTabView> {
   bool _loadingMore = false;
   bool _hasMore = true;
   String? _error;
+  String? _managerFilterId;
   Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    if (widget.showManagerFilter) {
+      _managerFilterId = ManagerFilterBar.readSavedFilter();
+    }
     final vin = widget.initialVin?.trim();
     if (vin != null && vin.isNotEmpty) {
       _searchController.text = vin;
@@ -92,6 +108,7 @@ class SvhCarsTabViewState extends State<SvhCarsTabView> {
       offset: reset ? 0 : _items.length,
       vin: vinHint ?? (raw.length >= 8 ? raw : null),
       q: vinHint == null && raw.isNotEmpty && raw.length < 8 ? raw : null,
+      managerExternal1cId: widget.showManagerFilter ? _managerFilterId : null,
       syncInventory: false,
     );
 
@@ -157,6 +174,17 @@ class SvhCarsTabViewState extends State<SvhCarsTabView> {
             onChanged: _onSearchChanged,
           ),
         ),
+        if (widget.showManagerFilter)
+          ManagerFilterBar(
+            items: _items,
+            selectedExternal1cId: _managerFilterId,
+            onChanged: (id) async {
+              await ManagerFilterBar.saveFilter(id);
+              if (!mounted) return;
+              setState(() => _managerFilterId = id);
+              await _reload();
+            },
+          ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _reload,
@@ -244,7 +272,13 @@ class SvhCarsTabViewState extends State<SvhCarsTabView> {
           final item = _items[index];
           return CarCard(
             car: _toCard(item, strings),
-            onOpenDetails: () => context.pushSvhRequestDetail(item.id),
+            onOpenDetails: () {
+              if (widget.openAsClientDetail) {
+                context.pushRequestDetail(item.id);
+              } else {
+                context.pushSvhRequestDetail(item.id);
+              }
+            },
             suppressClientActions: true,
           );
         },

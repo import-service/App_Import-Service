@@ -21,6 +21,7 @@ import 'package:import_service_app/presentation/widgets/forms/input_formatters/i
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/phone_ru_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/profile/profile_meta_row.dart';
 import 'package:import_service_app/presentation/widgets/profile/profile_placeholder_avatar.dart';
+import 'package:import_service_app/presentation/widgets/profile/profile_role_switch_section.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -317,6 +318,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
               ),
             ),
           ),
+          const ProfileRoleSwitchSection(),
           Align(
             alignment: Alignment.centerLeft,
             child: Text(

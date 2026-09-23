@@ -74,11 +74,12 @@ main()
 | `/login` | все | Вход, демо-кнопка (демо = клиентский shell) |
 | `/home` | клиент | Shell: «Мои авто» / «Чаты» / профиль |
 | `/svh-home` | `svh_manager` | Shell СВХ: авто / чаты / профиль (+ QR) |
-| `/request/:id` | клиент | Деталка заявки |
+| `/declarant-home` | `declarant_manager` | Shell декларанта: заявки / чаты / профиль (без QR/медиа) |
+| `/request/:id` | клиент / декларант | Деталка заявки (без СВХ-медиа) |
 | `/svh-request/:id` | СВХ | Та же `CarRequestDetailPage` (режим СВХ) |
 | `/request/:id/chat`, org chat | по роли | Чат заявки / орг |
 
-**Redirect:** без сессии → `/login`; после логина → `homeLocationForSession`; клиент ↔ СВХ shell **не** смешивать (`/home` ⇄ `/svh-home`).
+**Redirect:** без сессии → `/login`; после логина / `activate-role` → `homeLocationForSession`; shells **не** смешивать.
 
 **Не в GoRouter:** `RequestCreatePage`, `RequestFilesUploadPage`, `CarsFiltersPage`, `SvhQrScanPage` — `Navigator.push` / result, не ломая shell.
 
@@ -86,25 +87,27 @@ main()
 
 ## 5. Авторизация и роли
 
-**Роль в сессии:** `AuthSessionController.role` из профиля после login/me (organizations.role / JWT).  
-Константа СВХ: `kSvhManagerRole = 'svh_manager'`. Проверка: `isSvhManagerSession(session)`.
+**Роль в сессии:** `AuthSessionController.role` + `roles[]` из login/me.  
+Константы: `kSvhManagerRole`, `kDeclarantManagerRole`. Проверки: `isSvhManagerSession` / `isDeclarantManagerSession` / `isCatalogStaffSession`.
+
+**Мульти-роль:** профиль → `ProfileRoleSwitchSection` → `AuthService.activateRole` → `POST /auth/activate-role` → новый JWT → `context.go(home)`.
 
 ```text
 LoginPage._login()
   → AuthService.login() → POST auth/login
-  → session.setToken + SecureStorage + role
+  → session.setToken + SecureStorage + role/roles
   → registerPushTokenIfNeeded()
   → clear inventory/drafts
-  → если НЕ СВХ: CarsRepository.listVehicles()
-  → context.go(homeLocationForSession(session))  // /home или /svh-home
+  → если клиент: CarsRepository.listVehicles()
+  → context.go(homeLocationForSession(session))  // /home | /svh-home | /declarant-home
   → AppUpdateBootstrap.scheduleAfterLogin()
 ```
 
 **Ошибки входа:** `login_error_message.dart` → i18n. **Не** показывать сырые коды API.
 
-**Восстановление сессии:** `initDependencies` — token → `session.restore` → `refreshProfile` (роль снова из me). Push — postFrame в `main`.
+**Восстановление сессии:** `initDependencies` — token → `session.restore` → `refreshProfile` (активная роль из me/JWT). Push — postFrame в `main`.
 
-**Не путать:** менеджер сделки в 1С (`managerExternal1cId` на заявке) ≠ менеджер СВХ в МП (`role=svh_manager`).
+**Не путать:** менеджер сделки в 1С (`managerExternal1cId` на заявке) ≠ менеджер СВХ/декларант в МП (`role`).
 
 ---
 
@@ -209,6 +212,18 @@ MyApp слушает requestOpenStream / requestUpdateStream
 **Устарело:** `svh_request_detail_page.dart` — роутер ведёт на `CarRequestDetailPage`.
 
 **Сервер:** видео при upload нормализуются (ffmpeg); при провале — `422 VIDEO_NORMALIZE_FAILED`, оригинал **не** хранить.
+
+---
+
+## 10b. Декларант (`declarant_manager`)
+
+**Файлы:** `declarant_home_page.dart`, `svh_cars_tab_view.dart` (`openAsClientDetail`, `showManagerFilter`), чат заявки → `createMessageFromAppManager` на сервере.
+
+| Что может | Что нельзя |
+|-----------|------------|
+| Каталог всех заявок, фильтр менеджера | Медиа СВХ / QR |
+| Чат с клиентом (пуш клиенту) | Создавать заявки / оценки клиента |
+| Карточка `/request/:id` как у клиента (документы) | Shell `/svh-home` |
 
 ---
 

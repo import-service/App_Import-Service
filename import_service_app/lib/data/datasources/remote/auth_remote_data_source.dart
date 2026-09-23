@@ -141,4 +141,38 @@ class AuthRemoteDataSource {
       throw const UnknownServerException('Не удалось обновить профиль');
     }
   }
+
+  /// `POST /auth/activate-role` — перевыпуск JWT с другой активной ролью.
+  Future<AuthLoginResponseModel> activateRole(String role) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        'auth/activate-role',
+        data: <String, dynamic>{'role': role},
+      );
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Invalid activate-role response');
+      }
+      return AuthLoginResponseModel.fromJson(data);
+    } on DioException catch (e, st) {
+      final mapped = ErrorHandler.handle(e);
+      AppLog.error(
+        'Activate role failed: POST /api/auth/activate-role',
+        tag: 'AuthRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw mapped;
+    } on ServerException {
+      rethrow;
+    } catch (e, st) {
+      AppLog.error(
+        'Unexpected activate-role failure',
+        tag: 'AuthRemoteDataSource',
+        error: e,
+        stackTrace: st,
+      );
+      throw const UnknownServerException('Не удалось сменить роль');
+    }
+  }
 }

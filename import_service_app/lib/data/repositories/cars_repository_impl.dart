@@ -47,6 +47,7 @@ final class CarsRepositoryImpl implements CarsRepository {
     String? status,
     String? vin,
     String? q,
+    String? managerExternal1cId,
     bool syncInventory = true,
   }) async {
     try {
@@ -57,6 +58,7 @@ final class CarsRepositoryImpl implements CarsRepository {
           status: status,
           vin: vin,
           q: q,
+          managerExternal1cId: managerExternal1cId,
         );
         final patched = remoteItems.map(_patchMissingLegalInn).toList(growable: false);
         if (syncInventory) {

@@ -94,8 +94,21 @@
   "accessToken": "sample_access_token_value",
   "tokenType": "Bearer",
   "expiresAt": "2026-05-27T09:00:00.000Z",
-  "role": "admin"
-}</pre><p><b>role:</b> <code>user</code> (клиент), <code>admin</code> (legacy в org), <code>svh_manager</code> (менеджер СВХ — отдельный UI в МП).</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li></ul></div>
+  "role": "user",
+  "roles": ["user"]
+}</pre><p><b>role:</b> активная роль в JWT — <code>user</code> (клиент), <code>svh_manager</code> (СВХ), <code>declarant_manager</code> (декларант), <code>admin</code> (legacy). При нескольких ролях организации выбирается primary по приоритету СВХ → декларант → admin → user. <b>roles:</b> полный список ролей организации.</p><p><b>Errors:</b></p><ul><li><code>401 INVALID_CREDENTIALS</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/auth/activate-role</code><span class="desc">Переключить активную роль МП (перевыпуск JWT).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer accessToken</p><p>Роль должна входить в <code>roles</code> организации. Тот же <code>jti</code> сессии, новый claim <code>role</code>.</p><p><b>Request:</b></p><pre>{
+  "role": "declarant_manager"
+}</pre><p><b>Success:</b></p><pre>{
+  "accessToken": "…",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-05-27T09:00:00.000Z",
+  "role": "declarant_manager",
+  "roles": ["user", "declarant_manager"]
+}</pre><p><b>Errors:</b> <code>400 VALIDATION_ERROR</code>, <code>401</code></p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/auth/logout</code><span class="desc">Выход из текущей сессии.</span></summary>
@@ -110,6 +123,7 @@
   "id_1c": "org-001",
   "login": "mail@org.ru",
   "role": "user",
+  "roles": ["user"],
   "orgType": "ООО",
   "companyName": "ООО Ромашка",
   "inn": "7701234567",
@@ -117,7 +131,7 @@
   "created_at": "2026-04-27T09:00:00.000Z",
   "updated_at": "2026-04-27T09:00:00.000Z",
   "deleted_at": null
-}</pre><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>401 USER_NOT_FOUND</code></li></ul></div>
+}</pre><p><b>role:</b> активная роль из JWT. <b>roles:</b> все роли организации (мульти-роль). Переключение — <code>POST /auth/activate-role</code>.</p><p><b>Errors:</b></p><ul><li><code>401 UNAUTHORIZED</code></li><li><code>401 USER_NOT_FOUND</code></li></ul></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method patch">PATCH</span><code class="path">/api/auth/me</code><span class="desc">Обновить данные организации из профиля МП.</span></summary>

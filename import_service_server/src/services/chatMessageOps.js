@@ -369,6 +369,122 @@ async function createSystemFilesUpdatedMessage(fastify, { requestId, changedDocT
 }
 
 /**
+ * Сообщение менеджера/декларанта из МП клиенту (пуш + WSS, без исходящего в 1С).
+ */
+async function createMessageFromAppManager(fastify, {
+  requestId,
+  userId,
+  text,
+  attachments = [],
+  clientMessageId,
+  senderName,
+}) {
+  const id = Number(requestId);
+  const reqRow = await findRequestById(fastify.pool, id);
+  if (!reqRow) {
+    const e = new Error('NOT_FOUND');
+    e.code = 'NOT_FOUND';
+    throw e;
+  }
+  if (!reqRow.external_1c_id) {
+    const e = new Error('CHAT_NOT_AVAILABLE');
+    e.code = 'CHAT_NOT_AVAILABLE';
+    e.messageRu = 'Чат недоступен';
+    throw e;
+  }
+
+  const bodyText = clipText(text || '');
+  const atts = normalizeMessageAttachments(
+    Array.isArray(attachments) ? attachments : [],
+  );
+  if (!bodyText && !atts.length) {
+    const e = new Error('VALIDATION_ERROR');
+    e.code = 'VALIDATION_ERROR';
+    e.messageRu = 'Пустое сообщение';
+    throw e;
+  }
+  for (const a of atts) {
+    if (!normalize(a.fileUrl)) {
+      const e = new Error('VALIDATION_ERROR');
+      e.code = 'VALIDATION_ERROR';
+      e.messageRu = 'fileUrl обязателен';
+      throw e;
+    }
+  }
+
+  const cid = normalize(clientMessageId) || uuidv4();
+  const [existing] = await fastify.pool.query(
+    `SELECT ${MESSAGE_SELECT}
+     FROM customs_request_messages
+     WHERE client_message_id = ? AND deleted_at IS NULL
+     LIMIT 1`,
+    [cid],
+  );
+  if (existing.length) {
+    const r = existing[0];
+    const parties = await resolveChatPartyNames(fastify.pool, id);
+    return {
+      ok: true,
+      dedup: true,
+      id: r.id,
+      requestId: id,
+      message: messageDto(r, reqRow.external_1c_id, parties),
+      oneC: { status: 200, via: 'dedup' },
+    };
+  }
+
+  const parties = await resolveChatPartyNames(fastify.pool, id);
+  const meta = {
+    sender1cId: null,
+    senderName: normalize(senderName) || parties.managerName,
+    recipientName: parties.clientName,
+  };
+  const payloadJson = { attachments: atts, meta };
+  const [ins] = await fastify.pool.query(
+    `INSERT INTO customs_request_messages
+       (request_id, author_type, user_id, direction, client_message_id, text_content, attachments_json,
+        delivery_status)
+     VALUES (?, 'manager_1c', ?, 'from_1c', ?, ?, ?, NULL)`,
+    [id, userId || null, cid, bodyText, jsonAttachmentsOrNull(payloadJson)],
+  );
+
+  const messageId = ins.insertId;
+  const messageRow = await loadMessageRow(fastify.pool, messageId);
+  const dto = messageDto(messageRow, reqRow.external_1c_id, parties);
+
+  if (fastify.chatWss) {
+    try {
+      await fastify.chatWss.broadcast(id, {
+        type: 'message_created',
+        requestId: id,
+        external1cId: reqRow.external_1c_id || null,
+        message: dto,
+      });
+    } catch (e) {
+      fastify.log.error(e, 'chat broadcast failed (app manager message)');
+    }
+  }
+
+  notifyMessageFrom1C(fastify, {
+    requestId: id,
+    external1cId: reqRow.external_1c_id,
+    messageId,
+    text: bodyText,
+  }).catch((e) => {
+    fastify.log.warn({ requestId: id, err: e.message }, 'push notify app manager message failed');
+  });
+
+  return {
+    ok: true,
+    dedup: false,
+    id: messageId,
+    requestId: id,
+    message: dto,
+    oneC: { status: 200, via: 'app_manager' },
+  };
+}
+
+/**
  * Сообщение клиента из МП (HTTP или WSS).
  */
 async function createMessageFromUser(fastify, {
@@ -778,6 +894,7 @@ module.exports = {
   findRequestById,
   listMessagesAsc,
   createMessageFrom1c,
+  createMessageFromAppManager,
   createMessageFromUser,
   createSystemFilesUpdatedMessage,
   listChatsForOrganization,

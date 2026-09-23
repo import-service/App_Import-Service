@@ -16,10 +16,11 @@ alwaysApply: true
 
 Таможенное оформление автомобиля для клиента B2B:
 
-- **МП (Flutter)** — два режима входа по `role` из профиля/JWT:
+- **МП (Flutter)** — режимы по активной `role` из JWT (`roles[]` у организации):
   - обычный клиент (`user` и т.п.) — заявки, подпись, оплаты, чат;
-  - менеджер СВХ (`svh_manager`) — список авто на СВХ, QR/VIN, фото/видео машины и архив транзита (без создания анкеты клиента).
-  Детали UI/роутинга: `import_service_app/.cursor/rules/app-runtime-architecture.mdc`.
+  - менеджер СВХ (`svh_manager`) — список авто на СВХ, QR/VIN, фото/видео машины и архив транзита (без создания анкеты клиента);
+  - декларант (`declarant_manager`) — каталог всех заявок и чат с клиентом **без** медиа СВХ.
+  Мульти-роль: `POST /auth/activate-role` + чипы в профиле. Детали: `import_service_app/.cursor/rules/app-runtime-architecture.mdc`.
 - **Сервер (Node API)** — хранение, API для МП, обмен с 1С, файлы, админ-операции, раздача server-APK.
 - **1С** — менеджеры сделки (не путать с СВХ в МП), статусы, комплекты документов, квитанции, таможня.
 - **Веб-админка (Flutter Web)** — настройка URL 1С, повторная отправка заявок при сбое 1С, просмотр организаций.
@@ -265,10 +266,14 @@ alwaysApply: true
 
 ---
 
-## 15. Роли организаций (этап D1)
+## 15. Роли организаций (этап D)
 
-- Колонка `organizations.roles` (JSON) + primary `role` для JWT.
+- Колонка `organizations.roles` (JSON) + primary `role` для JWT при логине.
 - Коды: `user`, `svh_manager`, `declarant_manager`, `admin`.
 - Админка: карточка org → чекбоксы → `PATCH /admin/organizations/:id/roles`.
-- `/auth/me` отдаёт `roles[]` (+ `role` primary). Shell МП пока только по primary (`session_role`).
-- Дальше: shell декларанта, переключение ролей, фильтр менеджеров, пуш подстатуса.
+- `/auth/me` отдаёт `roles[]` + активную `role` из JWT.
+- `POST /auth/activate-role` — перевыпуск JWT с другой ролью из `roles[]`.
+- Shell: `/home` (клиент), `/svh-home` (СВХ), `/declarant-home` (декларант).
+- Фильтр менеджера: query `managerExternal1cId` на списке заявок + чипы в UI СВХ/декларант.
+- Декларант в чате заявки → `createMessageFromAppManager` + FCM клиенту (`notifyMessageFrom1C`).
+- Пуш подстатуса: уже через `notifyStateChangedFrom1C` на `state`.
