@@ -11,6 +11,8 @@ typedef RequestDetailFileRowBuilder = Widget Function(
   required bool highlight,
   String? badge,
   bool embedded,
+  bool isNew,
+  bool isChanged,
 });
 
 /// Один блок «квитанция + чек + загрузить» — тот же паттерн, что «На подпись».
@@ -20,6 +22,8 @@ void addPaymentPairGroups({
   required RequestDetailFileRowBuilder buildFileRow,
   required JsonStringsService strings,
   required bool Function(CustomsRequestFile) isHighlighted,
+  required bool Function(CustomsRequestFile) isNewFile,
+  required bool Function(CustomsRequestFile) isChangedFile,
   required void Function(String docType)? onUploadDocType,
   required String? uploadingDocType,
   required String? uploadReceiptLabelOverride,
@@ -33,6 +37,8 @@ void addPaymentPairGroups({
         receipt: pair.$2,
         buildFileRow: buildFileRow,
         isHighlighted: isHighlighted,
+        isNewFile: isNewFile,
+        isChangedFile: isChangedFile,
         strings: strings,
       );
     }
@@ -67,6 +73,8 @@ void addPaymentPairGroups({
           highlight: false,
           embedded: true,
           badge: needsReceipt ? strings.requestHintUploadReceiptShort : null,
+          isNew: isNewFile(fee),
+          isChanged: isChangedFile(fee),
         ),
       );
     }
@@ -76,6 +84,8 @@ void addPaymentPairGroups({
           receipt,
           highlight: false,
           embedded: true,
+          isNew: isNewFile(receipt),
+          isChanged: isChangedFile(receipt),
         ),
       );
     }
@@ -102,6 +112,8 @@ void _appendStandalonePaymentFiles({
   required CustomsDocType receipt,
   required RequestDetailFileRowBuilder buildFileRow,
   required bool Function(CustomsRequestFile) isHighlighted,
+  required bool Function(CustomsRequestFile) isNewFile,
+  required bool Function(CustomsRequestFile) isChangedFile,
   required JsonStringsService strings,
 }) {
   final feeFile = findFileByDocType(allFiles, fee);
@@ -116,6 +128,8 @@ void _appendStandalonePaymentFiles({
         badge: paymentFileNeedsReceiptHighlight(feeFile, allFiles)
             ? strings.requestHintUploadReceiptShort
             : null,
+        isNew: isNewFile(feeFile),
+        isChanged: isChangedFile(feeFile),
       ),
     );
   }
@@ -125,6 +139,8 @@ void _appendStandalonePaymentFiles({
         receiptFile,
         highlight: isHighlighted(receiptFile),
         embedded: false,
+        isNew: isNewFile(receiptFile),
+        isChanged: isChangedFile(receiptFile),
       ),
     );
   }

@@ -28,6 +28,7 @@ import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.d
 import 'package:import_service_app/data/datasources/remote/registration_request_remote_data_source.dart';
 import 'package:import_service_app/data/local/car_inventory_state_holder.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
+import 'package:import_service_app/data/local/request_file_seen_store.dart';
 import 'package:import_service_app/data/repositories/cars_repository_impl.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
@@ -45,6 +46,9 @@ Future<void> initDependencies() async {
   sl.registerSingleton<SharedPreferences>(prefs);
   sl.registerLazySingleton<RequestDetailSectionPrefs>(
     () => RequestDetailSectionPrefs(sl()),
+  );
+  sl.registerLazySingleton<RequestFileSeenStore>(
+    () => RequestFileSeenStore(sl()),
   );
 
   final requestDraftCubit = RequestDraftCubit(prefs);

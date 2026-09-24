@@ -108,7 +108,22 @@ class RequestDetailFinancesBlock extends StatelessWidget {
           )
         : null;
 
-    if (!hasRefund && !hasExpandedContent) return const SizedBox.shrink();
+    if (!hasRefund && !hasExpandedContent) {
+      return RequestDetailCollapsibleSection(
+        requestId: requestId,
+        sectionKey: RequestDetailSectionKeys.finances,
+        title: strings.requestDetailFinances,
+        needsAction: false,
+        children: [
+          Text(
+            strings.text('requestFilesSectionEmpty'),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
+      );
+    }
 
     if (!hasExpandedContent) {
       return _FinancesRefundOnlyShell(

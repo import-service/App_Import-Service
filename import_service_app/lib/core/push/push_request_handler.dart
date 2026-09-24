@@ -41,7 +41,11 @@ Future<void> handleRequestRemoteUpdate(RequestRemoteUpdate update) async {
   final item = single.getOrElse(() => throw StateError('unreachable'));
 
   if (update.isFilesUpdate && update.changedDocTypes.isNotEmpty) {
-    sl<RequestAttentionCubit>().markFileHighlights(id, update.changedDocTypes);
+    await sl<RequestAttentionCubit>().applyPushChangedDocTypes(
+      id,
+      update.changedDocTypes,
+      item.files,
+    );
     sl<AppFeedbackService>().show(
       sl<JsonStringsService>().text('pushToastFilesUpdated'),
       kind: AppFeedbackKind.success,

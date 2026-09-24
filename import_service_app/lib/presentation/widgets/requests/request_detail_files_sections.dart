@@ -9,6 +9,7 @@ import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/entities/delivered_vehicle_document.dart';
 import 'package:import_service_app/domain/services/request_files_grouper.dart';
+import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/presentation/helpers/doc_type_labels.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/signing_upload_action_label.dart';
@@ -22,6 +23,8 @@ typedef RequestFileRowBuilder = Widget Function(
   String? badge,
   bool embedded,
   VoidCallback? onDelete,
+  bool isNew,
+  bool isChanged,
 });
 
 typedef RequestDeliverableRowBuilder = Widget Function(DeliveredVehicleDocument doc);
@@ -49,6 +52,8 @@ class RequestDetailFilesSections extends StatelessWidget {
     this.uploadReceiptLabel,
     this.onTransitPhotoTap,
     this.highlightedDocTypes = const {},
+    this.newDocTypes = const {},
+    this.changedDocTypes = const {},
     this.svhUploadMode = false,
   });
 
@@ -76,6 +81,8 @@ class RequestDetailFilesSections extends StatelessWidget {
   final String? uploadReceiptLabel;
   final void Function(String url)? onTransitPhotoTap;
   final Set<String> highlightedDocTypes;
+  final Set<String> newDocTypes;
+  final Set<String> changedDocTypes;
   /// Менеджер СВХ: галерея / архив, без подписей/оплат.
   final bool svhUploadMode;
 
@@ -85,12 +92,78 @@ class RequestDetailFilesSections extends StatelessWidget {
     return highlightedDocTypes.contains(code);
   }
 
+  bool _isNew(CustomsRequestFile file) {
+    final code = normalizeDocType(file.docType ?? '');
+    if (code.isEmpty) return false;
+    return newDocTypes.contains(code);
+  }
+
+  bool _isChanged(CustomsRequestFile file) {
+    final code = normalizeDocType(file.docType ?? '');
+    if (code.isEmpty) return false;
+    return changedDocTypes.contains(code);
+  }
+
+  Widget _fileRow(
+    CustomsRequestFile file, {
+    bool embedded = false,
+    String? badge,
+    VoidCallback? onDelete,
+  }) {
+    return buildFileRow(
+      file,
+      highlight: _isNew(file) || _isChanged(file) || _isHighlighted(file),
+      badge: badge,
+      embedded: embedded,
+      onDelete: onDelete,
+      isNew: _isNew(file),
+      isChanged: _isChanged(file),
+    );
+  }
+
+  int _newCountIn(Iterable<CustomsRequestFile> files) {
+    var n = 0;
+    for (final f in files) {
+      if (_isNew(f)) n++;
+    }
+    return n;
+  }
+
+  bool _hasChangedIn(Iterable<CustomsRequestFile> files) {
+    for (final f in files) {
+      if (_isChanged(f)) return true;
+    }
+    return false;
+  }
+
+  Set<String> _codesOf(Iterable<CustomsRequestFile> files) {
+    final out = <String>{};
+    for (final f in files) {
+      final c = normalizeDocType(f.docType ?? '');
+      if (c.isNotEmpty) out.add(c);
+    }
+    return out;
+  }
+
+  Widget _emptyFilesHint(ThemeData theme, JsonStringsService s) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        s.text('requestFilesSectionEmpty'),
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: AppTheme.textSecondary,
+        ),
+      ),
+    );
+  }
+
   String? _signingBadge({
     required bool needsSignature,
-    required bool highlight,
+    required CustomsRequestFile? file,
     required JsonStringsService s,
   }) {
-    if (highlight) return s.requestFileUpdated;
+    if (file != null && _isChanged(file)) return s.requestFileUpdated;
+    if (file != null && _isNew(file)) return s.text('requestFileNew');
     if (needsSignature) return s.requestFileNeedsSignature;
     return null;
   }
@@ -107,16 +180,27 @@ class RequestDetailFilesSections extends StatelessWidget {
       required String title,
       required bool needsAction,
       required List<Widget> rows,
+      required Iterable<CustomsRequestFile> sectionFiles,
     }) {
-      if (rows.isEmpty) return;
+      final body = rows.isEmpty ? <Widget>[_emptyFilesHint(theme, s)] : rows;
       if (children.isNotEmpty) children.add(const Gap(16));
+      final codes = _codesOf(sectionFiles);
       children.add(
         RequestDetailCollapsibleSection(
           requestId: requestId,
           sectionKey: sectionKey,
           title: title,
           needsAction: needsAction,
-          children: rows,
+          newCount: _newCountIn(sectionFiles),
+          hasChanged: _hasChangedIn(sectionFiles),
+          onOpened: () {
+            sl<RequestAttentionCubit>().onSectionOpened(
+              requestId: requestId,
+              sectionDocTypes: codes,
+              allFiles: item.files,
+            );
+          },
+          children: body,
         ),
       );
     }
@@ -125,6 +209,7 @@ class RequestDetailFilesSections extends StatelessWidget {
       sectionKey: RequestDetailSectionKeys.filesCreation,
       title: s.requestFilesSectionCreation,
       needsAction: false,
+      sectionFiles: grouped.creation,
       rows: _buildCreationRows(
         grouped: grouped,
         s: s,
@@ -152,26 +237,23 @@ class RequestDetailFilesSections extends StatelessWidget {
           RequestDetailDocUploadGroup(
             highlight: pair.highlightSignature ||
                 _isHighlighted(pair.original!) ||
-                _isHighlighted(pair.signed!),
+                _isHighlighted(pair.signed!) ||
+                _isNew(pair.original!) ||
+                _isChanged(pair.original!),
             uploadLabel: uploadLabel,
             uploadBusy: uploadBusy,
             onUpload: onUpload,
             children: [
-              buildFileRow(
+              _fileRow(
                 pair.original!,
-                highlight: false,
                 embedded: true,
                 badge: _signingBadge(
                   needsSignature: pair.needsSignature,
-                  highlight: _isHighlighted(pair.original!),
+                  file: pair.original,
                   s: s,
                 ),
               ),
-              buildFileRow(
-                pair.signed!,
-                highlight: false,
-                embedded: true,
-              ),
+              _fileRow(pair.signed!, embedded: true),
             ],
           ),
         );
@@ -183,23 +265,20 @@ class RequestDetailFilesSections extends StatelessWidget {
           RequestDetailDocUploadGroup(
             highlight: pair.highlightSignature ||
                 _isHighlighted(pair.original!) ||
-                _isHighlighted(pair.signed!),
+                _isHighlighted(pair.signed!) ||
+                _isNew(pair.original!) ||
+                _isChanged(pair.original!),
             children: [
-              buildFileRow(
+              _fileRow(
                 pair.original!,
-                highlight: false,
                 embedded: true,
                 badge: _signingBadge(
                   needsSignature: pair.needsSignature,
-                  highlight: _isHighlighted(pair.original!),
+                  file: pair.original,
                   s: s,
                 ),
               ),
-              buildFileRow(
-                pair.signed!,
-                highlight: false,
-                embedded: true,
-              ),
+              _fileRow(pair.signed!, embedded: true),
             ],
           ),
         );
@@ -209,18 +288,20 @@ class RequestDetailFilesSections extends StatelessWidget {
       if (hasOriginal && !hasSigned && canUpload) {
         signingRows.add(
           RequestDetailDocUploadGroup(
-            highlight: pair.highlightSignature || _isHighlighted(pair.original!),
+            highlight: pair.highlightSignature ||
+                _isHighlighted(pair.original!) ||
+                _isNew(pair.original!) ||
+                _isChanged(pair.original!),
             uploadLabel: uploadLabel,
             uploadBusy: uploadBusy,
             onUpload: onUpload,
             children: [
-              buildFileRow(
+              _fileRow(
                 pair.original!,
-                highlight: false,
                 embedded: true,
                 badge: _signingBadge(
                   needsSignature: pair.needsSignature,
-                  highlight: _isHighlighted(pair.original!),
+                  file: pair.original,
                   s: s,
                 ),
               ),
@@ -233,16 +314,15 @@ class RequestDetailFilesSections extends StatelessWidget {
       if (!hasOriginal && hasSigned && canUpload) {
         signingRows.add(
           RequestDetailDocUploadGroup(
-            highlight: pair.highlightSignature || _isHighlighted(pair.signed!),
+            highlight: pair.highlightSignature ||
+                _isHighlighted(pair.signed!) ||
+                _isNew(pair.signed!) ||
+                _isChanged(pair.signed!),
             uploadLabel: uploadLabel,
             uploadBusy: uploadBusy,
             onUpload: onUpload,
             children: [
-              buildFileRow(
-                pair.signed!,
-                highlight: false,
-                embedded: true,
-              ),
+              _fileRow(pair.signed!, embedded: true),
             ],
           ),
         );
@@ -271,26 +351,18 @@ class RequestDetailFilesSections extends StatelessWidget {
 
       if (hasOriginal) {
         signingRows.add(
-          buildFileRow(
+          _fileRow(
             pair.original!,
-            highlight: pair.highlightSignature || _isHighlighted(pair.original!),
-            embedded: false,
             badge: _signingBadge(
               needsSignature: pair.needsSignature,
-              highlight: pair.highlightSignature || _isHighlighted(pair.original!),
+              file: pair.original,
               s: s,
             ),
           ),
         );
       }
       if (hasSigned) {
-        signingRows.add(
-          buildFileRow(
-            pair.signed!,
-            highlight: _isHighlighted(pair.signed!),
-            embedded: false,
-          ),
-        );
+        signingRows.add(_fileRow(pair.signed!));
       } else if (pair.needsSignature && !hasOriginal) {
         signingRows.add(
           _missingSignPlaceholder(
@@ -302,10 +374,17 @@ class RequestDetailFilesSections extends StatelessWidget {
       }
     }
 
+    final signingFiles = <CustomsRequestFile>[
+      for (final p in grouped.signingPairs) ...[
+        if (p.original != null) p.original!,
+        if (p.signed != null) p.signed!,
+      ],
+    ];
     addSection(
       sectionKey: RequestDetailSectionKeys.filesSigning,
       title: s.requestFilesSectionSigning,
       needsAction: signingSectionNeedsAction(item, grouped),
+      sectionFiles: signingFiles,
       rows: signingRows,
     );
 
@@ -313,9 +392,19 @@ class RequestDetailFilesSections extends StatelessWidget {
     addPaymentPairGroups(
       out: paymentRows,
       allFiles: item.files,
-      buildFileRow: buildFileRow,
+      buildFileRow: (f, {required highlight, badge, embedded = false, isNew = false, isChanged = false}) =>
+          buildFileRow(
+            f,
+            highlight: highlight,
+            badge: badge,
+            embedded: embedded,
+            isNew: isNew,
+            isChanged: isChanged,
+          ),
       strings: s,
       isHighlighted: _isHighlighted,
+      isNewFile: _isNew,
+      isChangedFile: _isChanged,
       onUploadDocType: svhUploadMode ? null : onUploadDocType,
       uploadingDocType: uploadingDocType,
       uploadReceiptLabelOverride: uploadReceiptLabel,
@@ -325,6 +414,7 @@ class RequestDetailFilesSections extends StatelessWidget {
       sectionKey: RequestDetailSectionKeys.filesPayment,
       title: s.requestFilesSectionPayment,
       needsAction: svhUploadMode ? false : paymentSectionNeedsAction(item, grouped),
+      sectionFiles: grouped.payment,
       rows: paymentRows,
     );
 
@@ -342,6 +432,7 @@ class RequestDetailFilesSections extends StatelessWidget {
             .replaceAll('{count}', '${photos.length}')
             .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
         needsAction: false,
+        sectionFiles: photos,
         rows: _buildSvhCarPhotoRows(
           photos: photos,
           s: s,
@@ -355,6 +446,7 @@ class RequestDetailFilesSections extends StatelessWidget {
             .replaceAll('{count}', '${videos.length}')
             .replaceAll('{max}', '$kSvhCarGalleryMaxVideos'),
         needsAction: false,
+        sectionFiles: videos,
         rows: _buildSvhCarVideoRows(
           videos: videos,
           s: s,
@@ -363,10 +455,12 @@ class RequestDetailFilesSections extends StatelessWidget {
       );
     }
 
+    final issueFiles = [...grouped.transitArchive, ...grouped.finalDocs];
     addSection(
       sectionKey: RequestDetailSectionKeys.filesIssueHandover,
       title: s.requestFilesSectionIssueHandover,
       needsAction: false,
+      sectionFiles: issueFiles,
       rows: _buildIssueHandoverRows(
         grouped: grouped,
         s: s,
@@ -384,19 +478,16 @@ class RequestDetailFilesSections extends StatelessWidget {
       theme: theme,
       slotCount: otherSlotCount,
     );
-    if (otherRows.isNotEmpty) {
-      addSection(
-        sectionKey: RequestDetailSectionKeys.filesOther,
-        title: s
-            .text('requestFilesSectionOtherTitle')
-            .replaceAll('{count}', '$otherSlotCount')
-            .replaceAll('{max}', '$kOtherDocsMaxFiles'),
-        needsAction: false,
-        rows: otherRows,
-      );
-    }
-
-    if (children.isEmpty) return const SizedBox.shrink();
+    addSection(
+      sectionKey: RequestDetailSectionKeys.filesOther,
+      title: s
+          .text('requestFilesSectionOtherTitle')
+          .replaceAll('{count}', '$otherSlotCount')
+          .replaceAll('{max}', '$kOtherDocsMaxFiles'),
+      needsAction: false,
+      sectionFiles: grouped.other,
+      rows: otherRows,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -409,9 +500,7 @@ class RequestDetailFilesSections extends StatelessWidget {
     required JsonStringsService s,
     required ThemeData theme,
   }) {
-    return grouped.creation
-        .map((f) => buildFileRow(f, highlight: _isHighlighted(f), embedded: false))
-        .toList();
+    return grouped.creation.map((f) => _fileRow(f)).toList();
   }
 
   bool _shouldShowSvhCarGallery(CarListItem item, RequestFilesGrouped grouped) {
@@ -465,10 +554,8 @@ class RequestDetailFilesSections extends StatelessWidget {
 
     for (final f in photos) {
       rows.add(
-        buildFileRow(
+        _fileRow(
           f,
-          highlight: _isHighlighted(f),
-          embedded: false,
           onDelete: canDelete ? () => onDeleteSvhMediaFile!(f) : null,
         ),
       );
@@ -521,10 +608,8 @@ class RequestDetailFilesSections extends StatelessWidget {
 
     for (final f in videos) {
       rows.add(
-        buildFileRow(
+        _fileRow(
           f,
-          highlight: _isHighlighted(f),
-          embedded: false,
           onDelete: canDelete ? () => onDeleteSvhMediaFile!(f) : null,
         ),
       );
@@ -605,10 +690,10 @@ class RequestDetailFilesSections extends StatelessWidget {
     }
 
     for (final f in transitFiles) {
-      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+      rows.add(_fileRow(f));
     }
     for (final f in finalFiles) {
-      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+      rows.add(_fileRow(f));
     }
     return rows;
   }
@@ -670,10 +755,10 @@ class RequestDetailFilesSections extends StatelessWidget {
     }
 
     for (final f in slotFiles) {
-      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+      rows.add(_fileRow(f));
     }
     for (final f in restFiles) {
-      rows.add(buildFileRow(f, highlight: _isHighlighted(f), embedded: false));
+      rows.add(_fileRow(f));
     }
     return rows;
   }

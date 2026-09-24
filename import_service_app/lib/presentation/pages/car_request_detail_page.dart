@@ -97,6 +97,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         await sl<CarsRepository>().getVehicle(widget.requestId);
         if (mounted) setState(() {});
       }
+      final item = _itemFromInventory(widget.requestId);
+      if (item != null) {
+        await sl<RequestAttentionCubit>().syncFromFiles(item.id, item.files);
+      }
       if (widget.focusDocumentsOnOpen) {
         _focusDocumentsIfPossible();
       }
@@ -106,7 +110,6 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   @override
   void dispose() {
     syncCarsTabFromInventory(widget.requestId);
-    sl<RequestAttentionCubit>().clearFileHighlights(widget.requestId);
     _scrollController.dispose();
     super.dispose();
   }
@@ -713,6 +716,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     bool highlight = false,
     String? badge,
     bool embedded = false,
+    bool isNew = false,
+    bool isChanged = false,
   }) {
     final title = docTypeLabel(f, sl<JsonStringsService>());
     final showUploadedCheck = shouldShowUploadedCheck(f);
@@ -736,10 +741,16 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         localFile != null || (thumbUrl != null && thumbUrl.isNotEmpty);
     final tappable = onTap != null && hasOpenTarget;
 
-    final borderColor = highlight
-        ? AppTheme.accentRed.withValues(alpha: 0.55)
+    final borderColor = (highlight || isNew || isChanged)
+        ? (isChanged && !isNew
+            ? const Color(0xFFE6A817).withValues(alpha: 0.7)
+            : AppTheme.accentRed.withValues(alpha: 0.55))
         : AppTheme.requestCardBorder;
-    final bg = highlight ? AppTheme.accentRed.withValues(alpha: 0.06) : AppTheme.cardBackground;
+    final bg = (highlight || isNew)
+        ? AppTheme.accentRed.withValues(alpha: 0.06)
+        : isChanged
+            ? const Color(0xFFE6A817).withValues(alpha: 0.08)
+            : AppTheme.cardBackground;
 
     const outerRadius = 12.0;
     const thumbRadius = 8.0;
@@ -848,6 +859,21 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
             ],
           ),
         ),
+        if (isChanged) ...[
+          const Gap(4),
+          const Icon(Icons.error, size: 22, color: Color(0xFFE6A817)),
+        ],
+        if (isNew) ...[
+          const Gap(4),
+          Container(
+            width: 10,
+            height: 10,
+            decoration: const BoxDecoration(
+              color: AppTheme.accentRed,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
         if (showUploadedCheck) ...[
           const Gap(4),
           const Icon(
@@ -1033,95 +1059,103 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       ))
       ..add(const Gap(16));
 
-    if (RequestDetailFinancesBlock.shouldShow(item)) {
-      out
-        ..add(
-          RequestDetailFinancesBlock(
-            requestId: widget.requestId,
-            item: item,
-            strings: s,
-            onUploadReceipt: svh
-                ? null
-                : (docType) => _attachDocType(docType, item),
-          ),
-        )
-        ..add(const Gap(16));
-    }
+    out
+      ..add(
+        RequestDetailFinancesBlock(
+          requestId: widget.requestId,
+          item: item,
+          strings: s,
+          onUploadReceipt: svh
+              ? null
+              : (docType) => _attachDocType(docType, item),
+        ),
+      )
+      ..add(const Gap(16));
 
-    if (svh || requestDetailShouldShowDocumentsBlock(item, s)) {
-      out
-        ..add(const Gap(8))
-        ..add(
-          KeyedSubtree(
-            key: _documentsAnchorKey,
-            child: Text(
-              s.requestDetailDocumentsTitle,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
+    out
+      ..add(const Gap(8))
+      ..add(
+        KeyedSubtree(
+          key: _documentsAnchorKey,
+          child: Text(
+            s.requestDetailDocumentsTitle,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        )
-        ..add(const Gap(10))
-        ..add(
-          RequestDetailFilesSections(
-            requestId: widget.requestId,
-            item: item,
-            highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
-            uploadingDocType: _uploadingDocType,
-            uploadingSvhCarGallery: _uploadingSvhCarGallery,
-            uploadingSvhCarVideos: _uploadingSvhCarVideos,
-            uploadingTransitArchiveGallery: _uploadingTransitArchiveGallery,
-            uploadingOtherDocsGallery: _uploadingOtherDocsGallery,
-            svhUploadMode: svh,
-            onUploadDocType: (docType) => _attachDocType(docType, item),
-            onUploadSvhCarGallery:
-                svh ? () => _attachSvhCarGallery(item) : null,
-            onUploadSvhCarVideos:
-                svh ? () => _attachSvhCarVideos(item) : null,
-            onUploadTransitArchiveGallery: item.isArchivedOffline
-                ? null
-                : () => _attachTransitArchiveGallery(item),
-            onUploadOtherDocsGallery: item.isArchivedOffline
-                ? null
-                : () => _attachOtherDocsGallery(item),
-            onDeleteSvhMediaFile:
-                svh ? (f) => _deleteSvhMediaFile(item, f) : null,
-            onTransitPhotoTap: (url) => _openExternalUrl(url),
-            buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
-              title: d.title,
-              downloadUrl: d.downloadUrl,
-              onOpenFailed: () async {
-                if (sl<AuthSessionController>().isDemo ||
-                    isDemoRequestFileUrl(d.downloadUrl)) {
-                  await _openDemoGeneratedPdf(
-                    CustomsRequestFile(
-                      docType: 'epts',
-                      fileName: '${d.title}.pdf',
-                      mimeType: 'application/pdf',
-                      fileUrl: d.downloadUrl,
-                    ),
-                  );
-                  return;
-                }
-                _onDocumentOpenFailed();
-              },
-            ),
-            buildFileRow: (f, {required highlight, badge, embedded = false, onDelete}) {
-              return _buildServerFileRow(
-                theme: theme,
-                f: f,
-                highlight: highlight,
-                badge: badge,
-                embedded: embedded,
-                onDelete: onDelete,
-                onTap: () => _openRequestFile(f),
-              );
+        ),
+      )
+      ..add(const Gap(10))
+      ..add(
+        RequestDetailFilesSections(
+          requestId: widget.requestId,
+          item: item,
+          highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
+          newDocTypes: attentionState.newDocTypesFor(item.id),
+          changedDocTypes: attentionState.changedDocTypesFor(item.id),
+          uploadingDocType: _uploadingDocType,
+          uploadingSvhCarGallery: _uploadingSvhCarGallery,
+          uploadingSvhCarVideos: _uploadingSvhCarVideos,
+          uploadingTransitArchiveGallery: _uploadingTransitArchiveGallery,
+          uploadingOtherDocsGallery: _uploadingOtherDocsGallery,
+          svhUploadMode: svh,
+          onUploadDocType: (docType) => _attachDocType(docType, item),
+          onUploadSvhCarGallery:
+              svh ? () => _attachSvhCarGallery(item) : null,
+          onUploadSvhCarVideos:
+              svh ? () => _attachSvhCarVideos(item) : null,
+          onUploadTransitArchiveGallery: item.isArchivedOffline
+              ? null
+              : () => _attachTransitArchiveGallery(item),
+          onUploadOtherDocsGallery: item.isArchivedOffline
+              ? null
+              : () => _attachOtherDocsGallery(item),
+          onDeleteSvhMediaFile:
+              svh ? (f) => _deleteSvhMediaFile(item, f) : null,
+          onTransitPhotoTap: (url) => _openExternalUrl(url),
+          buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
+            title: d.title,
+            downloadUrl: d.downloadUrl,
+            onOpenFailed: () async {
+              if (sl<AuthSessionController>().isDemo ||
+                  isDemoRequestFileUrl(d.downloadUrl)) {
+                await _openDemoGeneratedPdf(
+                  CustomsRequestFile(
+                    docType: 'epts',
+                    fileName: '${d.title}.pdf',
+                    mimeType: 'application/pdf',
+                    fileUrl: d.downloadUrl,
+                  ),
+                );
+                return;
+              }
+              _onDocumentOpenFailed();
             },
           ),
-        );
-    }
+          buildFileRow: (
+            f, {
+            required highlight,
+            badge,
+            embedded = false,
+            onDelete,
+            isNew = false,
+            isChanged = false,
+          }) {
+            return _buildServerFileRow(
+              theme: theme,
+              f: f,
+              highlight: highlight,
+              badge: badge,
+              embedded: embedded,
+              onDelete: onDelete,
+              isNew: isNew,
+              isChanged: isChanged,
+              onTap: () => _openRequestFile(f),
+            );
+          },
+        ),
+      );
 
     // Кнопка временно отключена (v0.1.6).
     // out
