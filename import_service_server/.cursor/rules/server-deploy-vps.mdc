@@ -15,7 +15,7 @@ alwaysApply: true
 | SSH | `root@157.22.173.7` (ключ в `~/.ssh`, host в `known_hosts`) |
 | Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
 | pm2 | `import-service` |
-| Проверка | `https://157-22-173-7.sslip.io/admin/` → **200**, `text/html` (не JSON 404) |
+| Проверка | `https://app.import-service.su/admin/` → **200**, `text/html` (не JSON 404); legacy sslip тоже ок |
 
 `ssh-prod` в `~/.ssh/config` — **другой** сервер (joypick), **не** Import Service.
 
@@ -58,10 +58,12 @@ cd D:\Projects\import_servis
 
 | | |
 |---|---|
-| Домен | `157-22-173-7.sslip.io` (+ `www.`) |
-| Cert files | `/var/www/httpd-cert/www-root/157-22-173-7.sslip.io_le1.crt` |
-| Cert ID | `1` (ISPmanager LE) |
-| Safety renew | `/usr/local/sbin/renew-sslip-le.sh` (cron пн 04:15) |
+| Домен | `app.import-service.su` (certbot `/etc/letsencrypt/live/…`) + legacy `157-22-173-7.sslip.io` (ISPmanager LE id=1) |
+| Cert files (app) | `/etc/letsencrypt/live/app.import-service.su/fullchain.pem` |
+| Cert files (sslip) | `/var/www/httpd-cert/www-root/157-22-173-7.sslip.io_le1.crt` |
+| Cert ID (sslip) | `1` (ISPmanager LE) |
+| Safety renew sslip | `/usr/local/sbin/renew-sslip-le.sh` (cron пн 04:15) |
+| Renew app | `certbot renew` (systemd timer) |
 | Шаблон/канон | `F:\_ARC\Projects\_my_template\fastify-api\.cursor\rules\ssl-letsencrypt-vps.mdc` |
 | Скрипт | `scripts/setup-ssl-autorenew.sh` (из корня монорепо) |
 

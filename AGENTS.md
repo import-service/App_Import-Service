@@ -53,7 +53,7 @@ Subagent/Task — только после утверждённого плана 
 | `import_service_app/.cursor/rules/app-runtime-architecture.mdc` | Runtime МП (клиент + СВХ, APK, кэш) |
 | `.cursor/rules/agent-docs-keep-fresh.mdc` | После фичи — обновлять agent `.mdc` |
 
-**Прод:** https://157-22-173-7.sslip.io/docs
+**Прод:** https://app.import-service.su/docs
 
 ## Деплой
 

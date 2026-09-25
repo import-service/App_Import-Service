@@ -41,8 +41,9 @@ alwaysApply: true
 - 1С **никогда** не вызывает МП.
 - Все файлы и статусы проходят через **сервер**.
 
-**Прод API:** `https://157-22-173-7.sslip.io/api`  
-**Документация:** `https://157-22-173-7.sslip.io/docs`
+**Прод API:** `https://app.import-service.su/api`  
+**Документация:** `https://app.import-service.su/docs`  
+(legacy sslip пока жив: `https://157-22-173-7.sslip.io`)
 
 ---
 

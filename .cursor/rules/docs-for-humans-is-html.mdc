@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Для заказчика, 1С, программистов
 
-**Только** HTML на сайте: `import_service_server/src/docs/api.html` → прод `https://157-22-173-7.sslip.io/docs`.
+**Только** HTML на сайте: `import_service_server/src/docs/api.html` → прод `https://app.import-service.su/docs`.
 
 После смены контракта API:
 

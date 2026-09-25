@@ -19,7 +19,7 @@ alwaysApply: true
 ## Обязательно
 
 - Не выдумывай эндпоинты, поля и коды ошибок — сверяйся с Markdown в `docs/`.
-- Прод-база: `https://157-22-173-7.sslip.io/api` (см. README в `docs/`).
+- Прод-база: `https://app.import-service.su/api` (см. README в `docs/`).
 - **Локально** (`flutter run`): API — полный URL (дефолт в `ApiConfig`); SPA — base href `/`.
 - **Деплой** (`flutter build web`): `--base-href=/admin/` и `API_BASE_URL=/api/` — `scripts/deploy-admin-web.ps1` + SSH `scripts/deploy-server-vps.ps1`; см. `.cursor/rules/admin-deploy-vps.mdc`.
 

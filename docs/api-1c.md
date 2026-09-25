@@ -4,7 +4,7 @@
 
 Базовый URL (прод):
 
-- `https://157-22-173-7.sslip.io/api`
+- `https://app.import-service.su/api`
 
 ## Авторизация интеграции
 
@@ -122,7 +122,7 @@
 ## POST /api/integration/customs-requests/state
 
 **Назначение:** 1С передаёт на наш backend изменения по заявке (статус, подстатус, тип сделки, менеджер, суммы, ссылки).  
-**Направление:** 1С → `https://157-22-173-7.sslip.io/api/integration/customs-requests/state` (команда 1С реализует HTTP-клиент; URL фиксированный).
+**Направление:** 1С → `https://app.import-service.su/api/integration/customs-requests/state` (команда 1С реализует HTTP-клиент; URL фиксированный).
 
 Заголовок: `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`
 
@@ -313,7 +313,7 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
       "docType": "contract_sign",
       "fileName": "contract_sign.pdf",
       "mimeType": "application/pdf",
-      "fileUrl": "https://157-22-173-7.sslip.io/api/customs-requests/files/GUID__contract_sign.pdf"
+      "fileUrl": "https://app.import-service.su/api/customs-requests/files/GUID__contract_sign.pdf"
     }
   ]
 }
@@ -415,7 +415,7 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
 ## WSS для 1С (опционально, HTTP остаётся)
 
 ```
-wss://157-22-173-7.sslip.io/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER_TOKEN>
+wss://app.import-service.su/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER_TOKEN>
 ```
 
 - `history` / `send` / события `message_created`|`message_incoming` — см. `api-app.md` § Realtime.
@@ -450,7 +450,7 @@ JSON+`fileBase64` или multipart, `id_1c`. Файл: `o{organizationId}_…`.
 ## WSS общий чат (1С)
 
 ```
-wss://157-22-173-7.sslip.io/ws/1c/org/?id_1c=<GUID>&token=<INTEGRATION_BEARER_TOKEN>
+wss://app.import-service.su/ws/1c/org/?id_1c=<GUID>&token=<INTEGRATION_BEARER_TOKEN>
 ```
 
 Исходящий HTTP сервера → 1С: `…/organization-chat` (из create-URL админки). Пока метод не опубликован в 1С, исходящие из МП будут `failed`.

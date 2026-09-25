@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   ApiConfig._();
 
-  static const String _prodBaseUrl = 'https://157-22-173-7.sslip.io/api/';
+  static const String _prodBaseUrl = 'https://app.import-service.su/api/';
 
   static String get baseUrl {
     const fromEnv = String.fromEnvironment('API_BASE_URL');

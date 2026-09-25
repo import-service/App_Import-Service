@@ -14,7 +14,7 @@ alwaysApply: true
 | SSH | `root@157.22.173.7` (ключ в `~/.ssh`, `BatchMode=yes`) |
 | Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
 | pm2 | `import-service` |
-| URL админки | `https://157-22-173-7.sslip.io/admin/` → **200**, `text/html` |
+| URL админки | `https://app.import-service.su/admin/` → **200**, `text/html` |
 | API в билде | относительный `/api/` (`--dart-define=API_BASE_URL=/api/`) |
 | SPA base | `--base-href=/admin/` |
 

@@ -2,7 +2,7 @@
 
 Базовый URL (прод):
 
-- `https://157-22-173-7.sslip.io/api`
+- `https://app.import-service.su/api`
 
 ## Авторизация
 
@@ -364,13 +364,13 @@ Push входящего: `type: new_org_message`, `requestId: "org"`.
 
 **МП:**
 
-- `wss://157-22-173-7.sslip.io/ws/<requestId>/?token=<accessToken>` — чат заявки
-- `wss://157-22-173-7.sslip.io/ws/org/?token=<accessToken>` — общий чат организации
+- `wss://app.import-service.su/ws/<requestId>/?token=<accessToken>` — чат заявки
+- `wss://app.import-service.su/ws/org/?token=<accessToken>` — общий чат организации
 
 **1С (полный дуплекс, HTTP чата при этом остаётся):**
 
-- `wss://157-22-173-7.sslip.io/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER_TOKEN>`
-- `wss://157-22-173-7.sslip.io/ws/1c/org/?id_1c=<GUID>&token=<INTEGRATION_BEARER_TOKEN>` — общий чат, комната `org:{organizationId}`
+- `wss://app.import-service.su/ws/1c/?external1cId=<GUID>&token=<INTEGRATION_BEARER_TOKEN>`
+- `wss://app.import-service.su/ws/1c/org/?id_1c=<GUID>&token=<INTEGRATION_BEARER_TOKEN>` — общий чат, комната `org:{organizationId}`
 
 После connect (заявка): `{ "type": "ready", "requestId", "external1cId", "role": "1c" }`.
 После connect (орг): `{ "type": "ready", "chatKind": "org", "organizationId", "id1c", "role": "1c" }`.
@@ -580,7 +580,7 @@ Query: `limit` (1–200, по умолчанию 50), `offset`, `status`, **`has
 
 | | |
 |---|---|
-| URL (прод) | `https://157-22-173-7.sslip.io/admin/` |
+| URL (прод) | `https://app.import-service.su/admin/` |
 | Редирект | `GET /admin` → `/admin/` |
 | Каталог на сервере | `import_service_server/web/` (содержимое `build/web/`) |
 | Переменная окружения | `ADMIN_WEB_ROOT` — другой путь (относительно `cwd` процесса Node или абсолютный) |
@@ -614,7 +614,7 @@ flutter build web --base-href=/admin/
 
 ### Проверка
 
-1. `GET https://157-22-173-7.sslip.io/admin/` — HTML (не 503).
+1. `GET https://app.import-service.su/admin/` — HTML (не 503).
 2. В DevTools → Network: `main.dart.js`, `flutter_bootstrap.js` грузятся с префикса `/admin/`, не с `/`.
 
 503 с текстом про отсутствие `index.html` — каталог пуст или билд не скопирован.

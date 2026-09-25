@@ -495,7 +495,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         OutlinedButton.icon(
                           onPressed: () async {
                             final url = _apkStatus!['apkUrl']?.toString() ??
-                                'https://157-22-173-7.sslip.io/api/app/android-apk/download';
+                                'https://app.import-service.su/api/app/android-apk/download';
                             await Clipboard.setData(ClipboardData(text: url));
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
