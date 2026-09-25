@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Р—Р°СЏРІРєР° РёР· РњРџ в†’ 1РЎ: РєР°РєРёРµ РїРѕР»СЏ Р±СЂР°С‚СЊ</title>
+  <title>Заявка из МП → 1С: какие поля брать</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #f3f4f6; color: #111827; line-height: 1.45; }
     .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 48px; }
@@ -28,62 +28,62 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Р—Р°СЏРІРєР° РёР· РїСЂРёР»РѕР¶РµРЅРёСЏ в†’ 1РЎ: РєР°РєРёРµ РїРѕР»СЏ Р±СЂР°С‚СЊ</h1>
-    <p class="sub">Import Service. РСЃС‚РѕС‡РЅРёРє РґР°РЅРЅС‹С…: С‚РµР»Рѕ <b>СЃРѕР·РґР°РЅРёСЏ Р·Р°СЏРІРєРё</b> (HTTP POST РЅР° URL create РёР· Р°РґРјРёРЅРєРё). РќРµ РёР· С„Р°Р№Р»РѕРІ Рё РЅРµ РёР· <code>state</code>.</p>
+    <h1>Заявка из приложения → 1С: какие поля брать</h1>
+    <p class="sub">Import Service. Источник данных: тело <b>создания заявки</b> (HTTP POST на URL create из админки). Не из файлов и не из <code>state</code>.</p>
     <div class="note">
-      РЎРµСЂРІРµСЂ С€Р»С‘С‚ РІ 1РЎ JSON РїРѕСЃР»Рµ С‚РѕРіРѕ, РєР°Рє РєР»РёРµРЅС‚ СЃРѕР·РґР°Р» Р·Р°СЏРІРєСѓ Рё Р·Р°РіСЂСѓР·РёР» С„Р°Р№Р»С‹.
-      РћС‚РІРµС‚ 1РЎ РЅР° create: <code>requestId</code>, <code>external1cId</code>.
-      Р”РѕРєСѓРјРµРЅС‚Р°С†РёСЏ: <a href="https://app.import-service.su/docs/onec">https://app.import-service.su/docs/onec</a>
+      Сервер шлёт в 1С JSON после того, как клиент создал заявку и загрузил файлы.
+      Ответ 1С на create: <code>requestId</code>, <code>external1cId</code>.
+      Документация: <a href="https://app.import-service.su/docs/onec">https://app.import-service.su/docs/onec</a>
     </div>
 
-    <h2>1. Р®СЂР»РёС†Рѕ (РѕС‚ РєРѕРіРѕ РїСЂРёС€Р»Р° Р·Р°СЏРІРєР°)</h2>
-    <p>Р‘СЂР°С‚СЊ РёР· Р°РЅРєРµС‚С‹ create, РЅРµ РёР· СЃРєР°РЅРѕРІ.</p>
+    <h2>1. Юрлицо (от кого пришла заявка)</h2>
+    <p>Брать из анкеты create, не из сканов.</p>
     <table>
-      <tr><th>РџРѕР»Рµ JSON</th><th>РџСЂРёРјРµСЂ</th><th>РЎРјС‹СЃР»</th></tr>
-      <tr><td><code>legalEntityName</code></td><td>РћРћРћ Р’РµРєС‚РѕСЂ</td><td>РќР°РёРјРµРЅРѕРІР°РЅРёРµ Р®Р› / РРџ / С„РёР·Р»РёС†Р°-Р·Р°СЏРІРёС‚РµР»СЏ</td></tr>
-      <tr><td><code>legalInn</code></td><td>7707083893</td><td>РРќРќ, 10 РёР»Рё 12 С†РёС„СЂ</td></tr>
-      <tr><td><code>inn</code></td><td>7707083893</td><td>РђР»РёР°СЃ, С‚Рѕ Р¶Рµ Р·РЅР°С‡РµРЅРёРµ, С‡С‚Рѕ <code>legalInn</code></td></tr>
-      <tr><td><code>legalEmail</code></td><td>mail@example.com</td><td>Email РѕСЂРіР°РЅРёР·Р°С†РёРё</td></tr>
-      <tr><td><code>legalPhone</code></td><td>+79990000000</td><td>РўРµР»РµС„РѕРЅ РѕСЂРіР°РЅРёР·Р°С†РёРё</td></tr>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>legalEntityName</code></td><td>ООО Вектор</td><td>Наименование ЮЛ / ИП / физлица-заявителя</td></tr>
+      <tr><td><code>legalInn</code></td><td>7707083893</td><td>ИНН, 10 или 12 цифр</td></tr>
+      <tr><td><code>inn</code></td><td>7707083893</td><td>Алиас, то же значение, что <code>legalInn</code></td></tr>
+      <tr><td><code>legalEmail</code></td><td>mail@example.com</td><td>Email организации</td></tr>
+      <tr><td><code>legalPhone</code></td><td>+79990000000</td><td>Телефон организации</td></tr>
     </table>
-    <p>Р¤РёР·Р»РёС†Рѕ (РІР»Р°РґРµР»РµС† Р°РІС‚Рѕ / РЅР° РєРѕРіРѕ Р·Р°СЏРІРєР°) вЂ” РѕС‚РґРµР»СЊРЅС‹Рµ РїРѕР»СЏ:</p>
+    <p>Физлицо (владелец авто / на кого заявка) — отдельные поля:</p>
     <table>
-      <tr><th>РџРѕР»Рµ JSON</th><th>РџСЂРёРјРµСЂ</th><th>РЎРјС‹СЃР»</th></tr>
-      <tr><td><code>individualFullName</code></td><td>РРІР°РЅРѕРІ РРІР°РЅ РРІР°РЅРѕРІРёС‡</td><td>Р¤РРћ</td></tr>
-      <tr><td><code>individualPhone</code></td><td>+79991112233</td><td>РўРµР»РµС„РѕРЅ</td></tr>
-      <tr><td><code>individualSnils</code></td><td>123-456-789 00</td><td>РЎРќРР›РЎ</td></tr>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>individualFullName</code></td><td>Иванов Иван Иванович</td><td>ФИО</td></tr>
+      <tr><td><code>individualPhone</code></td><td>+79991112233</td><td>Телефон</td></tr>
+      <tr><td><code>individualSnils</code></td><td>123-456-789 00</td><td>СНИЛС</td></tr>
     </table>
-    <p class="muted">Р•СЃР»Рё РІ РєР°СЂС‚РѕС‡РєРµ 1РЎ СЋСЂР»РёС†Рѕ РїСѓСЃС‚РѕРµ вЂ” СЌС‚Рё РїРѕР»СЏ СЃ create РЅРµ СЂР°Р·РѕР±СЂР°РЅС‹.</p>
+    <p class="muted">Если в карточке 1С юрлицо пустое — эти поля с create не разобраны.</p>
 
-    <h2>2. РћРїРѕРІРµС‰РµРЅРёРµ, С‡С‚Рѕ РїСЂРёС€Р»Р° РЅРѕРІР°СЏ Р·Р°СЏРІРєР°</h2>
-    <p>РћС‚РґРµР»СЊРЅРѕРіРѕ РїРѕР»СЏ В«СѓРІРµРґРѕРјРё РјРµРЅРµРґР¶РµСЂР°В» РЅРµС‚. Р—Р°СЏРІРєР° СѓР¶Рµ РїСЂРёС…РѕРґРёС‚ createвЂ™РѕРј. РљРѕР»РѕРєРѕР»СЊС‡РёРє / Р·Р°РґР°С‡Р° / РїРѕС‡С‚Р° РјРµРЅРµРґР¶РµСЂСѓ вЂ” Р»РѕРіРёРєР° 1РЎ РїРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕРіРѕ РїСЂРёС‘РјР° create.</p>
+    <h2>2. Оповещение, что пришла новая заявка</h2>
+    <p>Отдельного поля «уведоми менеджера» нет. Заявка уже приходит create’ом. Колокольчик / задача / почта менеджеру — логика 1С после успешного приёма create.</p>
 
-    <h2>3. РњР°СЂРєР° Рё РјРѕРґРµР»СЊ Р°РІС‚РѕРјРѕР±РёР»СЏ</h2>
+    <h2>3. Марка и модель автомобиля</h2>
     <table>
-      <tr><th>РџРѕР»Рµ JSON</th><th>РџСЂРёРјРµСЂ</th><th>РЎРјС‹СЃР»</th></tr>
-      <tr><td><code>carMake</code></td><td>Toyota</td><td>РњР°СЂРєР°</td></tr>
-      <tr><td><code>carModel</code></td><td>Crown</td><td>РњРѕРґРµР»СЊ</td></tr>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>carMake</code></td><td>Toyota</td><td>Марка</td></tr>
+      <tr><td><code>carModel</code></td><td>Crown</td><td>Модель</td></tr>
       <tr><td><code>vin</code></td><td>VIN12345678901234</td><td>VIN</td></tr>
     </table>
-    <p class="muted">РўРѕР¶Рµ РёР· create, РЅРµ РёР· С„Р°Р№Р»РѕРІ. Р•СЃР»Рё РІ 1РЎ РїСѓСЃС‚Рѕ вЂ” РїРѕР»СЏ РЅРµ СЃРјР°РїР»РµРЅС‹.</p>
+    <p class="muted">Тоже из create, не из файлов. Если в 1С пусто — поля не смаплены.</p>
 
-    <h2>4. Р’РІРѕР· Р°РІС‚Рѕ Р·Р° 12 РјРµСЃСЏС†РµРІ Рё РґР°С‚С‹ РІРІРѕР·Р°</h2>
-    <p>Р’ РїСЂРёР»РѕР¶РµРЅРёРё РіР°Р»РѕС‡РєРё РЅРµС‚. Р•СЃС‚СЊ СЃРїРёСЃРѕРє РґР°С‚. РџСѓСЃС‚РѕР№ РјР°СЃСЃРёРІ = РЅРµ РІРІРѕР·РёР»Рё.</p>
+    <h2>4. Ввоз авто за 12 месяцев и даты ввоза</h2>
+    <p>В приложении галочки нет. Есть список дат. Пустой массив = не ввозили.</p>
     <table>
-      <tr><th>РџРѕР»Рµ JSON</th><th>РџСЂРёРјРµСЂ</th><th>РЎРјС‹СЃР»</th></tr>
-      <tr><td><code>previousImportDates</code></td><td>["2025-11-02", "2026-03-15"]</td><td>Р”Р°С‚С‹ РІРІРѕР·Р°, С„РѕСЂРјР°С‚ <code>YYYY-MM-DD</code></td></tr>
-      <tr><td><code>importedLast12Months</code></td><td>true</td><td>РЎРµСЂРІРµСЂ СЃС‡РёС‚Р°РµС‚ СЃР°Рј: true, РµСЃР»Рё РјР°СЃСЃРёРІ РґР°С‚ РЅРµ РїСѓСЃС‚РѕР№</td></tr>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>previousImportDates</code></td><td>["2025-11-02", "2026-03-15"]</td><td>Даты ввоза, формат <code>YYYY-MM-DD</code></td></tr>
+      <tr><td><code>importedLast12Months</code></td><td>true</td><td>Сервер считает сам: true, если массив дат не пустой</td></tr>
     </table>
-    <p>Р”Р»СЏ РїРѕСЏСЃРЅРµРЅРёСЏ РІ 1РЎ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ <b>РґР°С‚С‹</b> РёР· <code>previousImportDates</code>, РЅРµ С‚РѕР»СЊРєРѕ boolean.</p>
+    <p>Для пояснения в 1С использовать <b>даты</b> из <code>previousImportDates</code>, не только boolean.</p>
 
-    <h2>5. РђРІС‚Рѕ РІ СЃРѕР±СЃС‚РІРµРЅРЅРѕСЃС‚Рё (РЅР°Р·РІР°РЅРёРµ Рё РіРѕРґ в†’ РІ РїРѕСЏСЃРЅРµРЅРёРµ)</h2>
-    <p>Р“Р°Р»РѕС‡РєРё РЅРµС‚. Р•СЃС‚СЊ СЃРїРёСЃРѕРє. РџСѓСЃС‚РѕР№ РјР°СЃСЃРёРІ = РґСЂСѓРіРёС… Р°РІС‚Рѕ РЅРµС‚.</p>
+    <h2>5. Авто в собственности (название и год → в пояснение)</h2>
+    <p>Галочки нет. Есть список. Пустой массив = других авто нет.</p>
     <table>
-      <tr><th>РџРѕР»Рµ JSON</th><th>РџСЂРёРјРµСЂ</th><th>РЎРјС‹СЃР»</th></tr>
-      <tr><td><code>ownedVehicles</code></td><td>СЃРј. JSON РЅРёР¶Рµ</td><td>РњР°СЃСЃРёРІ РѕР±СЉРµРєС‚РѕРІ: РЅР°РёРјРµРЅРѕРІР°РЅРёРµ + РіРѕРґ РІС‹РїСѓСЃРєР°</td></tr>
-      <tr><td><code>ownedVehicles[].name</code></td><td>Toyota Camry</td><td>РњР°СЂРєР° Рё РјРѕРґРµР»СЊ</td></tr>
-      <tr><td><code>ownedVehicles[].year</code></td><td>2018</td><td>Р“РѕРґ РІС‹РїСѓСЃРєР°, С‡РёСЃР»Рѕ</td></tr>
-      <tr><td><code>ownsOtherCars</code></td><td>true</td><td>РЎРµСЂРІРµСЂ СЃС‡РёС‚Р°РµС‚ СЃР°Рј: true, РµСЃР»Рё СЃРїРёСЃРѕРє РЅРµ РїСѓСЃС‚РѕР№</td></tr>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>ownedVehicles</code></td><td>см. JSON ниже</td><td>Массив объектов: наименование + год выпуска</td></tr>
+      <tr><td><code>ownedVehicles[].name</code></td><td>Toyota Camry</td><td>Марка и модель</td></tr>
+      <tr><td><code>ownedVehicles[].year</code></td><td>2018</td><td>Год выпуска, число</td></tr>
+      <tr><td><code>ownsOtherCars</code></td><td>true</td><td>Сервер считает сам: true, если список не пустой</td></tr>
     </table>
 <pre>{
   "ownedVehicles": [
@@ -91,145 +91,145 @@
     { "name": "Hyundai Solaris", "year": 2020 }
   ]
 }</pre>
-    <p>Р’ РїРѕСЏСЃРЅРµРЅРёРµ: РїРѕ РєР°Р¶РґРѕР№ СЃС‚СЂРѕРєРµ <code>name</code> Рё <code>year</code>.</p>
+    <p>В пояснение: по каждой строке <code>name</code> и <code>year</code>.</p>
 
-    <h2>6. РљР»РёРµРЅС‚ РїСЂРёРєСЂРµРїРёР» РЅРµ С‚РѕС‚ РґРѕРєСѓРјРµРЅС‚ РёР»Рё РїР»РѕС…РѕРµ РєР°С‡РµСЃС‚РІРѕ</h2>
-    <p>РћС‚РґРµР»СЊРЅРѕРіРѕ РїРѕР»СЏ В«Р±СЂР°Рє РїР°СЃРїРѕСЂС‚Р°В» РЅРµС‚.</p>
+    <h2>6. Клиент прикрепил не тот документ или плохое качество</h2>
+    <p>Отдельного поля «брак паспорта» нет.</p>
     <table>
-      <tr><th>Р§С‚Рѕ СЃРґРµР»Р°С‚СЊ РІ 1РЎ</th><th>РљР°Рє РєР»РёРµРЅС‚ РІРёРґРёС‚ / С‡С‚Рѕ РґРµР»Р°РµС‚</th></tr>
-      <tr><td>РќР°РїРёСЃР°С‚СЊ РІ С‡Р°С‚ Р·Р°СЏРІРєРё</td><td>РЎРѕРѕР±С‰РµРЅРёРµ РІ РїСЂРёР»РѕР¶РµРЅРёРё</td></tr>
-      <tr><td>РР»Рё <code>POST /api/integration/customs-requests/state</code> СЃ <code>statusSubType</code> = <code>signature_revision_required</code></td><td>РџРѕРґСЃРєР°Р·РєР° РІ РњРџ (С‚РёРїРёС‡РЅРѕ РґР»СЏ Р±СЂР°РєР° РїРѕРґРїРёСЃРё)</td></tr>
-      <tr><td>РљР»РёРµРЅС‚ СЃРЅРѕРІР° upload СЃ С‚РµРј Р¶Рµ <code>docType</code> (РЅР°РїСЂРёРјРµСЂ <code>passport_front</code>, <code>inn</code>)</td><td>Р¤Р°Р№Р» РЅР° СЃРµСЂРІРµСЂРµ РїРµСЂРµР·Р°РїРёСЃС‹РІР°РµС‚СЃСЏ, СЃРµСЂРІРµСЂ РѕС‚РґР°С‘С‚ 1РЎ update С„Р°Р№Р»РѕРІ</td></tr>
+      <tr><th>Что сделать в 1С</th><th>Как клиент видит / что делает</th></tr>
+      <tr><td>Написать в чат заявки</td><td>Сообщение в приложении</td></tr>
+      <tr><td>Или <code>POST /api/integration/customs-requests/state</code> с <code>statusSubType</code> = <code>signature_revision_required</code></td><td>Подсказка в МП (типично для брака подписи)</td></tr>
+      <tr><td>Клиент снова upload с тем же <code>docType</code> (например <code>passport_front</code>, <code>inn</code>)</td><td>Файл на сервере перезаписывается, сервер отдаёт 1С update файлов</td></tr>
     </table>
 
-    <h2>7. Р“РѕС‚РѕРІС‹Рµ РґРѕРєСѓРјРµРЅС‚С‹ РЅР° РїРѕРґРїРёСЃСЊ РѕР±СЂР°С‚РЅРѕ РІ РїСЂРёР»РѕР¶РµРЅРёРµ</h2>
-    <p>РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂРёРєСЂРµРїРёС‚СЊ С„Р°Р№Р» С‚РѕР»СЊРєРѕ РІ РєР°СЂС‚РѕС‡РєРµ 1РЎ. РќСѓР¶РµРЅ <b>upload РЅР° СЃРµСЂРІРµСЂ Import Service</b>.</p>
+    <h2>7. Готовые документы на подпись обратно в приложение</h2>
+    <p>Недостаточно прикрепить файл только в карточке 1С. Нужен <b>upload на сервер Import Service</b>.</p>
     <table>
-      <tr><th>РЁР°Рі</th><th>РљС‚Рѕ</th><th>Р§С‚Рѕ</th></tr>
-      <tr><td>1</td><td>1РЎ</td><td><code>POST /api/customs-requests/upload</code> вЂ” РѕСЂРёРіРёРЅР°Р», <code>docType</code> Р±РµР· СЃСѓС„С„РёРєСЃР° (РЅР°РїСЂРёРјРµСЂ <code>contract</code>, <code>kuts</code>, <code>explanatory_note</code>)</td></tr>
-      <tr><td>2</td><td>РЎРµСЂРІРµСЂ</td><td>РљР»Р°РґС‘С‚ С„Р°Р№Р» РІ Р·Р°СЏРІРєСѓ, РїСѓС€ РІ РњРџ</td></tr>
-      <tr><td>3</td><td>РљР»РёРµРЅС‚ РІ РњРџ</td><td>РЎРєР°С‡РёРІР°РµС‚ РѕСЂРёРіРёРЅР°Р», РїРѕРґРїРёСЃС‹РІР°РµС‚</td></tr>
-      <tr><td>4</td><td>РљР»РёРµРЅС‚ РІ РњРџ</td><td>Upload СЃ <code>docType</code> + <code>_sign</code>: <code>contract_sign</code>, <code>kuts_sign</code> Рё С‚.Рґ.</td></tr>
+      <tr><th>Шаг</th><th>Кто</th><th>Что</th></tr>
+      <tr><td>1</td><td>1С</td><td><code>POST /api/customs-requests/upload</code> — оригинал, <code>docType</code> без суффикса (например <code>contract</code>, <code>kuts</code>, <code>explanatory_note</code>)</td></tr>
+      <tr><td>2</td><td>Сервер</td><td>Кладёт файл в заявку, пуш в МП</td></tr>
+      <tr><td>3</td><td>Клиент в МП</td><td>Скачивает оригинал, подписывает</td></tr>
+      <tr><td>4</td><td>Клиент в МП</td><td>Upload с <code>docType</code> + <code>_sign</code>: <code>contract_sign</code>, <code>kuts_sign</code> и т.д.</td></tr>
     </table>
-    <p><code>state</code> С„Р°Р№Р»РѕРІ РЅРµ СЃРѕРґРµСЂР¶РёС‚ вЂ” С‚РѕР»СЊРєРѕ СЃС‚Р°С‚СѓСЃ, РјРµРЅРµРґР¶РµСЂ, СЃСѓРјРјС‹. Р¤Р°Р№Р»С‹ С‚РѕР»СЊРєРѕ С‡РµСЂРµР· upload.</p>
+    <p><code>state</code> файлов не содержит — только статус, менеджер, суммы. Файлы только через upload.</p>
 
-    <h2>8. РћР±С‰РёР№ С‡Р°С‚ РѕСЂРіР°РЅРёР·Р°С†РёРё (РЅРµ РёР· create)</h2>
-    <p>РћС‚РґРµР»СЊРЅР°СЏ С„РёС‡Р°: <b>РѕРґРёРЅ С‡Р°С‚ РЅР° РѕСЂРіР°РЅРёР·Р°С†РёСЋ</b>, РЅРµ РїСЂРёРІСЏР·Р°РЅ Рє <code>requestId</code> / <code>external1cId</code> Р·Р°СЏРІРєРё. Р’ РњРџ вЂ” Р·Р°РєСЂРµРїР»С‘РЅРЅР°СЏ СЃС‚СЂРѕРєР° В«РћР±С‰РёР№ С‡Р°С‚В». Р’ Р°СЂС…РёРІ Р·Р°СЏРІРѕРє РЅР° С„РёР·РЅРѕСЃРёС‚РµР»СЊ <b>РЅРµ РІС…РѕРґРёС‚</b>.</p>
+    <h2>8. Общий чат организации (не из create)</h2>
+    <p>Отдельная фича: <b>один чат на организацию</b>, не привязан к <code>requestId</code> / <code>external1cId</code> заявки. В МП — закреплённая строка «Общий чат». В архив заявок на физноситель <b>не входит</b>.</p>
     <div class="note">
-      РљР»СЋС‡ РѕСЂРіР°РЅРёР·Р°С†РёРё вЂ” <code>id_1c</code> (GUID РёР· СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё <code>POST /api/integration/organizations</code>).
-      РџРѕР»РЅР°СЏ СЃРїРµС†РёС„РёРєР°С†РёСЏ: <a href="https://app.import-service.su/docs/onec">https://app.import-service.su/docs/onec</a>,
+      Ключ организации — <code>id_1c</code> (GUID из синхронизации <code>POST /api/integration/organizations</code>).
+      Полная спецификация: <a href="https://app.import-service.su/docs/onec">https://app.import-service.su/docs/onec</a>,
       WSS: <a href="https://app.import-service.su/docs/wss1c">/docs/wss1c</a>.
     </div>
     <table>
-      <tr><th>РћС‚Р»РёС‡РёРµ РѕС‚ С‡Р°С‚Р° Р·Р°СЏРІРєРё</th><th>РћР±С‰РёР№ С‡Р°С‚</th><th>Р§Р°С‚ Р·Р°СЏРІРєРё</th></tr>
-      <tr><td>РљРѕРјРЅР°С‚Р° / РєР»СЋС‡</td><td><code>org:{organizationId}</code>, query <code>id_1c</code></td><td>РїРѕ <code>external1cId</code> Р·Р°СЏРІРєРё</td></tr>
-      <tr><td>Unread РІ РњРџ</td><td>РєР»СЋС‡ <code>org</code></td><td>РєР»СЋС‡ = <code>requestId</code></td></tr>
-      <tr><td>Push РІ РњРџ</td><td><code>type: new_org_message</code></td><td><code>new_message</code> РїРѕ Р·Р°СЏРІРєРµ</td></tr>
+      <tr><th>Отличие от чата заявки</th><th>Общий чат</th><th>Чат заявки</th></tr>
+      <tr><td>Комната / ключ</td><td><code>org:{organizationId}</code>, query <code>id_1c</code></td><td>по <code>external1cId</code> заявки</td></tr>
+      <tr><td>Unread в МП</td><td>ключ <code>org</code></td><td>ключ = <code>requestId</code></td></tr>
+      <tr><td>Push в МП</td><td><code>type: new_org_message</code></td><td><code>new_message</code> по заявке</td></tr>
     </table>
 
-    <h2 style="margin-top:18px;font-size:16px;">8.1. РљР°Рє 1РЎ РїРѕР»СѓС‡Р°РµС‚ СЃРѕРѕР±С‰РµРЅРёРµ РєР»РёРµРЅС‚Р° РёР· РњРџ</h2>
-    <p>РЎРµСЂРІРµСЂ РґРѕСЃС‚Р°РІР»СЏРµС‚ <b>РѕРґРЅРёРј</b> РёР· РґРІСѓС… РїСѓС‚РµР№ (Р±РµР· РґСѓР±Р»СЏ):</p>
+    <h2 style="margin-top:18px;font-size:16px;">8.1. Как 1С получает сообщение клиента из МП</h2>
+    <p>Сервер доставляет <b>одним</b> из двух путей (без дубля):</p>
     <table>
-      <tr><th>РЎРїРѕСЃРѕР±</th><th>РљРѕРіРґР°</th><th>Р§С‚Рѕ СЃРґРµР»Р°С‚СЊ РІ 1РЎ</th></tr>
+      <tr><th>Способ</th><th>Когда</th><th>Что сделать в 1С</th></tr>
       <tr>
         <td><b>WSS</b></td>
-        <td>РћС‚РєСЂС‹С‚ СЃРѕРєРµС‚ РїРѕ РѕСЂРіР°РЅРёР·Р°С†РёРё</td>
-        <td>РџРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ Рє<br><code>wss://app.import-service.su/ws/1c/org/?id_1c=GUID-ORG-1C&amp;token=INTEGRATION_BEARER_TOKEN</code><br>РџРѕСЃР»Рµ connect: <code>chatKind: "org"</code>. РЎРѕР±С‹С‚РёРµ <code>message_created</code> вЂ” РєР°Рє Сѓ С‡Р°С‚Р° Р·Р°СЏРІРєРё.</td>
+        <td>Открыт сокет по организации</td>
+        <td>Подключиться к<br><code>wss://app.import-service.su/ws/1c/org/?id_1c=GUID-ORG-1C&amp;token=INTEGRATION_BEARER_TOKEN</code><br>После connect: <code>chatKind: "org"</code>. Событие <code>message_created</code> — как у чата заявки.</td>
       </tr>
       <tr>
         <td><b>HTTP</b></td>
-        <td>РќРµС‚ Р¶РёРІРѕРіРѕ WSS 1РЎ</td>
-        <td>РћРїСѓР±Р»РёРєРѕРІР°С‚СЊ РјРµС‚РѕРґ <code>POST вЂ¦/organization-chat</code> РЅР° СЃС‚РѕСЂРѕРЅРµ 1РЎ (URL РѕС‚ create-URL Р°РґРјРёРЅРєРё, СЃСѓС„С„РёРєСЃ <code>/organization-chat</code>, Р°РЅР°Р»РѕРі <code>/customs-request-chat</code>).</td>
+        <td>Нет живого WSS 1С</td>
+        <td>Опубликовать метод <code>POST …/organization-chat</code> на стороне 1С (URL от create-URL админки, суффикс <code>/organization-chat</code>, аналог <code>/customs-request-chat</code>).</td>
       </tr>
     </table>
-    <p class="muted">РџРѕРєР° <code>organization-chat</code> РІ 1РЎ РЅРµ СЂРµР°Р»РёР·РѕРІР°РЅ, РёСЃС…РѕРґСЏС‰РёРµ РёР· РњРџ РјРѕРіСѓС‚ РѕСЃС‚Р°РІР°С‚СЊСЃСЏ СЃРѕ СЃС‚Р°С‚СѓСЃРѕРј <code>failed</code> вЂ” СЌС‚Рѕ РѕР¶РёРґР°РµРјРѕ.</p>
+    <p class="muted">Пока <code>organization-chat</code> в 1С не реализован, исходящие из МП могут оставаться со статусом <code>failed</code> — это ожидаемо.</p>
 <pre>{
   "id_1c": "GUID-ORG-1C",
   "organizationId": 14,
   "clientMessageId": "f14d9f58-f1c0-4f4d-b3ef-f92d0cc7077f",
-  "text": "Р’РѕРїСЂРѕСЃ РїРѕ РѕСЂРіР°РЅРёР·Р°С†РёРё",
+  "text": "Вопрос по организации",
   "authorType": "app_user",
   "chatKind": "org",
   "attachments": []
 }</pre>
 
-    <h2 style="margin-top:18px;font-size:16px;">8.2. РљР°Рє 1РЎ РїРёС€РµС‚ РєР»РёРµРЅС‚Сѓ РІ РѕР±С‰РёР№ С‡Р°С‚</h2>
+    <h2 style="margin-top:18px;font-size:16px;">8.2. Как 1С пишет клиенту в общий чат</h2>
     <table>
-      <tr><th>РЎРїРѕСЃРѕР±</th><th>Endpoint</th><th>РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ</th></tr>
+      <tr><th>Способ</th><th>Endpoint</th><th>Обязательные поля</th></tr>
       <tr>
         <td>WSS <code>send</code></td>
-        <td>С‚РѕС‚ Р¶Рµ <code>/ws/1c/org/</code></td>
-        <td>С‚РµРєСЃС‚ РёР»Рё <code>attachments[]</code> СЃ <code>fileUrl</code></td>
+        <td>тот же <code>/ws/1c/org/</code></td>
+        <td>текст или <code>attachments[]</code> с <code>fileUrl</code></td>
       </tr>
       <tr>
         <td>HTTP</td>
         <td><code>POST /api/integration/organization-messages</code></td>
-        <td><code>id_1c</code>, <code>message1cId</code> (РґРµРґСѓРї), <code>text</code> РёР»Рё РІР»РѕР¶РµРЅРёСЏ</td>
+        <td><code>id_1c</code>, <code>message1cId</code> (дедуп), <code>text</code> или вложения</td>
       </tr>
       <tr>
-        <td>РСЃС‚РѕСЂРёСЏ HTTP</td>
-        <td><code>GET /api/integration/organization-messages?id_1c=вЂ¦</code></td>
-        <td>вЂ”</td>
+        <td>История HTTP</td>
+        <td><code>GET /api/integration/organization-messages?id_1c=…</code></td>
+        <td>—</td>
       </tr>
     </table>
-    <p>Р’Р»РѕР¶РµРЅРёСЏ СЃ 1РЎ: <code>POST /api/integration/organization-messages/attachments</code> (<code>id_1c</code>, JSON+<code>fileBase64</code>). РРјРµРЅР° С„Р°Р№Р»РѕРІ: <code>o{organizationId}_вЂ¦</code>. Р Р°Р·РґР°С‡Р°: <code>GET /api/customs-requests/files/:storedName</code>.</p>
+    <p>Вложения с 1С: <code>POST /api/integration/organization-messages/attachments</code> (<code>id_1c</code>, JSON+<code>fileBase64</code>). Имена файлов: <code>o{organizationId}_…</code>. Раздача: <code>GET /api/customs-requests/files/:storedName</code>.</p>
 <pre>{
   "id_1c": "GUID-ORG-1C",
   "message1cId": "MSG-0001",
-  "text": "Р”РѕР±СЂС‹Р№ РґРµРЅСЊ, РѕС‚РІРµС‚ РјРµРЅРµРґР¶РµСЂР°",
+  "text": "Добрый день, ответ менеджера",
   "sender1cId": "GUID-MANAGER",
-  "senderName": "РџРµС‚СЂРѕРІ",
+  "senderName": "Петров",
   "attachments": []
 }</pre>
-    <p class="muted">Auth РґР»СЏ integration HTTP: <code>Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</code>. РћСЂРіР°РЅРёР·Р°С†РёСЏ РґРѕР»Р¶РЅР° Р±С‹С‚СЊ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅР° (<code>organizations.id_1c</code>).</p>
+    <p class="muted">Auth для integration HTTP: <code>Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</code>. Организация должна быть синхронизирована (<code>organizations.id_1c</code>).</p>
 
-    <h2>9. РњР°СЃСЃРѕРІР°СЏ СЂР°СЃСЃС‹Р»РєР° РІСЃРµРј РєР»РёРµРЅС‚Р°Рј</h2>
-    <p>РћРґРЅРѕ СЃРѕРѕР±С‰РµРЅРёРµ вЂ” <b>РІСЃРµРј</b> РѕСЂРіР°РЅРёР·Р°С†РёСЏРј СЃ <code>deleted_at IS NULL</code>. Р”Р»СЏ РєР°Р¶РґРѕР№ РѕСЂРіР°РЅРёР·Р°С†РёРё:</p>
+    <h2>9. Массовая рассылка всем клиентам</h2>
+    <p>Одно сообщение — <b>всем</b> организациям с <code>deleted_at IS NULL</code>. Для каждой организации:</p>
     <ul>
-      <li>СЃРѕРѕР±С‰РµРЅРёРµ РІ <b>РѕР±С‰РёР№ С‡Р°С‚</b> (РєР°Рє РѕС‚ РјРµРЅРµРґР¶РµСЂР°/СЂР°СЃСЃС‹Р»РєРё);</li>
-      <li><b>push</b> РІ РїСЂРёР»РѕР¶РµРЅРёРµ (<code>new_org_message</code>);</li>
-      <li><b>email</b> РЅР° <code>organizations.login</code> (РµСЃР»Рё РїРѕС…РѕР¶ РЅР° email).</li>
+      <li>сообщение в <b>общий чат</b> (как от менеджера/рассылки);</li>
+      <li><b>push</b> в приложение (<code>new_org_message</code>);</li>
+      <li><b>email</b> на <code>organizations.login</code> (если похож на email).</li>
     </ul>
-    <p>РљР»РёРµРЅС‚ РјРѕР¶РµС‚ <b>РѕС‚РІРµС‚РёС‚СЊ</b> РІ РѕР±С‰РµРј С‡Р°С‚Рµ. Р Р°СЃСЃС‹Р»РєР° РЅРµ Р°СЂС…РёРІРёСЂСѓРµС‚СЃСЏ РѕС‚РґРµР»СЊРЅРѕ вЂ” СЌС‚Рѕ РѕР±С‹С‡РЅС‹Рµ РІС…РѕРґСЏС‰РёРµ РІ org-chat.</p>
+    <p>Клиент может <b>ответить</b> в общем чате. Рассылка не архивируется отдельно — это обычные входящие в org-chat.</p>
     <table>
-      <tr><th>РљС‚Рѕ</th><th>РњРµС‚РѕРґ</th><th>РќР°Р·РЅР°С‡РµРЅРёРµ</th></tr>
-      <tr><td>1РЎ</td><td><code>POST /api/integration/broadcasts</code></td><td>РўРµРєСЃС‚ + РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ <code>attachments[]</code> РёР»Рё <code>fileBase64</code></td></tr>
-      <tr><td>1РЎ</td><td><code>POST /api/integration/broadcasts/attachments</code></td><td>РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚СЊ С„Р°Р№Р» в†’ <code>fileUrl</code>, РїРѕС‚РѕРј РІ <code>attachments[]</code></td></tr>
-      <tr><td>РђРґРјРёРЅРєР°</td><td><code>POST /api/admin/broadcasts</code></td><td>РўРѕС‚ Р¶Рµ СЌС„С„РµРєС‚: multipart <code>text</code>, <code>file</code></td></tr>
+      <tr><th>Кто</th><th>Метод</th><th>Назначение</th></tr>
+      <tr><td>1С</td><td><code>POST /api/integration/broadcasts</code></td><td>Текст + опционально <code>attachments[]</code> или <code>fileBase64</code></td></tr>
+      <tr><td>1С</td><td><code>POST /api/integration/broadcasts/attachments</code></td><td>Сначала загрузить файл → <code>fileUrl</code>, потом в <code>attachments[]</code></td></tr>
+      <tr><td>Админка</td><td><code>POST /api/admin/broadcasts</code></td><td>Тот же эффект: multipart <code>text</code>, <code>file</code></td></tr>
     </table>
 <pre>{
   "message1cId": "BROADCAST-2026-001",
-  "text": "РЈРІР°Р¶Р°РµРјС‹Рµ РєР»РёРµРЅС‚С‹, РЅР°РїРѕРјРёРЅР°РµРј Рѕ РіСЂР°С„РёРєРµ СЂР°Р±РѕС‚С‹.",
+  "text": "Уважаемые клиенты, напоминаем о графике работы.",
   "senderName": "Import Service",
   "attachments": [
     {
-      "fileUrl": "/api/customs-requests/files/bc_вЂ¦.pdf",
+      "fileUrl": "/api/customs-requests/files/bc_….pdf",
       "fileName": "notice.pdf",
       "mimeType": "application/pdf"
     }
   ]
 }</pre>
-    <p class="muted"><code>message1cId</code> вЂ” id СЂР°СЃСЃС‹Р»РєРё РґР»СЏ РґРµРґСѓРїР° (РІ С‡Р°С‚Рµ РєР°Р¶РґРѕР№ РѕСЂРі: <code>broadcast-{message1cId}-org-{organizationId}</code>). Р¤Р°Р№Р»С‹ СЂР°СЃСЃС‹Р»РєРё РЅР° РґРёСЃРєРµ: РїСЂРµС„РёРєСЃ <code>bc_</code>.</p>
+    <p class="muted"><code>message1cId</code> — id рассылки для дедупа (в чате каждой орг: <code>broadcast-{message1cId}-org-{organizationId}</code>). Файлы рассылки на диске: префикс <code>bc_</code>.</p>
 
-    <h2>РџСЂРѕС‡РёРµ РїРѕР»СЏ Р°РЅРєРµС‚С‹ (С‚РѕР¶Рµ СЃ create)</h2>
+    <h2>Прочие поля анкеты (тоже с create)</h2>
     <table>
-      <tr><th>РџРѕР»Рµ JSON</th><th>РџСЂРёРјРµСЂ</th><th>РЎРјС‹СЃР»</th></tr>
-      <tr><td><code>requestId</code></td><td>123</td><td>Id Р·Р°СЏРІРєРё РЅР° СЃРµСЂРІРµСЂРµ</td></tr>
-      <tr><td><code>hasSunroof</code></td><td>false</td><td>Р›СЋРє / РїР°РЅРѕСЂР°РјРЅР°СЏ РєСЂС‹С€Р°</td></tr>
-      <tr><td><code>hasAllWheelDrive</code></td><td>false</td><td>РџРѕР»РЅС‹Р№ РїСЂРёРІРѕРґ</td></tr>
-      <tr><td><code>commentText</code></td><td>null РёР»Рё С‚РµРєСЃС‚</td><td>РљРѕРјРјРµРЅС‚Р°СЂРёР№ РєР»РёРµРЅС‚Р°</td></tr>
-      <tr><td><code>files[]</code></td><td>СЃРј. РЅРёР¶Рµ</td><td>Р”РѕРєСѓРјРµРЅС‚С‹ РїСЂРё РїРѕРґР°С‡Рµ: <code>docType</code>, <code>fileName</code>, <code>mimeType</code>, <code>fileUrl</code></td></tr>
+      <tr><th>Поле JSON</th><th>Пример</th><th>Смысл</th></tr>
+      <tr><td><code>requestId</code></td><td>123</td><td>Id заявки на сервере</td></tr>
+      <tr><td><code>hasSunroof</code></td><td>false</td><td>Люк / панорамная крыша</td></tr>
+      <tr><td><code>hasAllWheelDrive</code></td><td>false</td><td>Полный привод</td></tr>
+      <tr><td><code>commentText</code></td><td>null или текст</td><td>Комментарий клиента</td></tr>
+      <tr><td><code>files[]</code></td><td>см. ниже</td><td>Документы при подаче: <code>docType</code>, <code>fileName</code>, <code>mimeType</code>, <code>fileUrl</code></td></tr>
     </table>
 
-    <h2>РџСЂРёРјРµСЂ С‚РµР»Р° create С†РµР»РёРєРѕРј</h2>
+    <h2>Пример тела create целиком</h2>
 <pre>{
   "requestId": 123,
-  "legalEntityName": "РћРћРћ Р’РµРєС‚РѕСЂ",
+  "legalEntityName": "ООО Вектор",
   "legalInn": "7707083893",
   "inn": "7707083893",
   "legalEmail": "mail@example.com",
   "legalPhone": "+79990000000",
-  "individualFullName": "РРІР°РЅРѕРІ РРІР°РЅ РРІР°РЅРѕРІРёС‡",
+  "individualFullName": "Иванов Иван Иванович",
   "individualPhone": "+79991112233",
   "individualSnils": "123-456-789 00",
   "carMake": "Toyota",
