@@ -249,7 +249,8 @@ MyApp слушает requestOpenStream / requestUpdateStream
 
 ## 11. Обновление приложения (APK / сторы)
 
-**Канал сборки:** `--dart-define=APP_DISTRIBUTION=server|store` (`app_distribution.dart`).  
+**Канал сборки:** `--dart-define=APP_DISTRIBUTION=server|store` (`app_distribution.dart`).
+Native самоустановка APK (`ApkInstallSupport` + PackageInstaller) — **только** flavor `server` (`src/server`). В `store` — stub без `EXTRA_INTENT` (Play Intent Redirection).
 **Файлы:** `core/app_update/*`, профиль `profile_tab_view.dart` (`isActive` — refresh манифеста при показе вкладки).
 
 **Flavor server:**

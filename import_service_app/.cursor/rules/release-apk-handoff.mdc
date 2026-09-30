@@ -29,7 +29,7 @@ cd D:\Projects\import_servis
 - **store** AAB → `D:\Temp\import_service_app_1_{BUILD}.aab`;
 - **store** APK → `D:\Temp\import_service_app_store_1_{BUILD}.apk`.
 
-Flavors: `server` (самоустановка APK) / `store` (Play/RuStore, без `REQUEST_INSTALL_PACKAGES`).
+Flavors: `server` (самоустановка APK) / `store` (Play/RuStore, без `REQUEST_INSTALL_PACKAGES`, без native PackageInstaller/`EXTRA_INTENT`).
 
 Канон про зависания Gradle: `.cursor/rules/android-release-gradle-never-sandbox.mdc`.
 
