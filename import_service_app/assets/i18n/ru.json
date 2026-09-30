@@ -94,7 +94,6 @@
   "profileGooglePlayVersionParen": "Google {version}",
   "profileRuStoreVersionParen": "RuStore {version}",
   "profileAppStoreVersionParen": "App Store {version}",
-  "profilePushDiagnosticsTitle": "Диагностика push (iOS)",
   "requestFormCompanySectionTitle": "Данные клиента (организация)",
   "requestFormPersonSectionTitle": "Данные физического лица (кому везут)",
   "appUpdateTitle": "Доступна новая версия",

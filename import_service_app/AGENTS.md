@@ -48,5 +48,6 @@
 ## Прочее
 - Терминал: **`agent-workflow.mdc`** — агент **может** запускать `flutter analyze` и т.д. по задаче.
 - **Release APK для заказчика:** **`release-apk-handoff.mdc`** — bump версии → `flutter build apk` → `D:\Temp\import_service_app_1_{BUILD}.apk` → push из корня монорепо.
+- **Подготовка для Xcode (macOS):** **`ios-xcode-prep.mdc`** → `./scripts/prep-ios-xcode.sh` (sync версии из pubspec + pods + open workspace). Не только `pub get`/`pod install`.
 - Промпт для другого агента (сервер/админка): **`agent-handoff-prompts.mdc`** — только copy-блок.
 - Правила: `.cursor/rules/`, при сомнении **приоритет репо** над личными user rules.

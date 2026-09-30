@@ -192,25 +192,27 @@ Home → RequestCreatePage (форма + черновик)
 
 ## 9. Push (FCM)
 
-**Файлы:** `push_notifications_service.dart`, `push_ios_diagnostics.dart`, `main.dart`, `auth_service.dart`
+**Файлы:** `push_notifications_service.dart`, `main.dart`, `auth_service.dart`
 
-На **iOS** в профиле — блок «Диагностика push» (`PushIosDiagnostics`). Тест с VPS: `node scripts/send-test-push.js <login-email>`.
+Тест с VPS: `node scripts/send-test-push.js <login-email>`.
 
 ```text
 AndroidManifest: firebase_messaging_auto_init_enabled=false
 bootstrap → setAutoInitEnabled(false)
 postFrame initialize → permission, listeners
-iOS: wait getAPNSToken → ensureFcmToken; foreground presentation options
-ensureFcmToken → ждать GMS (Android) → setAutoInitEnabled(true) → getToken с retry
-onTokenRefresh → register on server
+iOS: AppDelegate.registerForRemoteNotifications; wait getAPNSToken → ensureFcmToken
+ensureFcmToken → setAutoInitEnabled(true) → getToken с retry
+onFcmTokenReady / tokenRefreshStream → AuthService POST push/tokens (если сессия)
+PackageInfo + Dio POST с timeout
 MyApp слушает requestOpenStream / requestUpdateStream
   request_files_update → refresh detail + RequestAttentionCubit.markFileHighlights
 ```
 
+**Инвариант:** FCM на устройстве ≠ пуш работает. Нужен успешный `POST /push/tokens` после логина/restore.
 **Не переносить** `getToken` в `main()` до `runApp`.
+**Entitlements:** Debug → `RunnerDebug.entitlements` (`development`); Release/Profile → `Runner.entitlements` (`production`).
 
 ---
-
 ## 10. Сотрудники СВХ в МП (роли, не «интерфейсы»)
 
 Один раздел людей в админке → две **роли** с разным объёмом прав. Технически разные shells (`/svh-home` / `/declarant-home`), продуктово — **оба менеджеры СВХ**.

@@ -6,7 +6,6 @@ import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_storage_keys.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
-import 'package:import_service_app/core/push/push_ios_diagnostics.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/storage/secure_storage_service.dart';
 import 'package:import_service_app/data/datasources/remote/auth_remote_data_source.dart';
@@ -64,6 +63,12 @@ class AuthService {
     if (!_session.isAuthenticated) return;
     _bindPushTokenRefresh();
     await _registerPushToken();
+  }
+
+  /// Только подписка на refresh токена (до await getToken), без POST.
+  void bindPushTokenRefreshOnly() {
+    if (!_session.isAuthenticated) return;
+    _bindPushTokenRefresh();
   }
 
   Future<void> logout() async {
@@ -165,6 +170,7 @@ class AuthService {
     _session.setToken(token);
     await _secureStorage.write(AuthStorageKeys.accessToken, token);
     await refreshProfile(allowCacheFallback: false);
+    await registerPushTokenIfNeeded();
   }
 
   void _bindPushTokenRefresh() {
@@ -184,7 +190,6 @@ class AuthService {
             '')
         .trim();
     if (token.isEmpty) {
-      PushIosDiagnostics.log('register skipped: FCM token empty');
       AppLog.error(
         'push register skipped: FCM token empty after ensureFcmToken',
         tag: 'PushToken',
@@ -192,27 +197,28 @@ class AuthService {
       return;
     }
     try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      await _dio.post<dynamic>(
-        'push/tokens',
-        data: <String, dynamic>{
-          'token': token,
-          'platform': _pushNotifications.platformName,
-          'appVersion': packageInfo.version,
-        },
-      );
-      PushIosDiagnostics.log(
-        'POST push/tokens OK platform=${_pushNotifications.platformName} '
-        'app=${packageInfo.version} tokenLen=${token.length}',
-      );
+      var appVersion = 'unknown';
+      try {
+        final packageInfo = await PackageInfo.fromPlatform().timeout(
+          const Duration(seconds: 3),
+        );
+        appVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+      } catch (_) {}
+      await _dio
+          .post<dynamic>(
+            'push/tokens',
+            data: <String, dynamic>{
+              'token': token,
+              'platform': _pushNotifications.platformName,
+              'appVersion': appVersion,
+            },
+          )
+          .timeout(const Duration(seconds: 20));
       AppLog.trace('push token registered', tag: 'PushToken');
     } on DioException catch (e, st) {
       final statusCode = e.response?.statusCode;
       final message = _responseMessage(e.response?.data);
       final errorCode = _responseErrorCode(e.response?.data);
-      PushIosDiagnostics.log(
-        'POST push/tokens FAIL code=$statusCode err=$errorCode msg=$message',
-      );
       if (statusCode == 503 && errorCode == 'PUSH_STORAGE_NOT_READY') {
         AppLog.trace('push register warn: PUSH_STORAGE_NOT_READY', tag: 'PushToken');
         return;

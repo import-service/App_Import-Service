@@ -7,7 +7,6 @@ import 'package:import_service_app/core/app_update/app_update_service.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
-import 'package:import_service_app/core/push/push_ios_diagnostics.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -410,27 +409,6 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppTheme.textSecondary,
-                          ),
-                    ),
-                  ],
-                  if (_isIos) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      s.text('profilePushDiagnosticsTitle'),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: AppTheme.textSecondary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    const SizedBox(height: 6),
-                    SelectableText(
-                      PushIosDiagnostics.text,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.textSecondary,
-                            fontFamily: 'monospace',
-                            fontSize: 11,
-                            height: 1.35,
                           ),
                     ),
                   ],

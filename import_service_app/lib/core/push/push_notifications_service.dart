@@ -6,17 +6,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_api_availability/google_api_availability.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
-import 'package:import_service_app/core/push/push_ios_diagnostics.dart';
 import 'package:import_service_app/core/push/request_remote_update.dart';
 import 'package:import_service_app/domain/entities/chat_list_item.dart';
 import 'package:import_service_app/firebase_options.dart';
 
 void _pushDiag(String message) {
-  if (!kIsWeb && Platform.isIOS) {
-    PushIosDiagnostics.log(message);
-  } else {
-    AppLog.trace(message, tag: 'Push');
-  }
+  AppLog.trace(message, tag: 'Push');
 }
 
 @pragma('vm:entry-point')
@@ -58,11 +53,11 @@ final class PushNotificationsService {
   PushNotificationsService();
 
   static const _tokenRetryDelays = <Duration>[
+    Duration.zero,
     Duration(seconds: 3),
     Duration(seconds: 5),
     Duration(seconds: 10),
     Duration(seconds: 15),
-    Duration(seconds: 30),
   ];
 
   bool _bootstrapped = false;
@@ -86,6 +81,9 @@ final class PushNotificationsService {
   Stream<String> get tokenRefreshStream => _tokenRefreshController.stream;
   String? get currentToken => _currentToken;
   String get platformName => Platform.isIOS ? 'ios' : 'android';
+
+  /// Вызывается при каждом новом FCM-токене (для POST на сервер).
+  void Function(String token)? onFcmTokenReady;
 
   /// Firebase + background handler. Без getToken и без auto-init.
   Future<bool> bootstrap() async {
@@ -162,6 +160,9 @@ final class PushNotificationsService {
           stackTrace: st,
         );
       }
+      // Сразу тянем APNs/FCM — иначе на iOS часто остаётся только permission
+      // без токена (как в диагностике: authorized, но нет FCM/POST).
+      scheduleTokenFetch(reason: 'after_ios_permission');
     }
 
     messaging.onTokenRefresh.listen((token) {
@@ -234,7 +235,7 @@ final class PushNotificationsService {
     if (!_bootstrapped) return;
     if (_tokenFetchScheduled) return;
     _tokenFetchScheduled = true;
-    AppLog.trace('token fetch scheduled: $reason', tag: 'Push');
+    _pushDiag('token fetch scheduled: $reason');
     unawaited(_runTokenFetchLoop(reason));
   }
 
@@ -242,11 +243,16 @@ final class PushNotificationsService {
     try {
       final token = await ensureFcmToken();
       if (token == null) {
+        _pushDiag(
+          'fcm getToken FAILED after ${_tokenRetryDelays.length} attempts ($reason)',
+        );
         AppLog.error(
           'fcm getToken failed after ${_tokenRetryDelays.length} attempts ($reason). '
-          'Проверьте: SHA-1 в Firebase Console, Google Play Services, доступ к googleapis.com.',
+          'Проверьте: APNs key в Firebase Console (iOS), Google Play Services (Android).',
           tag: 'Push',
         );
+      } else {
+        _pushDiag('token fetch done ($reason) len=${token.length}');
       }
     } finally {
       _tokenFetchScheduled = false;
@@ -310,9 +316,17 @@ final class PushNotificationsService {
 
   Future<void> _enableFcmAutoInitOnce() async {
     if (_autoInitEnabled) return;
-    await FirebaseMessaging.instance.setAutoInitEnabled(true);
-    _autoInitEnabled = true;
-    AppLog.trace('FCM auto-init enabled manually', tag: 'Push');
+    _pushDiag('FCM auto-init enabling…');
+    try {
+      await FirebaseMessaging.instance
+          .setAutoInitEnabled(true)
+          .timeout(const Duration(seconds: 8));
+      _autoInitEnabled = true;
+      _pushDiag('FCM auto-init enabled');
+    } catch (e) {
+      _pushDiag('FCM auto-init FAILED/timeout: $e');
+      // Продолжаем: getToken иногда работает и без явного auto-init.
+    }
     // Дать GMS/FIS время подняться после auto-init.
     await Future<void>.delayed(const Duration(seconds: 2));
   }
@@ -327,7 +341,10 @@ final class PushNotificationsService {
       return _currentToken;
     }
 
+    _pushDiag('ensureFcmToken start platform=$platformName');
+
     if (!await _waitForGooglePlayServices()) {
+      _pushDiag('ensureFcmToken abort: GMS unavailable');
       return null;
     }
 
@@ -403,9 +420,19 @@ final class PushNotificationsService {
     final changed = _currentToken != trimmed;
     _currentToken = trimmed;
     _pushDiag('fcm token ($source): ${trimmed.substring(0, 8)}…');
-    // tokenRefreshStream — только нативный refresh; getToken иначе дублирует POST push/tokens.
-    if (changed && source == 'onTokenRefresh') {
+    // Любой новый токен (getToken / refresh) — чтобы AuthService сразу сделал POST.
+    if (changed) {
       _tokenRefreshController.add(trimmed);
+      try {
+        onFcmTokenReady?.call(trimmed);
+      } catch (e, st) {
+        AppLog.error(
+          'onFcmTokenReady failed',
+          tag: 'Push',
+          error: e,
+          stackTrace: st,
+        );
+      }
     }
   }
 

@@ -65,6 +65,8 @@ Flavors: `server` (самоустановка APK) / `store` (Play/RuStore, бе
 
 ## iOS (только macOS)
 
+**Перед открытием Xcode / после pull:** обязательно `import_service_app/scripts/prep-ios-xcode.sh` (см. `ios-xcode-prep.mdc`) — иначе в Xcode старая `FLUTTER_BUILD_*`.
+
 Проект уже на **FlutterImplicitEngineDelegate + SceneDelegate** (Swift). Перед первой сборкой на Mac:
 
 - `ITSAppUsesNonExemptEncryption = false` в `ios/Runner/Info.plist` — **не спрашивает** export compliance в App Store Connect (только HTTPS).
@@ -72,7 +74,8 @@ Flavors: `server` (самоустановка APK) / `store` (Play/RuStore, бе
 - `lib/firebase_options.dart` — iOS `appId` из `GoogleService-Info.plist` (не android).
 - Firebase Console → Cloud Messaging → **APNs Authentication Key** (.p8) загружен для bundle `com.importservice.app`.
 - Apple Developer → App ID → capability **Push Notifications** включена.
-- Скрипт: `import_service_app/scripts/build-ios-release.sh`
+- Prep: `import_service_app/scripts/prep-ios-xcode.sh`
+- IPA: `import_service_app/scripts/build-ios-release.sh`
 - Или: `flutter build ipa --release --export-options-plist=ios/ExportOptions.plist`
 - Подпись: Team + provisioning в Xcode (`Runner` → Signing).
 - Загрузка: Transporter или `xcrun altool --upload-app`.

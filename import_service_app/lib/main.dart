@@ -97,9 +97,20 @@ Future<void> main() async {
 
 Future<void> _startPushAfterUi() async {
   try {
-    await sl<PushNotificationsService>().initialize();
-    if (sl<AuthSessionController>().isAuthenticated) {
+    final push = sl<PushNotificationsService>();
+    final session = sl<AuthSessionController>();
+    await push.initialize();
+    if (session.isAuthenticated) {
+      sl<AuthService>().bindPushTokenRefreshOnly();
+    }
+    final token = await push.ensureFcmToken();
+    if (token == null || token.isEmpty) {
+      AppLog.error('after_ui: FCM token empty', tag: 'Push');
+    }
+    if (session.isAuthenticated) {
       await sl<AuthService>().registerPushTokenIfNeeded();
+    } else {
+      AppLog.trace('push: skip POST — not authenticated yet', tag: 'Push');
     }
   } catch (e, st) {
     AppLog.error(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -182,6 +184,11 @@ Future<void> initDependencies() async {
       await sl<AuthService>().clearLocalSession();
     }
   }
+
+  // Как только FCM-токен получен — сразу POST на сервер (если есть сессия).
+  sl<PushNotificationsService>().onFcmTokenReady = (token) {
+    unawaited(sl<AuthService>().registerPushTokenIfNeeded());
+  };
 
   // BLoC/Cubit в GetIt: см. [CarInventoryCubit], [RequestDraftCubit].
 }

@@ -15,6 +15,11 @@ alwaysApply: true
 - Запуск только через `D:\Projects\import_servis\scripts\app-run-android.ps1` (см. `android-fast-run.mdc`).
 - Не Tee-Object, не убивать Gradle mid-build.
 
+## iOS / Xcode (macOS)
+
+- «Подготовь для Xcode» / после `git pull` на Mac — **только** `./scripts/prep-ios-xcode.sh` из `import_service_app` (или `scripts/prep-ios-xcode.sh` из корня монорепо). См. `ios-xcode-prep.mdc`.
+- **Не** считать готовым после одного `pub get` / `pod install` — без `flutter build ios --config-only` в Xcode остаётся старая версия.
+
 ## Деплой `import_service_server` на прод
 
 После правок бэкенда: **сам** `D:\Projects\import_servis\scripts\deploy-server-vps.ps1` (не только `git push`). **Не** просить пользователя выложить на VPS. См. `import_service_server/.cursor/rules/server-deploy-vps.mdc`.

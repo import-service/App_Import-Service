@@ -94,7 +94,6 @@
   "profileGooglePlayVersionParen": "Google {version}",
   "profileRuStoreVersionParen": "RuStore {version}",
   "profileAppStoreVersionParen": "App Store {version}",
-  "profilePushDiagnosticsTitle": "Push 诊断（iOS）",
   "appUpdateTitle": "有新版本",
   "appUpdateMessage": "已发布版本 {storeVersion}，当前安装的是 {localVersion}。建议更新以获得更稳定的使用体验。",
   "appUpdateButton": "更新",

@@ -1,0 +1,57 @@
+---
+description: Подготовка МП для Xcode — sync версии из pubspec, pods, открыть workspace
+globs: ["import_service_app/ios/**", "import_service_app/scripts/prep-ios-xcode.sh"]
+alwaysApply: false
+---
+
+# iOS / Xcode prep (МП)
+
+Когда пользователь просит **подготовить для Xcode / открыть в Xcode / iOS после pull / почему в Xcode старая версия** — выполнять **этот** флоу, не ограничиваться `pod install`.
+
+## Почему `pub get` недостаточно
+
+Версия в Xcode (CFBundleShortVersionString / CFBundleVersion) берётся из:
+
+`ios/Flutter/Generated.xcconfig` → `FLUTTER_BUILD_NAME` / `FLUTTER_BUILD_NUMBER`
+
+Эти поля обновляет **`flutter build ios --config-only`**, а не один `flutter pub get`. После pull без config-only в Xcode часто остаётся старый build (например 1.0.31 при pubspec 1.0.34).
+
+## Канон (агент сам)
+
+Из корня МП или через скрипт:
+
+```bash
+cd import_service_app
+./scripts/prep-ios-xcode.sh
+```
+
+Скрипт делает: `pub get` → `flutter build ios --config-only --no-codesign` → проверка version = pubspec → `pod install` (UTF-8) → `open Runner.xcworkspace`.
+
+Флаги: `--no-open`, `--no-pods`.
+
+## Если ещё «возьми с гита»
+
+1. `git pull` из корня монорепо (при конфликте локальных файлов — stash, не hard reset без просьбы).
+2. Сразу **`./scripts/prep-ios-xcode.sh`**.
+3. Сообщить пользователю: commit, `version` из pubspec, что в Generated.xcconfig совпало.
+
+## Запрещено агенту
+
+- Считать «готово для Xcode» после только `flutter pub get` / только `pod install`.
+- Править руками `Generated.xcconfig` / `flutter_export_environment.sh` (генерируются).
+- Bump версии в prep — версия уже в git/`pubspec.yaml`; bump только по явному «подними версию» / release-флоу.
+- Собирать IPA/архив «заодно» — только если просили IPA/релиз (`release-apk-handoff.mdc`, `build-ios-release.sh`).
+
+## Проверка
+
+```bash
+grep -E '^version:' pubspec.yaml
+grep -E '^FLUTTER_BUILD_(NAME|NUMBER)=' ios/Flutter/Generated.xcconfig
+```
+
+Должны совпасть (name+number).
+
+## Связанные
+
+- IPA/App Store: `scripts/build-ios-release.sh`, `release-apk-handoff.mdc` § iOS
+- Android run: `android-fast-run.mdc`
