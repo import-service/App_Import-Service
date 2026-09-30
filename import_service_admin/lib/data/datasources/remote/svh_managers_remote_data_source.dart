@@ -57,6 +57,7 @@ class SvhManagersRemoteDataSource {
   Future<SvhManagerMutationResult> create({
     required String login,
     required String password,
+    required String role,
     String? fullName,
     String? phone,
   }) async {
@@ -64,6 +65,7 @@ class SvhManagersRemoteDataSource {
       final body = <String, dynamic>{
         'login': login,
         'password': password,
+        'role': role,
       };
       final name = fullName?.trim() ?? '';
       if (name.isNotEmpty) body['fullName'] = name;
@@ -83,6 +85,7 @@ class SvhManagersRemoteDataSource {
     String? password,
     String? fullName,
     String? phone,
+    String? role,
     bool? active,
   }) async {
     try {
@@ -91,6 +94,7 @@ class SvhManagersRemoteDataSource {
       if (password != null) body['password'] = password;
       if (fullName != null) body['fullName'] = fullName;
       if (phone != null) body['phone'] = phone;
+      if (role != null) body['role'] = role;
       if (active != null) body['active'] = active;
       final response =
           await _dio.patch<dynamic>('admin/svh-managers/$id', data: body);

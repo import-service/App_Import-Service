@@ -38,6 +38,8 @@ Flavors: `server` (самоустановка APK) / `store` (Play/RuStore, бе
 1. **Поднять версию** в `import_service_app/pubspec.yaml`:
    - Формат: `MAJOR.MINOR.PATCH+BUILD` (например `0.1.6+6` → `0.1.7+7`).
    - **Patch** (+1) и **build number** после `+` (+1) — **оба** шага, если пользователь не указал иначе.
+   - **Нельзя** опускать ниже уже залитой в стор / server-APK версии. Канон: `.cursor/rules/one-app-version-store-and-debug.mdc`.
+   - Тот же `pubspec` для debug `flutter run` и для store/server артефактов.
    - Build number должен совпадать с числом в имени APK (см. ниже).
 
 2. Сборка — **только** `.\scripts\build-release-android.ps1` (см. выше), не ручной `flutter build` в sandbox.

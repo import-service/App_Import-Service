@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:import_service_app/core/app_update/app_update_bootstrap.dart';
+import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
+import 'package:import_service_app/core/auth/session_role.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
@@ -16,7 +18,6 @@ import 'package:import_service_app/core/push/chat_screen_presence.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/push/push_request_handler.dart';
 import 'package:import_service_app/core/push/request_remote_update.dart';
-import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
@@ -117,7 +118,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   StreamSubscription<PushOpenTarget>? _pushTapSub;
   StreamSubscription<RequestRemoteUpdate>? _pushUpdateSub;
   StreamSubscription<PushOpenTarget>? _pushForegroundSub;
@@ -125,6 +126,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pushTapSub = sl<PushNotificationsService>().requestOpenStream.listen((
       target,
     ) {
@@ -211,7 +213,24 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final session = sl<AuthSessionController>();
+    if (!session.isAuthenticated || session.isDemo) return;
+    // Менеджеры: роль могли сменить в админке — подтянуть с /auth/me и перейти в нужный shell.
+    if (!isCatalogStaffSession(session)) return;
+    unawaited(() async {
+      try {
+        await sl<AuthService>().refreshProfile(allowCacheFallback: false);
+      } catch (_) {
+        // офлайн — оставляем кэш
+      }
+    }());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pushTapSub?.cancel();
     _pushUpdateSub?.cancel();
     _pushForegroundSub?.cancel();

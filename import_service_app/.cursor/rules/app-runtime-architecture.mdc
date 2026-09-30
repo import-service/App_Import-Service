@@ -87,10 +87,21 @@ main()
 
 ## 5. Авторизация и роли
 
-**Роль в сессии:** `AuthSessionController.role` + `roles[]` из login/me.  
-Константы: `kSvhManagerRole`, `kDeclarantManagerRole`. Проверки: `isSvhManagerSession` / `isDeclarantManagerSession` / `isCatalogStaffSession`.
+**Канон (не путать):** сотрудники из админки «Менеджеры» — оба **менеджеры СВХ**; `svh_manager` vs `declarant_manager` = **роль / объём прав** (базовые фото-видео vs больше прав: заявки+чаты), **не** «разные интерфейсы» и **не** две роли сразу. XOR → в админке радиокнопки. Org-чекбоксы ролей — **запрещены**. Отдельного раздела «Декларанты» нет. Полный канон: `project-concept.mdc` §15.
 
-**Мульти-роль:** профиль → `ProfileRoleSwitchSection` → `AuthService.activateRole` → `POST /auth/activate-role` → новый JWT → `context.go(home)`.
+**Мульти-роль org — отменена.** Учётки менеджеров — отдельные логины, одна `role` на человека. `activate-role` → 410.
+
+| После логина | Куда | Права (кратко) |
+|---|---|---|
+| `role=user` | `/home` клиент | Свои заявки |
+| `role=svh_manager` | `/svh-home` | Базовые: авто / QR / фото-видео |
+| `role=declarant_manager` | `/declarant-home` | Больше прав: все заявки + чаты (без медиа СВХ) |
+
+**Видимая роль (только staff):** тост + `SessionRoleBanner` под AppBar на `/svh-home` и `/declarant-home`. Клиенту (`/home`) баннер **не** показываем.
+
+**Фильтр менеджеров 1С:** dropdown: «Мои заявки» (`managerExternal1cId` = session.external1cId; пусто → «Нет заявок») / «Все менеджеры» (без фильтра) / менеджеры A–Я. Persist. Не в профиле.
+
+**Смена роли в админке:** `GET /auth/me` отдаёт роль из БД; если JWT устарел — в ответе новый `accessToken`. МП: `refreshProfile` на cold start и при resume для staff → обновляет токен/роль → `GoRouter` ведёт в нужный shell.
 
 ```text
 LoginPage._login()
@@ -98,6 +109,7 @@ LoginPage._login()
   → session.setToken + SecureStorage + role/roles
   → registerPushTokenIfNeeded()
   → clear inventory/drafts
+  → prefs: только last email (пароль не сохраняем)
   → если клиент: CarsRepository.listVehicles()
   → context.go(homeLocationForSession(session))  // /home | /svh-home | /declarant-home
   → AppUpdateBootstrap.scheduleAfterLogin()
@@ -199,7 +211,11 @@ MyApp слушает requestOpenStream / requestUpdateStream
 
 ---
 
-## 10. Менеджер СВХ (отдельный продукт в том же APK)
+## 10. Сотрудники СВХ в МП (роли, не «интерфейсы»)
+
+Один раздел людей в админке → две **роли** с разным объёмом прав. Технически разные shells (`/svh-home` / `/declarant-home`), продуктово — **оба менеджеры СВХ**.
+
+### 10a. `svh_manager` — базовые права
 
 **Файлы:** `session_role.dart`, `svh_home_page.dart`, `svh_cars_tab_view.dart`, `svh_qr_scan_page.dart`, `svh_bottom_nav_bar.dart`, деталка — `car_request_detail_page.dart` + `customs_catalog.dart` (`isSvhManagerAllowedDocType`).
 
@@ -211,21 +227,23 @@ MyApp слушает requestOpenStream / requestUpdateStream
 
 **Устарело:** `svh_request_detail_page.dart` — роутер ведёт на `CarRequestDetailPage`.
 
-**Секции документов (клиент):** всегда видны на любом статусе; пустые — «Пока нет файлов». Красный кружок с числом = новые файлы; жёлтый `!` = изменённые. Открыли секцию → новые гасятся сразу, жёлтый через 1 мин.
-
 **Сервер:** видео при upload нормализуются (ffmpeg); при провале — `422 VIDEO_NORMALIZE_FAILED`, оригинал **не** хранить.
 
----
+### 10b. `declarant_manager` — больше прав
 
-## 10b. Декларант (`declarant_manager`)
+Тот же класс учёток «Менеджеры», роль с расширенными правами (заявки + чаты), **не** отдельный тип пользователя и **не** «второй интерфейс».
 
-**Файлы:** `declarant_home_page.dart`, `svh_cars_tab_view.dart` (`openAsClientDetail`, `showManagerFilter`), чат заявки → `createMessageFromAppManager` на сервере.
+**Файлы:** `declarant_home_page.dart`, `svh_cars_tab_view.dart` (`openAsClientDetail`, `applyManagerFilter`), `profile_manager_filter_section.dart`, чат → `createMessageFromAppManager`.
 
 | Что может | Что нельзя |
 |-----------|------------|
 | Каталог всех заявок, фильтр менеджера | Медиа СВХ / QR |
 | Чат с клиентом (пуш клиенту) | Создавать заявки / оценки клиента |
 | Карточка `/request/:id` как у клиента (документы) | Shell `/svh-home` |
+
+**Фильтр менеджеров:** dropdown: Мои (session.external1cId) / Все менеджеры / A–Я; persist; не в профиле.
+
+**Секции документов (клиентская карточка):** всегда видны на любом статусе; пустые — «Пока нет файлов». Красный кружок = новые; жёлтый `!` = изменённые. Открыли секцию → новые гасятся сразу, жёлтый через 1 мин. Пуш при смене `statusSubType` — сервер `notifyStateChangedFrom1C`.
 
 ---
 

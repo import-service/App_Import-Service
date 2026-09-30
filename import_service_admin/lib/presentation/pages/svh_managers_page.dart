@@ -12,6 +12,7 @@ import 'package:import_service_admin/presentation/helpers/svh_credentials_clipbo
 import 'package:import_service_admin/presentation/widgets/forms/fields/admin_phone_ru_field.dart';
 import 'package:import_service_admin/presentation/widgets/forms/input_formatters/phone_ru_input_formatter.dart';
 import 'package:import_service_admin/presentation/widgets/forms/required_field_label.dart';
+import 'package:import_service_admin/presentation/widgets/staff_manager_role_radios.dart';
 
 class SvhManagersPage extends StatefulWidget {
   const SvhManagersPage({super.key});
@@ -218,93 +219,109 @@ class _SvhManagersPageState extends State<SvhManagersPage> {
     final nameController = TextEditingController();
     final phoneController = TextEditingController(text: '+7');
     final formKey = GlobalKey<FormState>();
+    var selectedRole = 'svh_manager';
 
-    final created = await showDialog<bool>(
+    final created = await showDialog<({bool ok, String role})>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Новый менеджер СВХ'),
-        content: SizedBox(
-          width: 560,
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: loginController,
-                    decoration: const InputDecoration(
-                      label: RequiredFieldLabel(
-                        text: 'Логин (email)',
-                        required: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) {
+          return AlertDialog(
+            title: const Text('Новый менеджер'),
+            content: SizedBox(
+              width: 560,
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      StaffManagerRoleRadios(
+                        value: selectedRole,
+                        onChanged: (v) => setLocal(() => selectedRole = v),
                       ),
-                      helperText: 'Как в мобильном приложении',
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    textInputAction: TextInputAction.next,
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) {
-                        return 'Введите email';
-                      }
-                      if (!_isValidEmail(v)) return 'Некорректный email';
-                      return null;
-                    },
+                      const Gap(12),
+                      TextFormField(
+                        controller: loginController,
+                        decoration: const InputDecoration(
+                          label: RequiredFieldLabel(
+                            text: 'Логин (email)',
+                            required: true,
+                          ),
+                          helperText: 'Как в мобильном приложении',
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [AutofillHints.email],
+                        textInputAction: TextInputAction.next,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Введите email';
+                          }
+                          if (!_isValidEmail(v)) return 'Некорректный email';
+                          return null;
+                        },
+                      ),
+                      const Gap(12),
+                      TextFormField(
+                        controller: passwordController,
+                        decoration: const InputDecoration(
+                          label: RequiredFieldLabel(
+                            text: 'Пароль',
+                            required: true,
+                          ),
+                        ),
+                        obscureText: true,
+                        validator: (v) {
+                          if (v == null || v.length < 6) {
+                            return 'Минимум 6 символов';
+                          }
+                          return null;
+                        },
+                      ),
+                      const Gap(12),
+                      TextFormField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          label: RequiredFieldLabel(text: 'ФИО', required: true),
+                        ),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Введите ФИО';
+                          }
+                          return null;
+                        },
+                      ),
+                      const Gap(12),
+                      AdminPhoneRuField(
+                        controller: phoneController,
+                        markRequired: false,
+                        textInputAction: TextInputAction.done,
+                      ),
+                    ],
                   ),
-                  const Gap(12),
-                  TextFormField(
-                    controller: passwordController,
-                    decoration: const InputDecoration(
-                      label: RequiredFieldLabel(text: 'Пароль', required: true),
-                    ),
-                    obscureText: true,
-                    validator: (v) {
-                      if (v == null || v.length < 6) {
-                        return 'Минимум 6 символов';
-                      }
-                      return null;
-                    },
-                  ),
-                  const Gap(12),
-                  TextFormField(
-                    controller: nameController,
-                    decoration: const InputDecoration(
-                      label: RequiredFieldLabel(text: 'ФИО', required: true),
-                    ),
-                    textInputAction: TextInputAction.next,
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Введите ФИО';
-                      return null;
-                    },
-                  ),
-                  const Gap(12),
-                  AdminPhoneRuField(
-                    controller: phoneController,
-                    markRequired: false,
-                    textInputAction: TextInputAction.done,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState?.validate() != true) return;
-              Navigator.pop(context, true);
-            },
-            child: const Text('Создать'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(context, (ok: false, role: selectedRole)),
+                child: const Text('Отмена'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (formKey.currentState?.validate() != true) return;
+                  Navigator.pop(context, (ok: true, role: selectedRole));
+                },
+                child: const Text('Создать'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    if (created != true || !mounted) {
+    if (created?.ok != true || !mounted) {
       loginController.dispose();
       passwordController.dispose();
       nameController.dispose();
@@ -317,6 +334,7 @@ class _SvhManagersPageState extends State<SvhManagersPage> {
     final fullName = nameController.text.trim();
     final phoneApi =
         PhoneRuInputFormatter.normalizeOptionalForApi(phoneController.text);
+    final role = created!.role;
 
     loginController.dispose();
     passwordController.dispose();
@@ -327,6 +345,7 @@ class _SvhManagersPageState extends State<SvhManagersPage> {
       final result = await sl<SvhManagersRepository>().create(
         login: login,
         password: password,
+        role: role,
         fullName: fullName,
         phone: phoneApi,
       );
@@ -344,6 +363,27 @@ class _SvhManagersPageState extends State<SvhManagersPage> {
     } catch (_) {
       if (!mounted) return;
       AppSnackBars.showError('Не удалось создать менеджера');
+    }
+  }
+
+  Future<void> _setRole(SvhManager manager, String role) async {
+    if (manager.role == role) return;
+    try {
+      await sl<SvhManagersRepository>().update(
+        id: manager.id,
+        role: role,
+      );
+      if (!mounted) return;
+      AppSnackBars.showSuccess('Роль сохранена');
+      _reload();
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError(e.message);
+      _reload();
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBars.showError('Не удалось сменить роль');
+      _reload();
     }
   }
 
@@ -463,7 +503,9 @@ class _SvhManagersPageState extends State<SvhManagersPage> {
 
               final items = snapshot.data?.items ?? const [];
               if (items.isEmpty) {
-                return const Center(child: Text('Менеджеров СВХ пока нет'));
+                return const Center(
+                  child: Text('Менеджеров пока нет (СВХ / декларант)'),
+                );
               }
 
               return RefreshIndicator(
@@ -494,108 +536,136 @@ class _SvhManagersPageState extends State<SvhManagersPage> {
                       ),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.local_shipping_outlined,
-                                  color: m.active
-                                      ? AppTheme.primaryBlue
-                                      : Colors.grey,
-                                ),
-                                const Gap(12),
-                                Expanded(
-                                  child: Column(
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        title,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium,
+                                      Icon(
+                                        m.isDeclarant
+                                            ? Icons.assignment_ind_outlined
+                                            : Icons.local_shipping_outlined,
+                                        color: m.active
+                                            ? AppTheme.primaryBlue
+                                            : Colors.grey,
                                       ),
-                                      const Gap(4),
-                                      SelectableText(
-                                        subtitleParts.join(' · '),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
+                                      const Gap(12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              title,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium,
+                                            ),
+                                            const Gap(4),
+                                            SelectableText(
+                                              subtitleParts.join(' · '),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const Gap(8),
+                                      Chip(
+                                        label: Text(
+                                          m.active ? 'Активен' : 'Отключён',
+                                        ),
+                                        backgroundColor: m.active
+                                            ? const Color(0xFFE8F5E9)
+                                            : const Color(0xFFFFEBEE),
+                                        side: BorderSide.none,
+                                        visualDensity: VisualDensity.compact,
                                       ),
                                     ],
                                   ),
-                                ),
-                                const Gap(8),
-                                Chip(
-                                  label: Text(m.active ? 'Активен' : 'Отключён'),
-                                  backgroundColor: m.active
-                                      ? const Color(0xFFE8F5E9)
-                                      : const Color(0xFFFFEBEE),
-                                  side: BorderSide.none,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ],
+                                  const Gap(12),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () async {
+                                          await context.push(
+                                            '/svh-managers/${m.id}',
+                                          );
+                                          if (mounted) _reload();
+                                        },
+                                        icon: const Icon(
+                                          Icons.edit_outlined,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Изменить'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _openCopyCredentialsDialog(m),
+                                        icon: const Icon(
+                                          Icons.copy_outlined,
+                                          size: 18,
+                                        ),
+                                        label: const Text(
+                                          'Копировать данные для входа',
+                                        ),
+                                      ),
+                                      if (m.active)
+                                        OutlinedButton.icon(
+                                          onPressed: () =>
+                                              _setActive(m, false),
+                                          icon: const Icon(
+                                            Icons.block_outlined,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Отключить'),
+                                        )
+                                      else
+                                        OutlinedButton.icon(
+                                          onPressed: () =>
+                                              _setActive(m, true),
+                                          icon: const Icon(
+                                            Icons.check_circle_outline,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Включить'),
+                                        ),
+                                      OutlinedButton.icon(
+                                        onPressed: () => _deleteHard(m),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor:
+                                              Colors.red.shade700,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Удалить'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                            const Gap(12),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () async {
-                                    await context.push('/svh-managers/${m.id}');
-                                    if (mounted) _reload();
-                                  },
-                                  icon: const Icon(
-                                    Icons.edit_outlined,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Изменить'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openCopyCredentialsDialog(m),
-                                  icon: const Icon(
-                                    Icons.copy_outlined,
-                                    size: 18,
-                                  ),
-                                  label: const Text(
-                                    'Копировать данные для входа',
-                                  ),
-                                ),
-                                if (m.active)
-                                  OutlinedButton.icon(
-                                    onPressed: () => _setActive(m, false),
-                                    icon: const Icon(
-                                      Icons.block_outlined,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Отключить'),
-                                  )
-                                else
-                                  OutlinedButton.icon(
-                                    onPressed: () => _setActive(m, true),
-                                    icon: const Icon(
-                                      Icons.check_circle_outline,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Включить'),
-                                  ),
-                                OutlinedButton.icon(
-                                  onPressed: () => _deleteHard(m),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.red.shade700,
-                                  ),
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Удалить'),
-                                ),
-                              ],
+                            const Gap(16),
+                            SizedBox(
+                              width: 220,
+                              child: StaffManagerRoleRadios(
+                                compact: true,
+                                value: m.isDeclarant
+                                    ? StaffManagerRoleRadios.declarant
+                                    : StaffManagerRoleRadios.svh,
+                                onChanged: (role) => _setRole(m, role),
+                              ),
                             ),
                           ],
                         ),

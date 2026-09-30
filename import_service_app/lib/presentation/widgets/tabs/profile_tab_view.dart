@@ -21,7 +21,6 @@ import 'package:import_service_app/presentation/widgets/forms/input_formatters/i
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/phone_ru_input_formatter.dart';
 import 'package:import_service_app/presentation/widgets/profile/profile_meta_row.dart';
 import 'package:import_service_app/presentation/widgets/profile/profile_placeholder_avatar.dart';
-import 'package:import_service_app/presentation/widgets/profile/profile_role_switch_section.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -232,199 +231,214 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                 ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Expanded(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: SingleChildScrollView(
-                child: widget.isDemo
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ProfileMetaRow(
-                            label: widget.companyLabel,
-                            value: DemoProfileSnapshot.companyName,
-                          ),
-                          ProfileMetaRow(
-                            label: widget.innLabel,
-                            value: InnInputFormatter.formatDigits(
-                              DemoProfileSnapshot.inn,
-                              maxDigits: 10,
-                            ),
-                          ),
-                          ProfileMetaRow(
-                            label: widget.managerLabel,
-                            value: DemoProfileSnapshot.managerDisplayName,
-                          ),
-                          ProfileMetaRow(
-                            label: widget.phoneLabel,
-                            value: DemoProfileSnapshot.phoneDisplay,
-                          ),
-                          ProfileMetaRow(
-                            label: widget.emailLabel,
-                            value: DemoProfileSnapshot.email,
-                          ),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (widget.showCompany && !widget.isPersonApplicant)
-                            ProfileMetaRow(
-                              label: widget.companyLabel,
-                              value: _displayOrEmpty(widget.companyName, s),
-                            ),
-                          if (widget.showInn &&
-                              (widget.inn ?? '').trim().isNotEmpty)
-                            ProfileMetaRow(
-                              label: () {
-                                final digits = widget.inn!
-                                    .replaceAll(RegExp(r'\D'), '');
-                                return digits.length == 10
-                                    ? s.text('innLabelLegal')
-                                    : s.text('innLabelPerson');
-                              }(),
-                              value: InnInputFormatter.formatDigits(
-                                widget.inn!.trim(),
-                                maxDigits:
-                                    widget.inn!.trim().replaceAll(RegExp(r'\D'), '').length ==
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: widget.isDemo
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ProfileMetaRow(
+                                label: widget.companyLabel,
+                                value: DemoProfileSnapshot.companyName,
+                              ),
+                              ProfileMetaRow(
+                                label: widget.innLabel,
+                                value: InnInputFormatter.formatDigits(
+                                  DemoProfileSnapshot.inn,
+                                  maxDigits: 10,
+                                ),
+                              ),
+                              ProfileMetaRow(
+                                label: widget.managerLabel,
+                                value: DemoProfileSnapshot.managerDisplayName,
+                              ),
+                              ProfileMetaRow(
+                                label: widget.phoneLabel,
+                                value: DemoProfileSnapshot.phoneDisplay,
+                              ),
+                              ProfileMetaRow(
+                                label: widget.emailLabel,
+                                value: DemoProfileSnapshot.email,
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (widget.showCompany &&
+                                  !widget.isPersonApplicant)
+                                ProfileMetaRow(
+                                  label: widget.companyLabel,
+                                  value: _displayOrEmpty(
+                                    widget.companyName,
+                                    s,
+                                  ),
+                                ),
+                              if (widget.showInn &&
+                                  (widget.inn ?? '').trim().isNotEmpty)
+                                ProfileMetaRow(
+                                  label: () {
+                                    final digits = widget.inn!
+                                        .replaceAll(RegExp(r'\D'), '');
+                                    return digits.length == 10
+                                        ? s.text('innLabelLegal')
+                                        : s.text('innLabelPerson');
+                                  }(),
+                                  value: InnInputFormatter.formatDigits(
+                                    widget.inn!.trim(),
+                                    maxDigits: widget.inn!
+                                                .trim()
+                                                .replaceAll(RegExp(r'\D'), '')
+                                                .length ==
                                             12
                                         ? 12
                                         : 10,
+                                  ),
+                                ),
+                              if (widget.showManager &&
+                                  (widget.managerName ?? '').trim().isNotEmpty)
+                                ProfileMetaRow(
+                                  label: widget.managerLabel,
+                                  value: widget.managerName!.trim(),
+                                ),
+                              ProfileMetaRow(
+                                label: widget.phoneLabel,
+                                value: () {
+                                  final phone = (widget.phone ?? '').trim();
+                                  if (phone.isEmpty || phone == '-') {
+                                    return s.text('profileEmptyValue');
+                                  }
+                                  return PhoneRuInputFormatter.formatDisplay(
+                                    phone,
+                                  );
+                                }(),
                               ),
-                            ),
-                          if (widget.showManager &&
-                              (widget.managerName ?? '').trim().isNotEmpty)
-                            ProfileMetaRow(
-                              label: widget.managerLabel,
-                              value: widget.managerName!.trim(),
-                            ),
-                          ProfileMetaRow(
-                            label: widget.phoneLabel,
-                            value: () {
-                              final phone = (widget.phone ?? '').trim();
-                              if (phone.isEmpty || phone == '-') {
-                                return s.text('profileEmptyValue');
-                              }
-                              return PhoneRuInputFormatter.formatDisplay(phone);
-                            }(),
+                              ProfileMetaRow(
+                                label: widget.emailLabel,
+                                value: _displayOrEmpty(widget.email, s),
+                              ),
+                            ],
                           ),
-                          ProfileMetaRow(
-                            label: widget.emailLabel,
-                            value: _displayOrEmpty(widget.email, s),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ),
-          const ProfileRoleSwitchSection(),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              s.text('profileThemeLabel'),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
                   ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ValueListenableBuilder<ThemeMode>(
-            valueListenable: appThemeMode,
-            builder: (context, mode, _) {
-              return SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<ThemeMode>(
-                  segments: [
-                    ButtonSegment<ThemeMode>(
-                      value: ThemeMode.light,
-                      label: Text(s.text('profileThemeLight')),
-                      tooltip: s.text('profileThemeLight'),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      s.text('profileThemeLabel'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
                     ),
-                    ButtonSegment<ThemeMode>(
-                      value: ThemeMode.dark,
-                      label: Text(s.text('profileThemeDark')),
-                      tooltip: s.text('profileThemeDark'),
+                  ),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<ThemeMode>(
+                    valueListenable: appThemeMode,
+                    builder: (context, mode, _) {
+                      return SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<ThemeMode>(
+                          segments: [
+                            ButtonSegment<ThemeMode>(
+                              value: ThemeMode.light,
+                              label: Text(s.text('profileThemeLight')),
+                              tooltip: s.text('profileThemeLight'),
+                            ),
+                            ButtonSegment<ThemeMode>(
+                              value: ThemeMode.dark,
+                              label: Text(s.text('profileThemeDark')),
+                              tooltip: s.text('profileThemeDark'),
+                            ),
+                            ButtonSegment<ThemeMode>(
+                              value: ThemeMode.system,
+                              label: Text(s.text('profileThemeSystem')),
+                              tooltip: s.text('profileThemeSystem'),
+                            ),
+                          ],
+                          selected: {mode},
+                          onSelectionChanged: _onThemeMode,
+                          showSelectedIcon: false,
+                          style: const ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (_isAndroid && _serverApkAvailable)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AppPrimaryOutlinedWideButton(
+                        label: s.text('appUpdateServerProfileButton'),
+                        onPressed:
+                            _serverUpdateBusy ? null : _onServerUpdate,
+                      ),
                     ),
-                    ButtonSegment<ThemeMode>(
-                      value: ThemeMode.system,
-                      label: Text(s.text('profileThemeSystem')),
-                      tooltip: s.text('profileThemeSystem'),
+                  AppPrimaryOutlinedWideButton(
+                    label: s.text('feedbackMenuTitle'),
+                    onPressed: () {
+                      if (widget.isDemo) {
+                        sl<AppFeedbackService>().show(
+                          s.text('feedbackDemoUnavailable'),
+                          kind: AppFeedbackKind.error,
+                        );
+                        return;
+                      }
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const FeedbackPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  AppLogoutOutlinedWideButton(
+                    label: widget.logoutLabel,
+                    onPressed: widget.onLogout,
+                  ),
+                  if (_versionLabel != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _buildVersionFooter(s),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
                     ),
                   ],
-                  selected: {mode},
-                  onSelectionChanged: _onThemeMode,
-                  showSelectedIcon: false,
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          if (_isAndroid && _serverApkAvailable)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: AppPrimaryOutlinedWideButton(
-                label: s.text('appUpdateServerProfileButton'),
-                onPressed: _serverUpdateBusy ? null : _onServerUpdate,
+                  if (_isIos) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      s.text('profilePushDiagnosticsTitle'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: AppTheme.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    SelectableText(
+                      PushIosDiagnostics.text,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            height: 1.35,
+                          ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                ],
               ),
             ),
-          AppPrimaryOutlinedWideButton(
-            label: s.text('feedbackMenuTitle'),
-            onPressed: () {
-              if (widget.isDemo) {
-                sl<AppFeedbackService>().show(
-                  s.text('feedbackDemoUnavailable'),
-                  kind: AppFeedbackKind.error,
-                );
-                return;
-              }
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const FeedbackPage(),
-                ),
-              );
-            },
           ),
-          const SizedBox(height: 12),
-          AppLogoutOutlinedWideButton(
-            label: widget.logoutLabel,
-            onPressed: widget.onLogout,
-          ),
-          if (_versionLabel != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _buildVersionFooter(s),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-            ),
-          ],
-          if (_isIos) ...[
-            const SizedBox(height: 12),
-            Text(
-              s.text('profilePushDiagnosticsTitle'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-            const SizedBox(height: 6),
-            SelectableText(
-              PushIosDiagnostics.text,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                    height: 1.35,
-                  ),
-            ),
-          ],
         ],
       ),
     );

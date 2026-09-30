@@ -26,12 +26,14 @@ class SvhManagersRepositoryImpl implements SvhManagersRepository {
   Future<SvhManagerMutationResult> create({
     required String login,
     required String password,
+    required String role,
     String? fullName,
     String? phone,
   }) =>
       _remote.create(
         login: login,
         password: password,
+        role: role,
         fullName: fullName,
         phone: phone,
       );
@@ -43,6 +45,7 @@ class SvhManagersRepositoryImpl implements SvhManagersRepository {
     String? password,
     String? fullName,
     String? phone,
+    String? role,
     bool? active,
   }) =>
       _remote.update(
@@ -51,6 +54,7 @@ class SvhManagersRepositoryImpl implements SvhManagersRepository {
         password: password,
         fullName: fullName,
         phone: phone,
+        role: role,
         active: active,
       );
 

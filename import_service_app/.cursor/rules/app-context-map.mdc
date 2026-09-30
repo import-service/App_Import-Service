@@ -113,7 +113,7 @@ alwaysApply: true
 | `data/local/request_file_seen_store.dart` | Baseline fingerprint файлов для new vs changed |
 | `presentation/bloc/request_attention/*` | newDocTypes / changedDocTypes; гашение при открытии секции |
 | `presentation/widgets/profile/profile_role_switch_section.dart` | Мульти-роль в профиле |
-| `presentation/widgets/filters/manager_filter_bar.dart` | Фильтр менеджера 1С |
+| `presentation/widgets/filters/manager_filter_bar.dart` | Dropdown фильтра менеджера 1С (Мои / A–Я) |
 | `presentation/pages/svh_home_page.dart` | Shell менеджера СВХ |
 | `presentation/pages/declarant_home_page.dart` | Shell декларанта |
 | `presentation/pages/svh_qr_scan_page.dart` | QR → VIN для фильтра списка СВХ |

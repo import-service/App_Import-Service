@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
@@ -53,9 +55,10 @@ class _LoginPageState extends State<LoginPage> {
     _loginController.addListener(_onFieldsChanged);
     _passwordController.addListener(_onFieldsChanged);
     final prefs = sl<SharedPreferences>();
-    _loginController.text = prefs.getString(SessionPreferencesKeys.authLastEmail) ?? '';
-    _passwordController.text =
-        prefs.getString(SessionPreferencesKeys.authLastPassword) ?? '';
+    _loginController.text =
+        prefs.getString(SessionPreferencesKeys.authLastEmail) ?? '';
+    // Пароль не подставляем и старый ключ с устройства убираем.
+    unawaited(prefs.remove(SessionPreferencesKeys.authLastPassword));
   }
 
   void _onFieldsChanged() => setState(() {});
@@ -108,9 +111,16 @@ class _LoginPageState extends State<LoginPage> {
       }
       final prefs = sl<SharedPreferences>();
       await prefs.setString(SessionPreferencesKeys.authLastEmail, login);
-      await prefs.setString(SessionPreferencesKeys.authLastPassword, password);
+      await prefs.remove(SessionPreferencesKeys.authLastPassword);
       if (!mounted) return;
+      final roleLine = strings
+          .text('sessionRoleSignedInAs')
+          .replaceAll(
+            '{role}',
+            roleDisplayLabel(session.role ?? kUserRole),
+          );
       context.go(homeLocationForSession(session));
+      sl<AppFeedbackService>().show(roleLine, kind: AppFeedbackKind.success);
       AppUpdateBootstrap.scheduleAfterLogin();
     } on ServerException catch (e) {
       if (!mounted) return;

@@ -5,6 +5,7 @@ class AuthMeResponseModel {
     required this.login,
     required this.role,
     this.roles = const [],
+    this.accessToken,
     required this.companyName,
     required this.orgType,
     required this.inn,
@@ -21,6 +22,8 @@ class AuthMeResponseModel {
   final String login;
   final String role;
   final List<String> roles;
+  /// Новый JWT, если роль в БД изменилась относительно токена.
+  final String? accessToken;
   final String companyName;
   final String orgType;
   final String inn;
@@ -35,6 +38,10 @@ class AuthMeResponseModel {
     final role = _firstString(
       json,
       const ['role', 'userRole'],
+    );
+    final token = _firstString(
+      json,
+      const ['accessToken', 'access_token', 'token'],
     );
     return AuthMeResponseModel(
       id: _firstString(
@@ -51,6 +58,7 @@ class AuthMeResponseModel {
       ),
       role: role,
       roles: _rolesList(json, fallbackRole: role),
+      accessToken: token.isEmpty ? null : token,
       companyName: _firstString(
         json,
         const ['legalEntityName', 'companyName', 'organizationName', 'orgName'],
@@ -97,6 +105,8 @@ class AuthMeResponseModel {
       'login': login,
       'role': role,
       'roles': roles,
+      if (accessToken != null && accessToken!.isNotEmpty)
+        'accessToken': accessToken,
       'companyName': companyName,
       'orgType': orgType,
       'inn': inn,

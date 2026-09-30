@@ -23,11 +23,6 @@ const {
 } = require('../services/backgroundJobs');
 const { sendBroadcast } = require('../services/broadcast');
 const { toOrganizationDto } = require('../util/organizationDto');
-const {
-  normalizeRolesInput,
-  pickPrimaryRole,
-  ALLOWED_ORG_ROLES,
-} = require('../util/organizationRoles');
 const { notifySvhManagerCredentials } = require('../services/emailNotification');
 const {
   buildSvhCarPhotosZipBuffer,
@@ -44,6 +39,17 @@ const ORGANIZATION_SELECT =
   'id, id_1c, login, role, roles, org_type, company_name, inn, phone, created_at, updated_at, deleted_at';
 
 const detailDtoOptions = { includeFiles: true, mergeVehicleFiles: true };
+
+/** Учётки МП-сотрудников (не клиентские организации из 1С). */
+const STAFF_MANAGER_ROLES = Object.freeze(['svh_manager', 'declarant_manager']);
+
+function isStaffManagerRole(role) {
+  return STAFF_MANAGER_ROLES.includes(String(role || '').trim());
+}
+
+function staffManagerRoleSql() {
+  return `role IN ('svh_manager', 'declarant_manager')`;
+}
 
 const SVH_EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
@@ -116,7 +122,10 @@ module.exports = async function adminRoutes(fastify) {
       const fail = async () => {
         fresh.push(now);
         adminLoginBuckets.set(ip, fresh);
-        return reply.code(401).send({ error: 'INVALID_CREDENTIALS' });
+        return reply.code(401).send({
+          error: 'INVALID_CREDENTIALS',
+          message: 'Неверный логин или пароль',
+        });
       };
 
       const [rows] = await fastify.pool.query(
@@ -427,6 +436,8 @@ module.exports = async function adminRoutes(fastify) {
 
       const where = [];
       const args = [];
+      // Клиенты 1С — без учёток менеджеров СВХ / декларант.
+      where.push(`NOT (${staffManagerRoleSql()})`);
       if (!includeDeleted) {
         where.push('deleted_at IS NULL');
       }
@@ -481,61 +492,6 @@ module.exports = async function adminRoutes(fastify) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
 
-      return reply.send({ item: toOrganizationDto(rows[0]) });
-    },
-  );
-
-  fastify.patch(
-    '/admin/organizations/:id/roles',
-    {
-      onRequest: [fastify.authenticateAdmin],
-      schema: {
-        body: {
-          type: 'object',
-          required: ['roles'],
-          properties: {
-            roles: {
-              type: 'array',
-              minItems: 1,
-              items: { type: 'string', enum: [...ALLOWED_ORG_ROLES] },
-            },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const id = Number(request.params.id);
-      if (!Number.isFinite(id) || id <= 0) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
-      }
-
-      let roles;
-      try {
-        roles = normalizeRolesInput(request.body.roles, { required: true });
-      } catch (e) {
-        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.message });
-      }
-      const primary = pickPrimaryRole(roles);
-
-      const [existing] = await fastify.pool.query(
-        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
-        [id],
-      );
-      if (!existing.length) {
-        return reply.code(404).send({ error: 'NOT_FOUND' });
-      }
-
-      await fastify.pool.query(
-        `UPDATE organizations
-         SET roles = CAST(? AS JSON), role = ?, updated_at = CURRENT_TIMESTAMP(3)
-         WHERE id = ?`,
-        [JSON.stringify(roles), primary, id],
-      );
-
-      const [rows] = await fastify.pool.query(
-        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? LIMIT 1`,
-        [id],
-      );
       return reply.send({ item: toOrganizationDto(rows[0]) });
     },
   );
@@ -1403,18 +1359,24 @@ module.exports = async function adminRoutes(fastify) {
     },
   );
 
-  // --- Менеджеры СВХ (organizations.role = svh_manager) ---
+  // --- Менеджеры СВХ / декларант (organizations.role IN staff) ---
 
   function toSvhManagerDto(row) {
+    const role = String(row.role || 'svh_manager');
     return {
       id: row.id,
       login: row.login,
       fullName: row.company_name != null ? String(row.company_name) : '',
       phone: row.phone != null ? String(row.phone) : '',
+      role: isStaffManagerRole(role) ? role : 'svh_manager',
       active: row.deleted_at == null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  function staffId1cPrefix(role) {
+    return role === 'declarant_manager' ? 'declarant' : 'svh';
   }
 
   fastify.get(
@@ -1424,24 +1386,33 @@ module.exports = async function adminRoutes(fastify) {
       const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
       const offset = Math.max(Number(request.query.offset) || 0, 0);
       const includeDisabled = String(request.query.includeDisabled || '') === '1';
+      const roleFilter = String(request.query.role || '').trim();
 
-      const where = ["role = 'svh_manager'"];
+      const where = [];
+      const countArgs = [];
+      if (isStaffManagerRole(roleFilter)) {
+        where.push('role = ?');
+        countArgs.push(roleFilter);
+      } else {
+        where.push(staffManagerRoleSql());
+      }
       if (!includeDisabled) {
         where.push('deleted_at IS NULL');
       }
-
       const [countRows] = await fastify.pool.query(
         `SELECT COUNT(*) AS total FROM organizations WHERE ${where.join(' AND ')}`,
+        countArgs,
       );
       const total = Number(countRows[0]?.total || 0);
 
+      const listArgs = [...countArgs, limit, offset];
       const [rows] = await fastify.pool.query(
         `SELECT ${ORGANIZATION_SELECT}
          FROM organizations
          WHERE ${where.join(' AND ')}
          ORDER BY id DESC
          LIMIT ? OFFSET ?`,
-        [limit, offset],
+        listArgs,
       );
 
       return reply.send({
@@ -1462,7 +1433,7 @@ module.exports = async function adminRoutes(fastify) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
       }
       const [rows] = await fastify.pool.query(
-        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? AND role = 'svh_manager' LIMIT 1`,
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? AND ${staffManagerRoleSql()} LIMIT 1`,
         [id],
       );
       if (!rows.length) {
@@ -1486,6 +1457,7 @@ module.exports = async function adminRoutes(fastify) {
             password: { type: 'string', minLength: 6, maxLength: 128 },
             fullName: { type: 'string', minLength: 1, maxLength: 255 },
             phone: { type: 'string', maxLength: 30 },
+            role: { type: 'string', enum: ['svh_manager', 'declarant_manager'] },
           },
         },
       },
@@ -1495,6 +1467,8 @@ module.exports = async function adminRoutes(fastify) {
       const password = String(request.body.password || '');
       const fullName = String(request.body.fullName || '').trim();
       const phoneRaw = String(request.body.phone || '').trim();
+      const roleRaw = String(request.body.role || 'svh_manager').trim();
+      const role = isStaffManagerRole(roleRaw) ? roleRaw : 'svh_manager';
 
       if (!isValidSvhLoginEmail(login)) {
         return reply.code(400).send({
@@ -1525,7 +1499,7 @@ module.exports = async function adminRoutes(fastify) {
         });
       }
 
-      const id1c = `svh:${login}`;
+      const id1c = `${staffId1cPrefix(role)}:${login}`;
       const [idClash] = await fastify.pool.query(
         'SELECT id FROM organizations WHERE id_1c = ? LIMIT 1',
         [id1c],
@@ -1541,8 +1515,8 @@ module.exports = async function adminRoutes(fastify) {
       const [result] = await fastify.pool.query(
         `INSERT INTO organizations
            (id_1c, login, role, password_hash, org_type, company_name, inn, phone)
-         VALUES (?, ?, 'svh_manager', ?, 'ООО', ?, '0000000000', ?)`,
-        [id1c, login, passwordHash, fullName, phone],
+         VALUES (?, ?, ?, ?, 'ООО', ?, '0000000000', ?)`,
+        [id1c, login, role, passwordHash, fullName, phone],
       );
 
       let emailSent = false;
@@ -1595,6 +1569,7 @@ module.exports = async function adminRoutes(fastify) {
             fullName: { type: 'string', maxLength: 255 },
             phone: { type: 'string', maxLength: 30 },
             active: { type: 'boolean' },
+            role: { type: 'string', enum: ['svh_manager', 'declarant_manager'] },
           },
         },
       },
@@ -1606,7 +1581,7 @@ module.exports = async function adminRoutes(fastify) {
       }
 
       const [rows] = await fastify.pool.query(
-        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? AND role = 'svh_manager' LIMIT 1`,
+        `SELECT ${ORGANIZATION_SELECT} FROM organizations WHERE id = ? AND ${staffManagerRoleSql()} LIMIT 1`,
         [id],
       );
       if (!rows.length) {
@@ -1640,7 +1615,7 @@ module.exports = async function adminRoutes(fastify) {
               message: 'Такой логин уже занят',
             });
           }
-          const id1c = `svh:${login}`;
+          const id1c = `${staffId1cPrefix(String(current.role || 'svh_manager'))}:${login}`;
           const [idClash] = await fastify.pool.query(
             'SELECT id FROM organizations WHERE id_1c = ? AND id <> ? LIMIT 1',
             [id1c, id],
@@ -1655,6 +1630,23 @@ module.exports = async function adminRoutes(fastify) {
           values.push(login, id1c);
           nextLogin = login;
           credentialsChanged = true;
+        }
+      }
+
+      if (body.role != null) {
+        const nextRole = String(body.role).trim();
+        if (!isStaffManagerRole(nextRole)) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: 'Роль: svh_manager или declarant_manager',
+          });
+        }
+        if (nextRole !== String(current.role || '')) {
+          fields.push('role = ?');
+          values.push(nextRole);
+          const loginForId1c = nextLogin.toLowerCase();
+          fields.push('id_1c = ?');
+          values.push(`${staffId1cPrefix(nextRole)}:${loginForId1c}`);
         }
       }
 
@@ -1752,7 +1744,7 @@ module.exports = async function adminRoutes(fastify) {
       }
 
       const [rows] = await fastify.pool.query(
-        `SELECT id FROM organizations WHERE id = ? AND role = 'svh_manager' LIMIT 1`,
+        `SELECT id FROM organizations WHERE id = ? AND ${staffManagerRoleSql()} LIMIT 1`,
         [id],
       );
       if (!rows.length) {
@@ -1763,10 +1755,10 @@ module.exports = async function adminRoutes(fastify) {
         'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
         [id],
       );
-      await fastify.pool.query('DELETE FROM organizations WHERE id = ? AND role = ?', [
-        id,
-        'svh_manager',
-      ]);
+      await fastify.pool.query(
+        `DELETE FROM organizations WHERE id = ? AND ${staffManagerRoleSql()}`,
+        [id],
+      );
       return reply.send({ ok: true, deleted: true });
     },
   );

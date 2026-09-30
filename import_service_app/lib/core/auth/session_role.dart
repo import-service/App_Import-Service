@@ -37,7 +37,7 @@ String roleDisplayLabel(String role) {
     case kSvhManagerRole:
       return 'Менеджер СВХ';
     case kDeclarantManagerRole:
-      return 'Декларант';
+      return 'Менеджер-декларант';
     case 'admin':
       return 'Админ';
     case kUserRole:

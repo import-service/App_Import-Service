@@ -24,6 +24,8 @@ Subagent/Task — только после утверждённого плана 
 | Файл | Назначение |
 |------|------------|
 | `approve-before-any-action.mdc` | **№1** — план + утверждение **до** любых тулов |
+| `customer-literal-ui-fidelity.mdc` | Делать 1:1 по словам/скрину заказчика и пользователя (не подменять UI) |
+| `one-app-version-store-and-debug.mdc` | Один `pubspec` version для debug и стора; не откатывать ниже опубликованной |
 | `import-platform-workspace.mdc` | Структура монорепо, порядок end-to-end |
 | `feature-delivery-workflow.mdc` | План → утверждение → код (фичи) |
 | `agent-docs-keep-fresh.mdc` | После фичи/UI — обновлять агентские `.mdc` (карта флоу МП) |

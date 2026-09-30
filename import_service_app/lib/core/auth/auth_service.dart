@@ -101,6 +101,11 @@ class AuthService {
     if (!_session.isAuthenticated) return;
     try {
       final profile = await _remote.me();
+      final newToken = profile.accessToken?.trim();
+      if (newToken != null && newToken.isNotEmpty) {
+        _session.setToken(newToken);
+        await _secureStorage.write(AuthStorageKeys.accessToken, newToken);
+      }
       _applyProfile(profile);
       await _prefs.setString(
         SessionPreferencesKeys.authProfileCache,

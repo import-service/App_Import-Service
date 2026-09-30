@@ -11,6 +11,7 @@ import 'package:import_service_admin/presentation/helpers/svh_credentials_clipbo
 import 'package:import_service_admin/presentation/widgets/forms/fields/admin_phone_ru_field.dart';
 import 'package:import_service_admin/presentation/widgets/forms/input_formatters/phone_ru_input_formatter.dart';
 import 'package:import_service_admin/presentation/widgets/forms/required_field_label.dart';
+import 'package:import_service_admin/presentation/widgets/staff_manager_role_radios.dart';
 
 class SvhManagerDetailPage extends StatefulWidget {
   const SvhManagerDetailPage({super.key, required this.managerId});
@@ -31,6 +32,7 @@ class _SvhManagerDetailPageState extends State<SvhManagerDetailPage> {
   late Future<SvhManager> _future;
   SvhManager? _manager;
   bool _saving = false;
+  String _role = 'svh_manager';
 
   static final RegExp _emailPattern = RegExp(
     r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$',
@@ -54,6 +56,7 @@ class _SvhManagerDetailPageState extends State<SvhManagerDetailPage> {
   Future<SvhManager> _load() async {
     final item = await sl<SvhManagersRepository>().getById(widget.managerId);
     _manager = item;
+    _role = item.role;
     _loginController.text = item.login;
     _nameController.text = item.fullName;
     final phone = item.phone.trim();
@@ -114,6 +117,7 @@ class _SvhManagerDetailPageState extends State<SvhManagerDetailPage> {
         password: password.isNotEmpty ? password : null,
         fullName: fullName,
         phone: phoneApi ?? '-',
+        role: _role != manager.role ? _role : null,
       );
 
       final credentialsTouched =
@@ -151,7 +155,7 @@ class _SvhManagerDetailPageState extends State<SvhManagerDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Менеджер СВХ'),
+        title: Text(_manager?.roleLabel ?? 'Менеджер'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -192,6 +196,12 @@ class _SvhManagerDetailPageState extends State<SvhManagerDetailPage> {
                       Text(
                         m.active ? 'Активен' : 'Отключён',
                         style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const Gap(16),
+                      StaffManagerRoleRadios(
+                        value: _role,
+                        enabled: !_saving,
+                        onChanged: (v) => setState(() => _role = v),
                       ),
                       const Gap(16),
                       TextFormField(

@@ -45,9 +45,12 @@ function parseRolesJson(raw) {
   return out;
 }
 
+/**
+ * Одна роль на учётку (колонка `role`).
+ * JSON `roles` больше не используется для мульти-роли клиента — галочки у org убраны.
+ * Менеджеры СВХ / декларант — отдельные учётки с role = svh_manager | declarant_manager.
+ */
 function rolesFromRow(row) {
-  const fromJson = parseRolesJson(row?.roles);
-  if (fromJson.length) return fromJson;
   const primary = normalizeRoleCode(row?.role);
   if (ALLOWED_ORG_ROLES.includes(primary)) return [primary];
   return ['user'];

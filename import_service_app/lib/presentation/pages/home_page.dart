@@ -86,16 +86,12 @@ class _HomePageState extends State<HomePage> {
     final prefs = sl<SharedPreferences>();
     final lang = prefs.getString('app_language');
     final lastEmail = prefs.getString(SessionPreferencesKeys.authLastEmail);
-    final lastPassword = prefs.getString(SessionPreferencesKeys.authLastPassword);
     await prefs.clear();
     if (lang != null) {
       await prefs.setString('app_language', lang);
     }
     if (lastEmail != null) {
       await prefs.setString(SessionPreferencesKeys.authLastEmail, lastEmail);
-    }
-    if (lastPassword != null) {
-      await prefs.setString(SessionPreferencesKeys.authLastPassword, lastPassword);
     }
   }
 

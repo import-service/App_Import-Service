@@ -20,6 +20,7 @@ import 'package:import_service_app/presentation/bloc/request_chat_unread/request
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/settings_app_bar_action.dart';
+import 'package:import_service_app/presentation/widgets/auth/session_role_banner.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/logout_confirm_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/navigation/home_bottom_nav_bar.dart';
 import 'package:import_service_app/presentation/widgets/tabs/chats_tab_view.dart';
@@ -61,20 +62,12 @@ class _DeclarantHomePageState extends State<DeclarantHomePage> {
     final prefs = sl<SharedPreferences>();
     final lang = prefs.getString('app_language');
     final lastEmail = prefs.getString(SessionPreferencesKeys.authLastEmail);
-    final lastPassword =
-        prefs.getString(SessionPreferencesKeys.authLastPassword);
     await prefs.clear();
     if (lang != null) {
       await prefs.setString('app_language', lang);
     }
     if (lastEmail != null) {
       await prefs.setString(SessionPreferencesKeys.authLastEmail, lastEmail);
-    }
-    if (lastPassword != null) {
-      await prefs.setString(
-        SessionPreferencesKeys.authLastPassword,
-        lastPassword,
-      );
     }
   }
 
@@ -163,12 +156,17 @@ class _DeclarantHomePageState extends State<DeclarantHomePage> {
             automaticallyImplyLeading: false,
             actions: appBarActions,
           ),
-          body: IndexedStack(
-            index: _tabIndex,
+          body: Column(
             children: [
-              const SvhCarsTabView(
+              const SessionRoleBanner(dense: true),
+              Expanded(
+                child: IndexedStack(
+                  index: _tabIndex,
+                  children: [
+              SvhCarsTabView(
                 openAsClientDetail: true,
-                showManagerFilter: true,
+                applyManagerFilter: true,
+                isActive: _tabIndex == _tabCars,
               ),
               const ChatsTabView(),
               ProfileTabView(
@@ -188,6 +186,9 @@ class _DeclarantHomePageState extends State<DeclarantHomePage> {
                 onLogout: () => _logout(context),
                 phone: session.phone,
                 email: emailValue,
+              ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -674,10 +674,21 @@ module.exports = async function customsRequestsRoutes(fastify) {
         where.push('status = ?');
         args.push(status);
       }
-      const managerExt = normalize(request.query.managerExternal1cId);
-      if (managerExt) {
-        where.push('manager_external_1c_id = ?');
-        args.push(managerExt);
+      const managerExtRaw = normalize(request.query.managerExternal1cId);
+      if (managerExtRaw) {
+        const ids = managerExtRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (ids.length === 1) {
+          where.push('manager_external_1c_id = ?');
+          args.push(ids[0]);
+        } else if (ids.length > 1) {
+          where.push(
+            `manager_external_1c_id IN (${ids.map(() => '?').join(', ')})`,
+          );
+          args.push(...ids);
+        }
       }
       if (vin) {
         where.push('UPPER(vin) LIKE ?');

@@ -24,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
   );
   bool _loading = false;
   bool _obscurePassword = true;
+  String? _formError;
 
   bool get _canSubmit =>
       _loginController.text.trim().isNotEmpty &&
@@ -36,7 +37,13 @@ class _LoginPageState extends State<LoginPage> {
     _passwordController.addListener(_onFieldsChanged);
   }
 
-  void _onFieldsChanged() => setState(() {});
+  void _onFieldsChanged() {
+    if (_formError != null) {
+      setState(() => _formError = null);
+    } else {
+      setState(() {});
+    }
+  }
 
   @override
   void dispose() {
@@ -48,7 +55,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _submit() async {
     if (_loading || !_canSubmit) return;
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _formError = null;
+    });
     try {
       await sl<AuthService>().login(
         login: _loginController.text.trim(),
@@ -57,20 +67,31 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       context.go('/dashboard');
     } on UnauthorizedException catch (e) {
-      _showError(e.message);
+      _setFormError(_friendlyAuthMessage(e));
     } on ServerException catch (e) {
-      _showError(e.message);
+      _setFormError(_friendlyAuthMessage(e));
     } catch (_) {
-      _showError('Не удалось войти. Попробуйте позже.');
+      _setFormError('Не удалось войти. Попробуйте позже.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppTheme.accentRed),
-    );
+  void _setFormError(String message) {
+    if (!mounted) return;
+    setState(() => _formError = message);
+  }
+
+  String _friendlyAuthMessage(ServerException e) {
+    final code = (e.code ?? '').trim().toUpperCase();
+    if (code == 'INVALID_CREDENTIALS' || code == 'UNAUTHORIZED') {
+      return 'Неверный логин или пароль';
+    }
+    final msg = e.message.trim();
+    if (msg.isEmpty || RegExp(r'^[A-Z][A-Z0-9_]+$').hasMatch(msg)) {
+      return 'Неверный логин или пароль';
+    }
+    return msg;
   }
 
   @override
@@ -116,6 +137,7 @@ class _LoginPageState extends State<LoginPage> {
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                   textInputAction: TextInputAction.next,
+                  onChanged: (_) {},
                 ),
                 const Gap(16),
                 TextField(
@@ -154,6 +176,20 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         )
                       : const Text('Войти'),
+                ),
+                const Gap(12),
+                SizedBox(
+                  height: 40,
+                  child: _formError == null
+                      ? null
+                      : Text(
+                          _formError!,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.accentRed,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
                 if (AppConfig.useMockApi) ...[
                   const Gap(12),

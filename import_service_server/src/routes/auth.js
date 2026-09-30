@@ -67,7 +67,7 @@ module.exports = async function authRoutes(fastify) {
     },
   );
 
-  /** Переключение активной роли МП (JWT.role) среди roles организации. */
+  /** Мульти-роль на одной org отключена — отдельные учётки менеджеров. */
   fastify.post(
     '/auth/activate-role',
     {
@@ -82,55 +82,11 @@ module.exports = async function authRoutes(fastify) {
         },
       },
     },
-    async (request, reply) => {
-      const sub = Number(request.user.sub);
-      const jti = request.user.jti;
-      if (!Number.isFinite(sub) || sub <= 0 || !jti) {
-        return reply.code(401).send({ error: 'UNAUTHORIZED' });
-      }
-
-      const [rows] = await fastify.pool.query(
-        `SELECT id, role, roles FROM organizations WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
-        [sub],
-      );
-      if (!rows.length) {
-        return reply.code(401).send({ error: 'USER_NOT_FOUND' });
-      }
-
-      const { normalizeRoleCode, hasRole } = require('../util/organizationRoles');
-      const roles = rolesFromRow(rows[0]);
-      const nextRole = normalizeRoleCode(request.body.role);
-      if (!hasRole(roles, nextRole)) {
-        return reply.code(400).send({
-          error: 'VALIDATION_ERROR',
-          message: 'Роль не назначена организации',
-        });
-      }
-
-      const [sess] = await fastify.pool.query(
-        `SELECT expires_at FROM user_sessions
-         WHERE user_id = ? AND jti = ? AND revoked_at IS NULL
-         LIMIT 1`,
-        [sub, jti],
-      );
-      if (!sess.length) {
-        return reply.code(401).send({ error: 'SESSION_REVOKED_OR_EXPIRED' });
-      }
-      const expiresAt = new Date(sess[0].expires_at);
-      const ttlMs = Math.max(expiresAt.getTime() - Date.now(), 60_000);
-      const expiresInSec = Math.ceil(ttlMs / 1000);
-
-      const token = fastify.jwt.sign(
-        { sub: String(sub), jti, role: nextRole, roles },
-        { expiresIn: expiresInSec },
-      );
-
-      return reply.send({
-        accessToken: token,
-        tokenType: 'Bearer',
-        expiresAt: expiresAt.toISOString(),
-        role: nextRole,
-        roles,
+    async (_request, reply) => {
+      return reply.code(410).send({
+        error: 'GONE',
+        message:
+          'Переключение ролей на одной учётке отключено. Менеджер СВХ / декларант — отдельные логины из раздела «Менеджеры» в админке.',
       });
     },
   );
@@ -159,15 +115,14 @@ module.exports = async function authRoutes(fastify) {
     }
     const u = rows[0];
     const roles = rolesFromRow(u);
-    const activeRole =
-      String(request.user?.role || '').trim() ||
-      u.role ||
-      pickPrimaryRole(roles);
-    return reply.send({
+    // Источник истины — колонка role в БД (админка могла сменить СВХ ↔ декларант).
+    const dbRole = pickPrimaryRole(roles);
+    const jwtRole = String(request.user?.role || '').trim();
+    const payload = {
       id: u.id,
       id_1c: u.id_1c,
       login: u.login,
-      role: activeRole,
+      role: dbRole,
       roles,
       orgType: u.org_type,
       companyName: u.company_name,
@@ -176,7 +131,17 @@ module.exports = async function authRoutes(fastify) {
       created_at: u.created_at,
       updated_at: u.updated_at,
       deleted_at: u.deleted_at,
-    });
+    };
+    if (jwtRole && jwtRole !== dbRole) {
+      const jti = String(request.user?.jti || '').trim() || uuidv4();
+      const token = fastify.jwt.sign(
+        { sub: String(u.id), jti, role: dbRole, roles },
+        { expiresIn: fastify.config.jwtExpiresIn },
+      );
+      payload.accessToken = token;
+      payload.tokenType = 'Bearer';
+    }
+    return reply.send(payload);
   });
 
   /** Клиент дополняет/правит данные организации в профиле МП (ИНН и т.п. необязательны при создании из 1С). */

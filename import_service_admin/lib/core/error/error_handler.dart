@@ -77,9 +77,40 @@ class ErrorHandler {
       final m = data['message'];
       if (m is String && m.trim().isNotEmpty) return m.trim();
       final e = data['error'];
-      if (e is String && e.trim().isNotEmpty) return e.trim();
+      if (e is String && e.trim().isNotEmpty) {
+        return _localizeErrorCode(e.trim());
+      }
     }
     final f = fallback?.trim();
     return (f == null || f.isEmpty) ? 'Ошибка сервера' : f;
+  }
+
+  /// Коды API → текст для UI (не показываем сырой ENGLISH_CODE).
+  static String _localizeErrorCode(String code) {
+    switch (code) {
+      case 'INVALID_CREDENTIALS':
+        return 'Неверный логин или пароль';
+      case 'UNAUTHORIZED':
+        return 'Нужна авторизация';
+      case 'SESSION_REVOKED_OR_EXPIRED':
+        return 'Сессия истекла';
+      case 'FORBIDDEN':
+        return 'Недостаточно прав';
+      case 'NOT_FOUND':
+        return 'Не найдено';
+      case 'VALIDATION_ERROR':
+        return 'Проверьте введённые данные';
+      case 'LOGIN_ALREADY_EXISTS':
+        return 'Такой логин уже занят';
+      case 'GONE':
+        return 'Действие больше не поддерживается';
+      case 'TOO_MANY_REQUESTS':
+        return 'Слишком много попыток входа, попробуйте позже';
+      default:
+        if (RegExp(r'^[A-Z][A-Z0-9_]+$').hasMatch(code)) {
+          return 'Ошибка сервера';
+        }
+        return code;
+    }
   }
 }
