@@ -29,6 +29,10 @@ alwaysApply: true
 3. Если локально **выше** стора — ок (следующий релиз); debug ставит этот же номер.
 4. После смены `pubspec` — чистая установка на устройство (`flutter run`), не оставлять старый `versionName` на телефоне.
 
+## Админка: публикация server-APK
+
+На дашборде **нет** постоянного поля версии — только статус «Опубликован: …». Версию вводят **только в модалке** после «Выбрать APK» (`X.Y.Z`, билд = последний сегмент). Отдельного versionCode нет. Сервер: `versionCodeFromVersionName` в `androidApkRelease.js`.
+
 ## Связь
 
 - Релизный флоу: `import_service_app/.cursor/rules/release-apk-handoff.mdc`

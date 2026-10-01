@@ -23,14 +23,11 @@ class AndroidApkRemoteDataSource {
   Future<Map<String, dynamic>> upload({
     required List<int> fileBytes,
     required String fileName,
-    required int versionCode,
-    String? versionName,
+    required String versionName,
   }) async {
     try {
       final form = FormData.fromMap(<String, dynamic>{
-        'versionCode': '$versionCode',
-        if (versionName != null && versionName.trim().isNotEmpty)
-          'versionName': versionName.trim(),
+        'versionName': versionName.trim(),
         'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
       });
       final response = await _dio.post<dynamic>(

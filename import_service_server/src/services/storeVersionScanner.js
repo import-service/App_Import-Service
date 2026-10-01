@@ -17,6 +17,7 @@ function normalizeStoreConfig(config) {
   return {
     androidPackage: String(appStores.androidPackage || 'com.importservice.app').trim(),
     iosAppStoreId: String(appStores.iosAppStoreId || '6785875687').trim(),
+    iosBundleId: String(appStores.iosBundleId || 'com.importservice.app').trim(),
     rustorePublicToken: String(appStores.rustorePublicToken || '').trim(),
     rustorePrivateKeyPath: String(appStores.rustorePrivateKeyPath || '').trim(),
     rustoreKeyId: String(appStores.rustoreKeyId || '').trim(),
@@ -24,7 +25,7 @@ function normalizeStoreConfig(config) {
   };
 }
 
-function successResult(store, versionName, versionCode) {
+function successResult(store, versionName, versionCode, source) {
   return {
     store,
     versionName: versionName != null ? String(versionName).trim() : null,
@@ -33,17 +34,37 @@ function successResult(store, versionName, versionCode) {
       : null,
     status: 'ok',
     errorMessage: null,
+    scanSource: source || null,
   };
 }
 
-function errorResult(store, message) {
+function errorResult(store, message, source = null) {
   return {
     store,
     versionName: null,
     versionCode: null,
     status: 'error',
     errorMessage: String(message || 'scan failed').slice(0, 512),
+    scanSource: source || null,
   };
+}
+
+/** Semver-ish compare: a>b → >0 */
+function compareVersionNames(a, b) {
+  const pa = String(a || '')
+    .split(/[^\d]+/)
+    .filter(Boolean)
+    .map((n) => Number(n) || 0);
+  const pb = String(b || '')
+    .split(/[^\d]+/)
+    .filter(Boolean)
+    .map((n) => Number(n) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i += 1) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
 }
 
 async function fetchText(url, headers = {}, timeoutMs = 25000) {
@@ -72,19 +93,59 @@ async function fetchJson(url, headers = {}) {
   return JSON.parse(text);
 }
 
-async function scanAppStore(appStoreId) {
-  const url = `https://itunes.apple.com/lookup?id=${encodeURIComponent(appStoreId)}&country=ru`;
-  const data = await fetchJson(url);
-  const results = Array.isArray(data?.results) ? data.results : [];
-  if (!results.length) {
-    throw new Error('App Store lookup: empty results');
+/**
+ * Публичная витрина Apple (itunes lookup).
+ * Connect «Ready» может опережать lookup до ~24ч — берём max по странам + cache-bust.
+ */
+async function scanAppStore(appStoreId, bundleId) {
+  const id = String(appStoreId || '').trim();
+  const bundle = String(bundleId || '').trim();
+  const countries = ['ru', 'us'];
+  const bust = Date.now();
+  const candidates = [];
+  const errors = [];
+
+  for (const country of countries) {
+    const urls = [];
+    if (id) {
+      urls.push(
+        `https://itunes.apple.com/lookup?id=${encodeURIComponent(id)}&country=${country}&t=${bust}`,
+      );
+    }
+    if (bundle) {
+      urls.push(
+        `https://itunes.apple.com/lookup?bundleId=${encodeURIComponent(bundle)}&country=${country}&t=${bust}`,
+      );
+    }
+    for (const url of urls) {
+      try {
+        const data = await fetchJson(url);
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const item = results[0];
+        const versionName = item?.version != null ? String(item.version).trim() : '';
+        if (versionName) {
+          candidates.push({ versionName, country, url });
+        }
+      } catch (e) {
+        errors.push(`${country}: ${e.message || e}`);
+      }
+    }
   }
-  const item = results[0];
-  const versionName = item?.version;
-  if (!versionName) {
-    throw new Error('App Store lookup: version missing');
+
+  if (!candidates.length) {
+    throw new Error(
+      `App Store lookup empty (${errors.slice(0, 3).join('; ') || 'no results'})`,
+    );
   }
-  return successResult(STORES.APP_STORE, versionName, null);
+
+  candidates.sort((a, b) => compareVersionNames(b.versionName, a.versionName));
+  const best = candidates[0];
+  return successResult(
+    STORES.APP_STORE,
+    best.versionName,
+    null,
+    `itunes_lookup:${best.country}`,
+  );
 }
 
 async function scanGooglePlayViaApi(packageName, cfg, serverRoot) {
@@ -93,7 +154,12 @@ async function scanGooglePlayViaApi(packageName, cfg, serverRoot) {
     throw new Error('Google Play service account path is not configured');
   }
   const version = await fetchProductionVersion(packageName, keyFilePath);
-  return successResult(STORES.GOOGLE_PLAY, version.versionName, version.versionCode);
+  return successResult(
+    STORES.GOOGLE_PLAY,
+    version.versionName,
+    version.versionCode,
+    'google_play_api',
+  );
 }
 
 async function scanGooglePlayHtml(packageName) {
@@ -120,16 +186,30 @@ async function scanGooglePlayHtml(packageName) {
   }
 
   if (!versionName && versionCode == null) {
-    throw new Error('Google Play: version not found in page');
+    throw new Error('Google Play HTML: version not found');
   }
 
-  return successResult(STORES.GOOGLE_PLAY, versionName, versionCode);
+  return successResult(
+    STORES.GOOGLE_PLAY,
+    versionName,
+    versionCode,
+    'google_play_html',
+  );
 }
 
-async function scanGooglePlay(packageName, cfg, serverRoot) {
+async function scanGooglePlay(packageName, cfg, serverRoot, log) {
   const keyFilePath = resolveServiceAccountPath(cfg, serverRoot);
   if (keyFilePath && fs.existsSync(keyFilePath)) {
-    return scanGooglePlayViaApi(packageName, cfg, serverRoot);
+    try {
+      return await scanGooglePlayViaApi(packageName, cfg, serverRoot);
+    } catch (e) {
+      if (log) {
+        log.warn(
+          { err: e.message },
+          'Google Play API scan failed, trying HTML fallback',
+        );
+      }
+    }
   }
   return scanGooglePlayHtml(packageName);
 }
@@ -151,18 +231,12 @@ async function scanRuStoreCatalogHtml(packageName) {
   const versionCodeMatch = html.match(/"versionCode"\s*:\s*(\d+)/);
   if (versionCodeMatch) {
     versionCode = Number(versionCodeMatch[1]);
-  } else if (versionName) {
-    const parts = versionName.split('.');
-    const last = Number(parts[parts.length - 1]);
-    if (Number.isFinite(last)) {
-      versionCode = last;
-    }
   }
 
   if (!versionName && versionCode == null) {
-    throw new Error('RuStore catalog: version not found in page');
+    throw new Error('RuStore catalog HTML: version not found');
   }
-  return successResult(STORES.RUSTORE, versionName, versionCode);
+  return successResult(STORES.RUSTORE, versionName, versionCode, 'rustore_html');
 }
 
 async function scanRuStoreBackApi(packageName) {
@@ -183,47 +257,77 @@ async function scanRuStoreBackApi(packageName) {
   if (!versionName && versionCode == null) {
     throw new Error('RuStore backapi: version missing');
   }
-  return successResult(STORES.RUSTORE, versionName, versionCode);
+  return successResult(STORES.RUSTORE, versionName, versionCode, 'rustore_backapi');
 }
 
 async function scanRuStorePublicApi(packageName, publicToken) {
-  const url = `https://public-api.rustore.ru/public/v1/application/${encodeURIComponent(packageName)}/version?versionStatuses=ACTIVE&page=0&size=1`;
+  const url = `https://public-api.rustore.ru/public/v1/application/${encodeURIComponent(packageName)}/version?versionStatuses=ACTIVE&page=0&size=5`;
   const data = await fetchJson(url, {
     'Public-Token': publicToken,
     accept: 'application/json',
   });
 
   const content = data?.body?.content || data?.content || [];
-  const first = Array.isArray(content) ? content[0] : null;
-  if (!first) {
-    throw new Error('RuStore public API: no ACTIVE version');
+  if (!Array.isArray(content) || !content.length) {
+    throw new Error('RuStore public API: no ACTIVE versions');
   }
+
+  let best = content[0];
+  for (const item of content) {
+    const code = Number(item?.versionCode);
+    const bestCode = Number(best?.versionCode);
+    if (Number.isFinite(code) && (!Number.isFinite(bestCode) || code > bestCode)) {
+      best = item;
+    } else if (
+      !Number.isFinite(code) &&
+      compareVersionNames(item?.versionName, best?.versionName) > 0
+    ) {
+      best = item;
+    }
+  }
+
   return successResult(
     STORES.RUSTORE,
-    first.versionName,
-    first.versionCode,
+    best.versionName,
+    best.versionCode,
+    'rustore_public_api',
   );
 }
 
-async function scanRuStore(packageName, cfg, serverRoot) {
+async function scanRuStore(packageName, cfg, serverRoot, log) {
+  const attempts = [];
+
   if (cfg.rustoreKeyId && cfg.rustorePrivateKeyPath) {
     try {
       const token = await getRuStorePublicToken(cfg, serverRoot);
       return await scanRuStorePublicApi(packageName, token);
     } catch (e) {
-      // fallback to catalog HTML
+      attempts.push(`public_api(jwt): ${e.message || e}`);
+      if (log) log.warn({ err: e.message }, 'RuStore public API (JWT) failed');
     }
   } else if (cfg.rustorePublicToken) {
     try {
       return await scanRuStorePublicApi(packageName, cfg.rustorePublicToken);
     } catch (e) {
-      // fallback
+      attempts.push(`public_api(token): ${e.message || e}`);
+      if (log) log.warn({ err: e.message }, 'RuStore public API (token) failed');
     }
+  } else {
+    attempts.push('public_api: not configured');
   }
+
+  try {
+    return await scanRuStoreBackApi(packageName);
+  } catch (e) {
+    attempts.push(`backapi: ${e.message || e}`);
+    if (log) log.warn({ err: e.message }, 'RuStore backapi failed');
+  }
+
   try {
     return await scanRuStoreCatalogHtml(packageName);
   } catch (e) {
-    return scanRuStoreBackApi(packageName);
+    attempts.push(`html: ${e.message || e}`);
+    throw new Error(`RuStore all sources failed: ${attempts.join(' | ')}`);
   }
 }
 
@@ -233,15 +337,15 @@ async function scanAllStores(config, log) {
   const tasks = [
     {
       store: STORES.APP_STORE,
-      run: () => scanAppStore(cfg.iosAppStoreId),
+      run: () => scanAppStore(cfg.iosAppStoreId, cfg.iosBundleId),
     },
     {
       store: STORES.GOOGLE_PLAY,
-      run: () => scanGooglePlay(cfg.androidPackage, cfg, serverRoot),
+      run: () => scanGooglePlay(cfg.androidPackage, cfg, serverRoot, log),
     },
     {
       store: STORES.RUSTORE,
-      run: () => scanRuStore(cfg.androidPackage, cfg, serverRoot),
+      run: () => scanRuStore(cfg.androidPackage, cfg, serverRoot, log),
     },
   ];
 
@@ -250,6 +354,17 @@ async function scanAllStores(config, log) {
     try {
       const result = await task.run();
       results.push(result);
+      if (log) {
+        log.info(
+          {
+            store: result.store,
+            versionName: result.versionName,
+            versionCode: result.versionCode,
+            source: result.scanSource,
+          },
+          'store version scan ok',
+        );
+      }
     } catch (e) {
       const err = errorResult(task.store, e.message);
       results.push(err);
@@ -264,13 +379,14 @@ async function scanAllStores(config, log) {
 async function upsertLatest(pool, result) {
   await pool.query(
     `INSERT INTO store_version_latest
-       (store, version_name, version_code, status, error_message, scanned_at)
-     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3))
+       (store, version_name, version_code, status, error_message, scan_source, scanned_at)
+     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3))
      ON DUPLICATE KEY UPDATE
        version_name = VALUES(version_name),
        version_code = VALUES(version_code),
        status = VALUES(status),
        error_message = VALUES(error_message),
+       scan_source = VALUES(scan_source),
        scanned_at = CURRENT_TIMESTAMP(3),
        updated_at = CURRENT_TIMESTAMP(3)`,
     [
@@ -279,6 +395,7 @@ async function upsertLatest(pool, result) {
       result.versionCode,
       result.status,
       result.errorMessage,
+      result.scanSource || null,
     ],
   );
 }
@@ -286,21 +403,22 @@ async function upsertLatest(pool, result) {
 async function insertScanLog(pool, result) {
   await pool.query(
     `INSERT INTO store_version_scan_log
-       (store, version_name, version_code, status, error_message, scanned_at)
-     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3))`,
+       (store, version_name, version_code, status, error_message, scan_source, scanned_at)
+     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3))`,
     [
       result.store,
       result.versionName,
       result.versionCode,
       result.status,
       result.errorMessage,
+      result.scanSource || null,
     ],
   );
 }
 
 async function fetchLatestRows(pool) {
   const [rows] = await pool.query(
-    `SELECT store, version_name, version_code, status, error_message, scanned_at, updated_at
+    `SELECT store, version_name, version_code, status, error_message, scan_source, scanned_at, updated_at
      FROM store_version_latest
      ORDER BY store ASC`,
   );
@@ -314,6 +432,7 @@ function rowToDto(row) {
     versionCode: row.version_code != null ? Number(row.version_code) : null,
     status: String(row.status),
     errorMessage: row.error_message != null ? String(row.error_message) : null,
+    scanSource: row.scan_source != null ? String(row.scan_source) : null,
     scannedAt: row.scanned_at ? new Date(row.scanned_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
@@ -336,6 +455,41 @@ async function runStoreVersionScan(fastify) {
       if (e.code === 'ER_NO_SUCH_TABLE') {
         return { ok: false, error: 'STORE_VERSION_TABLES_MISSING', results };
       }
+      // Older schema without scan_source — retry without the column once.
+      if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('scan_source')) {
+        await fastify.pool.query(
+          `INSERT INTO store_version_latest
+             (store, version_name, version_code, status, error_message, scanned_at)
+           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3))
+           ON DUPLICATE KEY UPDATE
+             version_name = VALUES(version_name),
+             version_code = VALUES(version_code),
+             status = VALUES(status),
+             error_message = VALUES(error_message),
+             scanned_at = CURRENT_TIMESTAMP(3),
+             updated_at = CURRENT_TIMESTAMP(3)`,
+          [
+            result.store,
+            result.versionName,
+            result.versionCode,
+            result.status,
+            result.errorMessage,
+          ],
+        );
+        await fastify.pool.query(
+          `INSERT INTO store_version_scan_log
+             (store, version_name, version_code, status, error_message, scanned_at)
+           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3))`,
+          [
+            result.store,
+            result.versionName,
+            result.versionCode,
+            result.status,
+            result.errorMessage,
+          ],
+        );
+        continue;
+      }
       throw e;
     }
   }
@@ -354,7 +508,6 @@ function readRustorePublicTokenFromEnv(config) {
       ? keyPath
       : path.join(config.SERVER_ROOT || process.cwd(), keyPath);
     const raw = fs.readFileSync(abs, 'utf8').trim();
-    // rustore.txt may contain PEM-like private key — not a Public-Token; ignore unless short token.
     if (raw.length < 200 && !raw.includes('BEGIN')) {
       return raw;
     }
@@ -370,4 +523,5 @@ module.exports = {
   runStoreVersionScan,
   getStoreVersionsDto,
   readRustorePublicTokenFromEnv,
+  compareVersionNames,
 };

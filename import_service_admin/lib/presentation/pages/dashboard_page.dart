@@ -35,8 +35,7 @@ class _DashboardPageState extends State<DashboardPage> {
   String? _apkError;
   bool _uploadingApk = false;
   bool _verifyingApk = false;
-  final _apkVersionCodeCtrl = TextEditingController();
-  final _apkVersionNameCtrl = TextEditingController();
+  final _apkVersionCtrl = TextEditingController();
   Uint8List? _apkBytes;
   String? _apkFileName;
   String? _apkVerifyResult;
@@ -49,8 +48,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
-    _apkVersionCodeCtrl.dispose();
-    _apkVersionNameCtrl.dispose();
+    _apkVersionCtrl.dispose();
     super.dispose();
   }
 
@@ -93,14 +91,6 @@ class _DashboardPageState extends State<DashboardPage> {
         _storeVersionsError = storesErr;
         _apkStatus = apk;
         _apkError = apkErr;
-        if (apk != null && apk['available'] == true) {
-          final code = apk['versionCode'];
-          if (code != null) _apkVersionCodeCtrl.text = '$code';
-          final name = apk['versionName']?.toString();
-          if (name != null && name.isNotEmpty) {
-            _apkVersionNameCtrl.text = name;
-          }
-        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -112,7 +102,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _pickApk() async {
-    final input = html.FileUploadInputElement()..accept = '.apk,application/vnd.android.package-archive';
+    if (_uploadingApk) return;
+    final input = html.FileUploadInputElement()
+      ..accept = '.apk,application/vnd.android.package-archive';
     input.click();
     await input.onChange.first;
     final file = input.files?.first;
@@ -129,10 +121,109 @@ class _DashboardPageState extends State<DashboardPage> {
     } else {
       return;
     }
+    if (!mounted) return;
     setState(() {
       _apkBytes = bytes;
       _apkFileName = file.name;
     });
+    await _showPublishApkDialog();
+  }
+
+  /// Версия только в модалке после выбора файла — не на дашборде.
+  Future<void> _showPublishApkDialog() async {
+    if (_apkBytes == null || _apkFileName == null) return;
+    final published = _apkStatus?['versionName']?.toString().trim();
+    _apkVersionCtrl.text =
+        (published != null && published.isNotEmpty) ? published : '';
+    final fileName = _apkFileName!;
+    final sizeMb = (_apkBytes!.length / (1024 * 1024)).toStringAsFixed(1);
+    String? dialogError;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !_uploadingApk,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final build = _buildFromVersion(_apkVersionCtrl.text);
+            return AlertDialog(
+              title: const Text('Публикация APK'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Файл: $fileName ($sizeMb МБ)'),
+                    const Gap(16),
+                    TextField(
+                      controller: _apkVersionCtrl,
+                      enabled: !_uploadingApk,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: 'Версия',
+                        hintText: '1.0.53',
+                        helperText: build == null
+                            ? 'Формат X.Y.Z — билд = последние цифры'
+                            : 'Билд: $build',
+                        border: const OutlineInputBorder(),
+                        errorText: dialogError,
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) => setDialogState(() => dialogError = null),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _uploadingApk
+                      ? null
+                      : () => Navigator.of(ctx).pop(false),
+                  child: const Text('Отмена'),
+                ),
+                FilledButton(
+                  onPressed: _uploadingApk
+                      ? null
+                      : () {
+                          final code =
+                              _buildFromVersion(_apkVersionCtrl.text);
+                          if (code == null) {
+                            setDialogState(() {
+                              dialogError =
+                                  'Укажите версию вида 1.0.53';
+                            });
+                            return;
+                          }
+                          Navigator.of(ctx).pop(true);
+                        },
+                  child: _uploadingApk
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Опубликовать'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      if (mounted) {
+        setState(() {
+          _apkBytes = null;
+          _apkFileName = null;
+        });
+      }
+      return;
+    }
+    await _uploadApk();
   }
 
   String _fmtMb(Object? bytes) {
@@ -161,11 +252,22 @@ class _DashboardPageState extends State<DashboardPage> {
     final sizeLine = sizeMatches == false
         ? 'Размер: ${_fmtMb(size)} ⚠ не совпадает с файлом на диске'
         : 'Размер: ${_fmtMb(size)}';
-    return 'Опубликован: build $code'
-        '${name != null ? ' ($name)' : ''}'
+    return 'Опубликован: ${name ?? '—'}'
+        '${code != null ? ' (build $code)' : ''}'
         '\n$sizeLine'
         '${shaShort.isNotEmpty ? '\nSHA256: $shaShort' : ''}'
         '${updated != null ? '\n$updated' : ''}';
+  }
+
+  /// Билд из хвоста версии: 1.0.53 → 53.
+  int? _buildFromVersion(String raw) {
+    final name = raw.trim();
+    final re = RegExp(r'^(\d+)\.(\d+)\.(\d+)$');
+    final m = re.firstMatch(name);
+    if (m == null) return null;
+    final code = int.tryParse(m.group(3)!);
+    if (code == null || code < 1) return null;
+    return code;
   }
 
   Future<void> _verifyApkOnServer() async {
@@ -215,10 +317,13 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _uploadApk() async {
-    final code = int.tryParse(_apkVersionCodeCtrl.text.trim());
-    if (code == null || code < 1) {
+    final versionName = _apkVersionCtrl.text.trim();
+    final code = _buildFromVersion(versionName);
+    if (code == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Укажите versionCode (buildNumber)')),
+        const SnackBar(
+          content: Text('Укажите версию вида 1.0.53 (билд = последние цифры)'),
+        ),
       );
       return;
     }
@@ -237,13 +342,11 @@ class _DashboardPageState extends State<DashboardPage> {
       final result = await sl<AndroidApkRemoteDataSource>().upload(
         fileBytes: _apkBytes!,
         fileName: _apkFileName!,
-        versionCode: code,
-        versionName: _apkVersionNameCtrl.text.trim(),
+        versionName: versionName,
       );
       if (!mounted) return;
       final remoteSize = _asInt(result['sizeBytes']);
       final sizeOk = remoteSize == localSize;
-      final sizeMatches = result['sizeMatches'] != false;
       final verify = await sl<AndroidApkRemoteDataSource>().verify();
       if (!mounted) return;
       final integrityOk = verify['ok'] == true;
@@ -251,7 +354,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ? 'ОШИБКА: локальный размер ${_fmtMb(localSize)} ≠ на сервере ${_fmtMb(remoteSize)}'
           : !integrityOk
               ? 'ОШИБКА после выкладки: проверка sha/размера не прошла'
-              : 'APK опубликован: ${_fmtMb(localSize)}, проверка OK';
+              : 'APK опубликован: $versionName (build $code), ${_fmtMb(localSize)}, проверка OK';
       setState(() {
         _apkStatus = result;
         _apkBytes = null;
@@ -259,9 +362,6 @@ class _DashboardPageState extends State<DashboardPage> {
         _apkVerifyResult = msg;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      if (!sizeOk || !sizeMatches || !integrityOk) {
-        // оставляем статус видимым
-      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -337,6 +437,19 @@ class _DashboardPageState extends State<DashboardPage> {
     }
     if (code != null) return 'build $code';
     return '—';
+  }
+
+  String _formatStoreMeta(Map<String, dynamic> row) {
+    final status = row['status']?.toString() ?? '';
+    if (status == 'error') {
+      return row['errorMessage']?.toString() ?? 'ошибка';
+    }
+    final source = row['scanSource']?.toString().trim();
+    final scanned = row['scannedAt']?.toString() ?? '—';
+    if (source != null && source.isNotEmpty) {
+      return '$source · $scanned';
+    }
+    return scanned;
   }
 
   @override
@@ -434,48 +547,22 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ],
                   const Gap(12),
-                  TextField(
-                    controller: _apkVersionCodeCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'versionCode (buildNumber)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const Gap(8),
-                  TextField(
-                    controller: _apkVersionNameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'versionName (опционально)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const Gap(8),
-                  Text(
-                    _apkFileName == null
-                        ? 'Файл не выбран'
-                        : 'Файл: $_apkFileName (${((_apkBytes?.length ?? 0) / (1024 * 1024)).toStringAsFixed(1)} МБ)',
-                  ),
-                  const Gap(8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: _uploadingApk ? null : _pickApk,
-                        icon: const Icon(Icons.attach_file),
-                        label: const Text('Выбрать APK'),
-                      ),
                       FilledButton.icon(
-                        onPressed: _uploadingApk ? null : _uploadApk,
+                        onPressed: _uploadingApk ? null : _pickApk,
                         icon: _uploadingApk
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.cloud_upload_outlined),
-                        label: const Text('Опубликовать'),
+                            : const Icon(Icons.attach_file),
+                        label: Text(
+                          _uploadingApk ? 'Публикация…' : 'Выбрать APK',
+                        ),
                       ),
                       if (_apkStatus != null && _apkStatus!['available'] == true)
                         OutlinedButton.icon(
@@ -580,9 +667,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             Expanded(
                               flex: 3,
                               child: Text(
-                                row['status'] == 'error'
-                                    ? row['errorMessage']?.toString() ?? 'ошибка'
-                                    : row['scannedAt']?.toString() ?? '—',
+                                _formatStoreMeta(row),
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ),

@@ -7,6 +7,7 @@ const {
   verifyApkIntegrity,
   publishApkBuffer,
   fileExists,
+  versionCodeFromVersionName,
 } = require('../services/androidApkRelease');
 const { notifyAndroidApkPublished } = require('../services/emailNotification');
 
@@ -65,7 +66,8 @@ module.exports = async function androidApkRoutes(fastify) {
 
   /**
    * Загрузка APK (перезапись).
-   * multipart: file (обязательно), versionCode (обязательно), versionName (опционально).
+   * multipart: file (обязательно), versionName (обязательно, X.Y.Z).
+   * versionCode опционален — если нет, берётся из последнего сегмента versionName.
    */
   fastify.post(
     '/admin/android-apk',
@@ -75,7 +77,7 @@ module.exports = async function androidApkRoutes(fastify) {
       if (!ct.includes('multipart/form-data')) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
-          message: 'Нужен multipart: file, versionCode',
+          message: 'Нужен multipart: file, versionName',
         });
       }
 
@@ -116,25 +118,40 @@ module.exports = async function androidApkRoutes(fastify) {
         });
       }
 
-      const versionCodeRaw = multipartFieldValue(fields, 'versionCode');
       const versionName = multipartFieldValue(fields, 'versionName');
-      const versionCode = Number(versionCodeRaw);
-      if (!Number.isFinite(versionCode) || versionCode < 1) {
+      const versionCodeRaw = multipartFieldValue(fields, 'versionCode');
+      if (!versionName) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
-          message: 'versionCode обязателен (целое ≥ 1, как buildNumber +N)',
+          message: 'versionName обязателен (например 1.0.53)',
+        });
+      }
+
+      let versionCode;
+      try {
+        versionCode = versionCodeRaw
+          ? Number(versionCodeRaw)
+          : versionCodeFromVersionName(versionName);
+        if (!Number.isFinite(versionCode) || versionCode < 1) {
+          versionCode = versionCodeFromVersionName(versionName);
+        }
+      } catch (e) {
+        return reply.code(400).send({
+          error: 'VALIDATION_ERROR',
+          message: e.message?.replace(/^VALIDATION_ERROR:\s*/, '') || e.message,
         });
       }
 
       try {
         const manifest = await publishApkBuffer(fileBuffer, {
           versionCode,
-          versionName: versionName || undefined,
+          versionName,
         });
         const dto = await getStatusDto(publicBase());
         fastify.log.info(
           {
             versionCode: manifest.versionCode,
+            versionName: manifest.versionName,
             sizeBytes: manifest.sizeBytes,
             fileName,
           },
@@ -167,7 +184,10 @@ module.exports = async function androidApkRoutes(fastify) {
       } catch (e) {
         const msg = e && e.message ? String(e.message) : 'publish failed';
         if (msg.startsWith('VALIDATION_ERROR')) {
-          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: msg });
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: msg.replace(/^VALIDATION_ERROR:\s*/, ''),
+          });
         }
         throw e;
       }

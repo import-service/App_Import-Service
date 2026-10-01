@@ -37,6 +37,26 @@ function sha256OfBuffer(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
+/**
+ * Build number из versionName: «1.0.53» → 53 (последний сегмент).
+ * @param {string} versionName
+ * @returns {number}
+ */
+function versionCodeFromVersionName(versionName) {
+  const name = String(versionName || '').trim();
+  if (!/^\d+\.\d+\.\d+$/.test(name)) {
+    throw new Error(
+      'VALIDATION_ERROR: версия должна быть вида X.Y.Z (например 1.0.53)',
+    );
+  }
+  const parts = name.split('.');
+  const code = Number(parts[parts.length - 1]);
+  if (!Number.isFinite(code) || code < 1) {
+    throw new Error('VALIDATION_ERROR: не удалось получить build из версии');
+  }
+  return code;
+}
+
 async function sha256OfFile(filePath) {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
@@ -149,12 +169,24 @@ async function verifyApkIntegrity(publicBaseUrl) {
 /**
  * Сохранить APK (перезапись) + манифест.
  * @param {Buffer} buffer
- * @param {{ versionCode: number, versionName?: string }} meta
+ * @param {{ versionName: string, versionCode?: number }} meta
  */
 async function publishApkBuffer(buffer, meta) {
-  const versionCode = Number(meta.versionCode);
+  const versionName = String(meta.versionName || '').trim();
+  if (!versionName) {
+    throw new Error('VALIDATION_ERROR: версия обязательна (например 1.0.53)');
+  }
+  let versionCode = Number(meta.versionCode);
   if (!Number.isFinite(versionCode) || versionCode < 1) {
-    throw new Error('VALIDATION_ERROR: versionCode обязателен (целое ≥ 1)');
+    versionCode = versionCodeFromVersionName(versionName);
+  } else {
+    // Сверка: build должен совпадать с хвостом versionName.
+    const expected = versionCodeFromVersionName(versionName);
+    if (expected !== versionCode) {
+      throw new Error(
+        `VALIDATION_ERROR: build ${versionCode} не совпадает с версией ${versionName} (ожидался ${expected})`,
+      );
+    }
   }
   if (!Buffer.isBuffer(buffer) || buffer.length < 1) {
     throw new Error('VALIDATION_ERROR: пустой APK');
@@ -175,7 +207,6 @@ async function publishApkBuffer(buffer, meta) {
   await fsp.rename(tmpPath, APK_PATH);
 
   const sha256 = sha256OfBuffer(buffer);
-  const versionName = String(meta.versionName || '').trim() || null;
   const manifest = {
     versionCode,
     versionName,
@@ -240,4 +271,5 @@ module.exports = {
   publishApkBuffer,
   publishApkFromPath,
   fileExists,
+  versionCodeFromVersionName,
 };
