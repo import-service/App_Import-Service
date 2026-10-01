@@ -104,16 +104,19 @@ main()
 **Смена роли в админке:** `GET /auth/me` отдаёт роль из БД; если JWT устарел — в ответе новый `accessToken`. МП: `refreshProfile` на cold start и при resume для staff → обновляет токен/роль → `GoRouter` ведёт в нужный shell.
 
 ```text
-LoginPage._login()
-  → AuthService.login() → POST auth/login
-  → session.setToken + SecureStorage + role/roles
+LoginPage._login() / тап по «Недавние входы»
+  → AuthService.login() → POST auth/login  (обычная авторизация)
+  → session.setToken + SecureStorage + role
+  → RecentAccountsService.upsert(email, password, role)  // secure storage, без лимита
   → registerPushTokenIfNeeded()
   → clear inventory/drafts
-  → prefs: только last email (пароль не сохраняем)
+  → prefs: только last email (пароль формы не в prefs; пароль — в recent accounts)
   → если клиент: CarsRepository.listVehicles()
-  → context.go(homeLocationForSession(session))  // /home | /svh-home | /declarant-home
+  → context.go(homeLocationForSession(session))
   → AppUpdateBootstrap.scheduleAfterLogin()
 ```
+
+**Недавние входы (устройство):** список на экране логина и в профиле (`RecentAccountsList`). Строка: email + роль. Сортировка по дате входа. Тап = logout текущего + обычный login сохранёнными данными → нужный shell. Удаления из списка нет.
 
 **Ошибки входа:** `login_error_message.dart` → i18n. **Не** показывать сырые коды API.
 

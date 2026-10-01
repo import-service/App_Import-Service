@@ -522,32 +522,37 @@ async function notifyAppFeedback(
 }
 
 /**
- * Письмо менеджеру СВХ с данными для входа в МП.
+ * Письмо менеджеру СВХ / декларанту с данными для входа в МП.
+ * @param {{ to: string, login: string, password?: string|null, fullName?: string, isUpdate?: boolean, role?: string }} payload
  * @returns {Promise<{ success: boolean, messageId?: string, error?: string }>}
  */
 async function notifySvhManagerCredentials(
   smtpConfig,
-  { to, login, password = null, fullName = '', isUpdate = false },
+  { to, login, password = null, fullName = '', isUpdate = false, role = 'svh_manager' },
   log,
 ) {
   const appName = smtpConfig.appName || 'Импорт Сервис';
   const name = normalize(fullName);
   const loginNorm = normalize(login);
   const passwordNorm = password != null ? String(password) : null;
+  const roleNorm = String(role || 'svh_manager').trim();
+  const roleLabel =
+    roleNorm === 'declarant_manager' ? 'Менеджер-декларант' : 'Менеджер СВХ';
   const subject = isUpdate
-    ? `${appName}: обновлены данные для входа (менеджер СВХ)`
-    : `${appName}: доступ в приложение (менеджер СВХ)`;
+    ? `${appName}: обновлены данные для входа (${roleLabel})`
+    : `${appName}: доступ в приложение (${roleLabel})`;
 
   const greeting = name ? `Здравствуйте, ${name}!` : 'Здравствуйте!';
   const intro = isUpdate
     ? 'Данные для входа в мобильное приложение Импорт Сервис обновлены.'
-    : 'Вам создан доступ менеджера СВХ в мобильном приложении Импорт Сервис.';
+    : `Вам создан доступ «${roleLabel}» в мобильном приложении Импорт Сервис.`;
 
   const lines = [
     greeting,
     '',
     intro,
     '',
+    `Роль: ${roleLabel}`,
     `Логин: ${loginNorm}`,
   ];
   if (passwordNorm) {
@@ -566,6 +571,7 @@ async function notifySvhManagerCredentials(
   const html = `
     <p>${escapeHtml(greeting)}</p>
     <p>${escapeHtml(intro)}</p>
+    <p><b>Роль:</b> ${escapeHtml(roleLabel)}</p>
     <p><b>Логин:</b> ${escapeHtml(loginNorm)}</p>
     ${passwordHtml}
     <p>Войдите в приложение с этими данными.</p>

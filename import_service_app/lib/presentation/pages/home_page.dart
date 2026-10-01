@@ -6,13 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:import_service_app/core/app_update/app_update_service.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
-import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/navigation/home_cars_navigation_controller.dart';
 import 'package:import_service_app/data/models/registration_request_model.dart';
-import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
 import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.dart';
-import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_chat_unread/request_chat_unread_state.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
@@ -22,6 +19,7 @@ import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
+import 'package:import_service_app/presentation/helpers/account_login_flow.dart';
 import 'package:import_service_app/presentation/helpers/org_display_name.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/settings_app_bar_action.dart';
@@ -32,7 +30,6 @@ import 'package:import_service_app/presentation/pages/cars_filters_page.dart';
 import 'package:import_service_app/presentation/widgets/tabs/cars_tab_view.dart';
 import 'package:import_service_app/presentation/widgets/tabs/chats_tab_view.dart';
 import 'package:import_service_app/presentation/widgets/tabs/profile_tab_view.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -82,19 +79,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _clearPrefsKeepLanguage() async {
-    final prefs = sl<SharedPreferences>();
-    final lang = prefs.getString('app_language');
-    final lastEmail = prefs.getString(SessionPreferencesKeys.authLastEmail);
-    await prefs.clear();
-    if (lang != null) {
-      await prefs.setString('app_language', lang);
-    }
-    if (lastEmail != null) {
-      await prefs.setString(SessionPreferencesKeys.authLastEmail, lastEmail);
-    }
-  }
-
   Future<void> _logout(BuildContext context) async {
     final confirmed = await LogoutConfirmBottomSheet.show(context);
     if (!confirmed || !context.mounted) return;
@@ -107,12 +91,7 @@ class _HomePageState extends State<HomePage> {
       } else {
         session.clear();
       }
-      await _clearPrefsKeepLanguage();
-      await sl<RequestDraftCubit>().clearAll();
-      await sl<CarInventoryCubit>().reloadFromDisk();
-      sl<RequestChatUnreadCubit>().clearAll();
-      sl<ChatListCubit>().reset();
-      sl<AppUpdateService>().resetSessionFlag();
+      await resetLocalStateAfterLogout();
       if (!context.mounted) return;
       context.go('/login');
     } on ServerException catch (e) {

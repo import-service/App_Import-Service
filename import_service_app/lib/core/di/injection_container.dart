@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:import_service_app/core/auth/auth_service.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_storage_keys.dart';
+import 'package:import_service_app/core/auth/recent_accounts_service.dart';
 import 'package:import_service_app/core/auth/session_lost_handler.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/i18n/app_locale.dart';
@@ -77,6 +78,9 @@ Future<void> initDependencies() async {
   );
 
   sl.registerLazySingleton<SecureStorageService>(SecureStorageService.new);
+  sl.registerLazySingleton<RecentAccountsService>(
+    () => RecentAccountsService(sl<SecureStorageService>()),
+  );
   sl.registerLazySingleton<AuthSessionController>(AuthSessionController.new);
 
   final session = sl<AuthSessionController>();
@@ -163,6 +167,7 @@ Future<void> initDependencies() async {
       sl<SharedPreferences>(),
       sl<Dio>(),
       sl<PushNotificationsService>(),
+      sl<RecentAccountsService>(),
     ),
   );
 

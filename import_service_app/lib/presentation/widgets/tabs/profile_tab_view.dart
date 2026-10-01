@@ -4,7 +4,9 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:import_service_app/core/app_update/app_update_service.dart';
+import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
+import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
@@ -12,8 +14,11 @@ import 'package:import_service_app/core/themes/app_theme_mode.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
 import 'package:import_service_app/data/demo/demo_profile_snapshot.dart';
+import 'package:import_service_app/presentation/helpers/account_login_flow.dart';
+import 'package:import_service_app/presentation/helpers/login_error_message.dart';
 import 'package:import_service_app/presentation/pages/feedback_page.dart';
 import 'package:import_service_app/presentation/widgets/auth/login_brand_logo.dart';
+import 'package:import_service_app/presentation/widgets/auth/recent_accounts_list.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_logout_outlined_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_outlined_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/forms/input_formatters/inn_input_formatter.dart';
@@ -397,6 +402,38 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                       );
                     },
                   ),
+                  if (!widget.isDemo) ...[
+                    const SizedBox(height: 16),
+                    RecentAccountsList(
+                      excludeEmail: () {
+                        final session = sl<AuthSessionController>();
+                        return (session.login ?? session.email ?? '')
+                            .trim()
+                            .toLowerCase();
+                      }(),
+                      onSelect: (account) async {
+                        final strings = sl<JsonStringsService>();
+                        try {
+                          await switchToRecentAccount(
+                            context: context,
+                            account: account,
+                          );
+                        } on ServerException catch (e) {
+                          if (!context.mounted) return;
+                          sl<AppFeedbackService>().show(
+                            loginErrorMessage(e, strings),
+                            kind: AppFeedbackKind.error,
+                          );
+                        } catch (_) {
+                          if (!context.mounted) return;
+                          sl<AppFeedbackService>().show(
+                            strings.loginUnknownError,
+                            kind: AppFeedbackKind.error,
+                          );
+                        }
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   AppLogoutOutlinedWideButton(
                     label: widget.logoutLabel,

@@ -40,6 +40,7 @@
   "loginNetworkError": "无法连接网络，请检查网络后重试。",
   "logoutUnknownError": "退出失败",
   "logoutButton": "退出",
+  "recentAccountsTitle": "最近登录",
   "logoutConfirmTitle": "退出登录",
   "logoutConfirmMessage": "确定要退出账户吗？",
   "actionCancel": "取消",

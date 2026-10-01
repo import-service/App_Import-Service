@@ -7,7 +7,7 @@ class ErrorHandler {
   static ServerException handle(DioException exception) {
     if (_isTimeout(exception)) {
       return const UnknownServerException(
-        'Превышено время ожидания: сервер ждёт ответа 1С. Повторите позже.',
+        'Превышено время ожидания ответа сервера. Повторите позже.',
       );
     }
 
@@ -32,10 +32,14 @@ class ErrorHandler {
       case 409:
         return ConflictException(message, code: code);
       case 502:
-        if (code == 'ONE_C_UPDATE_FAILED') {
+        // 502 от интеграции 1С — только по коду ONE_C_*. Остальное — обычная ошибка сервера.
+        if (code != null && code.startsWith('ONE_C_')) {
+          if (code == 'ONE_C_URL_NOT_CONFIGURED') {
+            return OneCNotConfiguredException(message);
+          }
           return OneCCreateFailedException(message, oneC: _oneCDetail(body));
         }
-        return OneCCreateFailedException(message, oneC: _oneCDetail(body));
+        return UnknownServerException(message);
       case 503:
         if (code == 'ONE_C_URL_NOT_CONFIGURED') {
           return OneCNotConfiguredException(message);

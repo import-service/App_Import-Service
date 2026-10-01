@@ -40,6 +40,7 @@
   "loginNetworkError": "Нет подключения к интернету. Проверьте сеть и повторите.",
   "logoutUnknownError": "Не удалось выполнить выход",
   "logoutButton": "Выйти",
+  "recentAccountsTitle": "Недавние входы",
   "logoutConfirmTitle": "Выход",
   "logoutConfirmMessage": "Выйти из аккаунта?",
   "actionCancel": "Отмена",

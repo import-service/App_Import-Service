@@ -4,7 +4,9 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/auth_storage_keys.dart';
+import 'package:import_service_app/core/auth/recent_accounts_service.dart';
 import 'package:import_service_app/core/auth/session_preferences_keys.dart';
+import 'package:import_service_app/core/auth/session_role.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/core/push/push_notifications_service.dart';
 import 'package:import_service_app/core/storage/secure_storage_service.dart';
@@ -22,6 +24,7 @@ class AuthService {
     this._prefs,
     this._dio,
     this._pushNotifications,
+    this._recentAccounts,
   );
 
   final AuthRemoteDataSource _remote;
@@ -30,6 +33,7 @@ class AuthService {
   final SharedPreferences _prefs;
   final Dio _dio;
   final PushNotificationsService _pushNotifications;
+  final RecentAccountsService _recentAccounts;
   StreamSubscription<String>? _tokenRefreshSubscription;
 
   bool get isAuthenticated => _session.isAuthenticated;
@@ -54,6 +58,11 @@ class AuthService {
       _secureStorage.write(AuthStorageKeys.accessToken, token),
       refreshProfile(),
     ]);
+    await _recentAccounts.upsert(
+      email: login,
+      password: password,
+      role: _session.role ?? kUserRole,
+    );
     _bindPushTokenRefresh();
     await registerPushTokenIfNeeded();
   }

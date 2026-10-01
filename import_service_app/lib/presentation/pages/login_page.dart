@@ -3,29 +3,26 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:import_service_app/core/app_update/app_update_bootstrap.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
-import 'package:import_service_app/core/auth/auth_service.dart';
-import 'package:import_service_app/core/auth/session_role.dart';
+import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/error/exceptions.dart';
 import 'package:import_service_app/core/ui/app_feedback_kind.dart';
 import 'package:import_service_app/core/ui/app_feedback_service.dart';
-import 'package:import_service_app/core/auth/session_preferences_keys.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
-import 'package:import_service_app/domain/entities/car_list_item.dart';
+import 'package:import_service_app/presentation/helpers/account_login_flow.dart';
 import 'package:import_service_app/presentation/helpers/login_error_message.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/brand_primary_app_bar.dart';
 import 'package:import_service_app/presentation/widgets/app_bar/settings_app_bar_action.dart';
 import 'package:import_service_app/presentation/widgets/auth/login_brand_logo.dart';
+import 'package:import_service_app/presentation/widgets/auth/recent_accounts_list.dart';
 import 'package:import_service_app/presentation/widgets/bottom_sheets/registration_request_bottom_sheet.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_accent_underlined_text_button.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_filled_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/buttons/app_primary_outlined_wide_button.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_labeled_text_field.dart';
-import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -57,7 +54,7 @@ class _LoginPageState extends State<LoginPage> {
     final prefs = sl<SharedPreferences>();
     _loginController.text =
         prefs.getString(SessionPreferencesKeys.authLastEmail) ?? '';
-    // Пароль не подставляем и старый ключ с устройства убираем.
+    // Пароль не подставляем в поля формы; старый ключ prefs убираем.
     unawaited(prefs.remove(SessionPreferencesKeys.authLastPassword));
   }
 
@@ -102,26 +99,11 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loggingIn = true);
     try {
-      await sl<AuthService>().login(login: login, password: password);
-      await sl<RequestDraftCubit>().clearAll();
-      await sl<CarInventoryCubit>().replaceAll(const <CarListItem>[]);
-      final session = sl<AuthSessionController>();
-      if (!isSvhManagerSession(session)) {
-        await sl<CarsRepository>().listVehicles();
-      }
-      final prefs = sl<SharedPreferences>();
-      await prefs.setString(SessionPreferencesKeys.authLastEmail, login);
-      await prefs.remove(SessionPreferencesKeys.authLastPassword);
-      if (!mounted) return;
-      final roleLine = strings
-          .text('sessionRoleSignedInAs')
-          .replaceAll(
-            '{role}',
-            roleDisplayLabel(session.role ?? kUserRole),
-          );
-      context.go(homeLocationForSession(session));
-      sl<AppFeedbackService>().show(roleLine, kind: AppFeedbackKind.success);
-      AppUpdateBootstrap.scheduleAfterLogin();
+      await completeCredentialLogin(
+        context: context,
+        login: login,
+        password: password,
+      );
     } on ServerException catch (e) {
       if (!mounted) return;
       sl<AppFeedbackService>().show(
@@ -180,6 +162,34 @@ class _LoginPageState extends State<LoginPage> {
                     isLoading: _loggingIn,
                     onPressed: (_loggingIn || !_canSubmit) ? null : _login,
                   ),
+                  const Gap(16),
+                  RecentAccountsList(
+                    enabled: !_loggingIn,
+                    onSelect: (account) async {
+                      setState(() => _loggingIn = true);
+                      try {
+                        await completeCredentialLogin(
+                          context: context,
+                          login: account.email,
+                          password: account.password,
+                        );
+                      } on ServerException catch (e) {
+                        if (!mounted) return;
+                        sl<AppFeedbackService>().show(
+                          loginErrorMessage(e, strings),
+                          kind: AppFeedbackKind.error,
+                        );
+                      } catch (_) {
+                        if (!mounted) return;
+                        sl<AppFeedbackService>().show(
+                          strings.loginUnknownError,
+                          kind: AppFeedbackKind.error,
+                        );
+                      } finally {
+                        if (mounted) setState(() => _loggingIn = false);
+                      }
+                    },
+                  ),
                   const Gap(10),
                   AppAccentUnderlinedTextButton(
                     label: strings.demoLoginButton,
@@ -187,7 +197,8 @@ class _LoginPageState extends State<LoginPage> {
                       AppLog.trace('demo: enableDemo + bootstrap', tag: 'Auth');
                       await sl<RequestDraftCubit>().clearAll();
                       sl<AuthSessionController>().enableDemo();
-                      final boot = await sl<CarsRepository>().bootstrapDemoRequests();
+                      final boot =
+                          await sl<CarsRepository>().bootstrapDemoRequests();
                       if (!context.mounted) return;
                       boot.fold(
                         (f) {
