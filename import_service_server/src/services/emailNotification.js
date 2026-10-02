@@ -598,7 +598,7 @@ const ANDROID_APK_PUBLISHED_SUBJECT = 'Новая версия APK — Импо�
  */
 async function notifyAndroidApkPublished(
   smtpConfig,
-  { versionCode, versionName, apkUrl, sizeBytes },
+  { versionCode, versionName, apkUrl, sizeBytes, changelog },
   log,
 ) {
   const appName = smtpConfig.appName || 'Импорт Сервис';
@@ -610,6 +610,7 @@ async function notifyAndroidApkPublished(
   const code = Number(versionCode) || 0;
   const name = normalize(versionName) || String(code);
   const url = normalize(apkUrl) || '';
+  const changes = normalize(changelog) || '';
   const sizeMb =
     Number.isFinite(Number(sizeBytes)) && Number(sizeBytes) > 0
       ? `${(Number(sizeBytes) / (1024 * 1024)).toFixed(1)} МБ`
@@ -623,9 +624,16 @@ async function notifyAndroidApkPublished(
     `Размер: ${sizeMb}`,
     url ? `Скачать: ${url}` : '',
     `Время: ${when}`,
+    changes ? '' : null,
+    changes ? 'Что изменилось:' : null,
+    changes || null,
   ]
-    .filter(Boolean)
+    .filter((line) => line != null)
     .join('\n');
+
+  const changelogHtml = changes
+    ? `<tr><td valign="top"><b>Что изменилось</b></td><td>${escapeHtml(changes).replace(/\r?\n/g, '<br>')}</td></tr>`
+    : '';
 
   const html = `
     <h2>Новая версия APK — ${escapeHtml(appName)}</h2>
@@ -638,6 +646,7 @@ async function notifyAndroidApkPublished(
           : ''
       }
       <tr><td><b>Время</b></td><td>${escapeHtml(when)}</td></tr>
+      ${changelogHtml}
     </table>
   `;
 

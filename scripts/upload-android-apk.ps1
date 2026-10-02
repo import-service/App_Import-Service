@@ -1,10 +1,11 @@
 # Upload Android APK to prod and publish manifest (versionCode = buildNumber).
 # From monorepo root:
-#   .\scripts\upload-android-apk.ps1 -ApkPath D:\Temp\import_service_app_1_34.apk -VersionCode 34 -VersionName 1.0.34
+#   .\scripts\upload-android-apk.ps1 -ApkPath D:\Temp\import_service_app_1_34.apk -VersionCode 34 -VersionName 1.0.34 -Changelog "..."
 param(
   [Parameter(Mandatory = $true)][string]$ApkPath,
   [Parameter(Mandatory = $true)][int]$VersionCode,
-  [string]$VersionName = ''
+  [string]$VersionName = '',
+  [string]$Changelog = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,20 +33,26 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $vnArg = if ($VersionName) { " --versionName $VersionName" } else { '' }
-$cmd = "cd '$RemoteRoot' && node scripts/publish-android-apk.js --file '$RemoteApk' --versionCode $VersionCode$vnArg"
+$clArg = ''
+if ($Changelog.Trim().Length -gt 0) {
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($Changelog.Trim())
+  $b64 = [Convert]::ToBase64String($bytes)
+  $clArg = " --changelogBase64 $b64"
+}
+$cmd = "cd '$RemoteRoot' && node scripts/publish-android-apk.js --file '$RemoteApk' --versionCode $VersionCode$vnArg$clArg"
 Write-Host 'Publish manifest...'
 & ssh @SshOpts $SshHost $cmd
 if ($LASTEXITCODE -ne 0) { throw "publish-android-apk failed: $LASTEXITCODE" }
 
 Write-Host 'Check public manifest:'
-$manifestJson = curl.exe -sS 'https://157-22-173-7.sslip.io/api/app/android-apk'
+$manifestJson = curl.exe -sS 'https://app.import-service.su/api/app/android-apk'
 Write-Host $manifestJson
 if ($manifestJson -notmatch [regex]::Escape($localHash)) {
   throw "Remote sha256 does not match local APK ($localHash)"
 }
 
 $localSize = (Get-Item -LiteralPath $ApkPath).Length
-$head = curl.exe -sSI 'https://157-22-173-7.sslip.io/api/app/android-apk/download'
+$head = curl.exe -sSI 'https://app.import-service.su/api/app/android-apk/download'
 $contentLengthLine = ($head | Select-String -Pattern '(?i)^Content-Length:\s*(\d+)' | Select-Object -First 1)
 if (-not $contentLengthLine) {
   throw 'Download response missing Content-Length'

@@ -32,4 +32,4 @@ Get-ChildItem -Path $serverWebDir -Force |
 
 Copy-Item -Path (Join-Path $buildDir '*') -Destination $serverWebDir -Recurse -Force
 
-Write-Host "Done. Run deploy-server-vps.ps1, then open https://157-22-173-7.sslip.io/admin/" -ForegroundColor Green
+Write-Host "Done. Run deploy-server-vps.ps1, then open https://app.import-service.su/admin/" -ForegroundColor Green

@@ -6,8 +6,11 @@ const path = require('path');
 const APK_DIR = path.join(process.cwd(), 'uploads', 'app-releases');
 const APK_FILE_NAME = 'import-service-latest.apk';
 const MANIFEST_FILE_NAME = 'manifest.json';
+const HISTORY_FILE_NAME = 'release-history.json';
 const APK_PATH = path.join(APK_DIR, APK_FILE_NAME);
 const MANIFEST_PATH = path.join(APK_DIR, MANIFEST_FILE_NAME);
+const HISTORY_PATH = path.join(APK_DIR, HISTORY_FILE_NAME);
+const HISTORY_MAX = 40;
 
 /** Макс. размер APK при загрузке (админ / скрипт). */
 const LIMIT_APK_BYTES = 200 * 1024 * 1024;
@@ -77,6 +80,7 @@ function buildPublicDto(manifest, publicBaseUrl) {
   const apkUrl = base
     ? `${base}/api/app/android-apk/download`
     : '/api/app/android-apk/download';
+  const changelog = String(manifest.changelog || '').trim();
   return {
     available: true,
     versionCode: Number(manifest.versionCode) || 0,
@@ -84,8 +88,39 @@ function buildPublicDto(manifest, publicBaseUrl) {
     sha256: String(manifest.sha256 || ''),
     sizeBytes: Number(manifest.sizeBytes) || 0,
     updatedAt: manifest.updatedAt || null,
+    changelog: changelog || null,
     apkUrl,
   };
+}
+
+function normalizeChangelog(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  if (text.length > 4000) {
+    throw new Error('VALIDATION_ERROR: changelog длиннее 4000 символов');
+  }
+  return text;
+}
+
+async function readHistory() {
+  if (!(await fileExists(HISTORY_PATH))) return [];
+  try {
+    const raw = await fsp.readFile(HISTORY_PATH, 'utf8');
+    const json = JSON.parse(raw);
+    return Array.isArray(json) ? json : [];
+  } catch {
+    return [];
+  }
+}
+
+async function appendHistory(entry) {
+  const prev = await readHistory();
+  const filtered = prev.filter(
+    (e) => Number(e?.versionCode) !== Number(entry.versionCode),
+  );
+  const next = [entry, ...filtered].slice(0, HISTORY_MAX);
+  await fsp.writeFile(HISTORY_PATH, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  return next;
 }
 
 async function readManifest() {
@@ -111,7 +146,7 @@ async function readManifest() {
 async function getStatusDto(publicBaseUrl) {
   const manifest = await readManifest();
   if (!manifest) {
-    return { available: false };
+    return { available: false, history: await readHistory() };
   }
   const dto = buildPublicDto(manifest, publicBaseUrl);
   try {
@@ -122,6 +157,7 @@ async function getStatusDto(publicBaseUrl) {
     dto.fileSizeBytes = 0;
     dto.sizeMatches = false;
   }
+  dto.history = await readHistory();
   return dto;
 }
 
@@ -169,7 +205,7 @@ async function verifyApkIntegrity(publicBaseUrl) {
 /**
  * Сохранить APK (перезапись) + манифест.
  * @param {Buffer} buffer
- * @param {{ versionName: string, versionCode?: number }} meta
+ * @param {{ versionName: string, versionCode?: number, changelog?: string }} meta
  */
 async function publishApkBuffer(buffer, meta) {
   const versionName = String(meta.versionName || '').trim();
@@ -201,6 +237,8 @@ async function publishApkBuffer(buffer, meta) {
     throw new Error('VALIDATION_ERROR: ожидается APK (ZIP)');
   }
 
+  const changelog = normalizeChangelog(meta.changelog);
+
   await ensureDir();
   const tmpPath = `${APK_PATH}.tmp`;
   await fsp.writeFile(tmpPath, buffer);
@@ -214,15 +252,24 @@ async function publishApkBuffer(buffer, meta) {
     sizeBytes: buffer.length,
     updatedAt: new Date().toISOString(),
     fileName: APK_FILE_NAME,
+    changelog: changelog || undefined,
   };
   await fsp.writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  await appendHistory({
+    versionCode,
+    versionName,
+    changelog: changelog || null,
+    sizeBytes: buffer.length,
+    sha256,
+    updatedAt: manifest.updatedAt,
+  });
   return manifest;
 }
 
 /**
  * Опубликовать уже лежащий на диске файл (после scp).
  * @param {string} sourcePath
- * @param {{ versionCode: number, versionName?: string }} meta
+ * @param {{ versionCode: number, versionName?: string, changelog?: string }} meta
  */
 async function publishApkFromPath(sourcePath, meta) {
   const versionCode = Number(meta.versionCode);
@@ -239,6 +286,8 @@ async function publishApkFromPath(sourcePath, meta) {
     );
   }
 
+  const changelog = normalizeChangelog(meta.changelog);
+
   await ensureDir();
   const absSource = path.resolve(sourcePath);
   if (absSource !== path.resolve(APK_PATH)) {
@@ -254,8 +303,17 @@ async function publishApkFromPath(sourcePath, meta) {
     sizeBytes: st.size,
     updatedAt: new Date().toISOString(),
     fileName: APK_FILE_NAME,
+    changelog: changelog || undefined,
   };
   await fsp.writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  await appendHistory({
+    versionCode,
+    versionName,
+    changelog: changelog || null,
+    sizeBytes: st.size,
+    sha256,
+    updatedAt: manifest.updatedAt,
+  });
   return manifest;
 }
 

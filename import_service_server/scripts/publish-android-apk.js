@@ -2,8 +2,7 @@
 /**
  * Опубликовать APK уже лежащий на диске сервера (после scp).
  * Usage:
- *   node scripts/publish-android-apk.js --file /path/to.apk --versionCode 34 [--versionName 1.0.34]
- *   node scripts/publish-android-apk.js --versionCode 34   # файл уже в uploads/app-releases/import-service-latest.apk
+ *   node scripts/publish-android-apk.js --file /path/to.apk --versionCode 34 [--versionName 1.0.34] [--changelog "..."] [--changelogBase64 ...]
  */
 const path = require('path');
 
@@ -23,9 +22,22 @@ function argValue(name) {
   return process.argv[i + 1];
 }
 
+function resolveChangelog() {
+  const b64 = argValue('--changelogBase64');
+  if (b64) {
+    try {
+      return Buffer.from(b64, 'base64').toString('utf8');
+    } catch {
+      return '';
+    }
+  }
+  return argValue('--changelog') || '';
+}
+
 async function main() {
   const versionCode = Number(argValue('--versionCode'));
   const versionName = argValue('--versionName') || undefined;
+  const changelog = resolveChangelog();
   const file = argValue('--file') || apkPath();
 
   if (!Number.isFinite(versionCode) || versionCode < 1) {
@@ -33,7 +45,11 @@ async function main() {
     process.exit(1);
   }
 
-  const manifest = await publishApkFromPath(file, { versionCode, versionName });
+  const manifest = await publishApkFromPath(file, {
+    versionCode,
+    versionName,
+    changelog,
+  });
   const publicBase = process.env.PUBLIC_BASE_URL || config.publicBaseUrl || '';
   const dto = await getStatusDto(publicBase);
   console.log(JSON.stringify({ ok: true, manifest, status: dto }, null, 2));
@@ -46,6 +62,7 @@ async function main() {
         versionName: dto.versionName,
         apkUrl: dto.apkUrl,
         sizeBytes: dto.sizeBytes ?? dto.fileSizeBytes,
+        changelog: dto.changelog || changelog || '',
       },
       console,
     );

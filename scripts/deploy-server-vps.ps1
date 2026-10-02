@@ -4,7 +4,7 @@ param(
   [string]$SshHost = 'root@157.22.173.7',
   [string]$RemoteDir = '/var/www/www-root/data/www/157-22-173-7.sslip.io',
   [string]$Pm2Name = 'import-service',
-  [string]$CheckUrl = 'https://157-22-173-7.sslip.io/admin/'
+  [string]$CheckUrl = 'https://app.import-service.su/admin/'
 )
 
 $ErrorActionPreference = 'Stop'

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:import_service_app/core/constants/asset_paths.dart';
 
-/// Аватар: опционально фото; иначе иконка пользователя в круге.
+/// Аватар профиля: опционально фото; иначе логотип Import Service.
 class ProfilePlaceholderAvatar extends StatelessWidget {
   const ProfilePlaceholderAvatar({
     super.key,
@@ -13,10 +14,10 @@ class ProfilePlaceholderAvatar extends StatelessWidget {
   final ImageProvider? photoProvider;
   final double size;
 
+  static const String _brandLogoFile = 'logo_import_service.png';
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     if (usePhoto && photoProvider != null) {
       return Container(
         width: size,
@@ -32,15 +33,16 @@ class ProfilePlaceholderAvatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
+      padding: EdgeInsets.all(size * 0.12),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: Colors.black12),
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+        color: Colors.white,
       ),
-      child: Icon(
-        Icons.person_rounded,
-        size: size * 0.45,
-        color: theme.colorScheme.onSurfaceVariant,
+      child: Image.asset(
+        AssetPaths.image(_brandLogoFile),
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
       ),
     );
   }

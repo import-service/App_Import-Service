@@ -15,6 +15,7 @@ alwaysApply: true
 | SSH | `root@157.22.173.7` (ключ в `~/.ssh`, host в `known_hosts`) |
 | Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
 | pm2 | `import-service` |
+| `PUBLIC_BASE_URL` | **`https://app.import-service.su`** (все абсолютные ссылки: APK, файлы, письма). Не sslip. |
 | Проверка | `https://app.import-service.su/admin/` → **200**, `text/html` (не JSON 404); legacy sslip тоже ок |
 
 `ssh-prod` в `~/.ssh/config` — **другой** сервер (joypick), **не** Import Service.

@@ -13,6 +13,7 @@ param(
   [switch]$AlsoStoreApk,
   [switch]$UploadApk,
   [switch]$SkipPubGet,
+  [string]$Changelog = '',
   # Устарело: раньше -AlsoAab. Теперь store AAB = -AlsoStoreAab.
   [switch]$AlsoAab
 )
@@ -132,7 +133,7 @@ try {
 
   if ($UploadApk) {
     $upload = Join-Path $RepoRoot 'scripts\upload-android-apk.ps1'
-    & $upload -ApkPath $apkDst -VersionCode $buildNumber -VersionName $versionName
+    & $upload -ApkPath $apkDst -VersionCode $buildNumber -VersionName $versionName -Changelog $Changelog
     if ($LASTEXITCODE -ne 0) { throw "upload-android-apk failed: $LASTEXITCODE" }
   }
 

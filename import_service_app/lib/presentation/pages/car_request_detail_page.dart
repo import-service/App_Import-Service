@@ -1065,9 +1065,38 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
           requestId: widget.requestId,
           item: item,
           strings: s,
+          svhUploadMode: svh,
+          highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
+          newDocTypes: attentionState.newDocTypesFor(item.id),
+          changedDocTypes: attentionState.changedDocTypesFor(item.id),
+          uploadingDocType: _uploadingDocType,
           onUploadReceipt: svh
               ? null
               : (docType) => _attachDocType(docType, item),
+          onUploadDocType: svh
+              ? null
+              : (docType) => _attachDocType(docType, item),
+          buildFileRow: (
+            f, {
+            required highlight,
+            badge,
+            embedded = false,
+            onDelete,
+            isNew = false,
+            isChanged = false,
+          }) {
+            return _buildServerFileRow(
+              theme: theme,
+              f: f,
+              highlight: highlight,
+              badge: badge,
+              embedded: embedded,
+              onDelete: onDelete,
+              isNew: isNew,
+              isChanged: isChanged,
+              onTap: () => _openRequestFile(f),
+            );
+          },
         ),
       )
       ..add(const Gap(16));
@@ -1091,6 +1120,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         RequestDetailFilesSections(
           requestId: widget.requestId,
           item: item,
+          includePaymentSection: false,
           highlightedDocTypes: attentionState.highlightedDocTypesFor(item.id),
           newDocTypes: attentionState.newDocTypesFor(item.id),
           changedDocTypes: attentionState.changedDocTypesFor(item.id),

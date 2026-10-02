@@ -55,6 +55,7 @@ class RequestDetailFilesSections extends StatelessWidget {
     this.newDocTypes = const {},
     this.changedDocTypes = const {},
     this.svhUploadMode = false,
+    this.includePaymentSection = true,
   });
 
   final String requestId;
@@ -85,6 +86,8 @@ class RequestDetailFilesSections extends StatelessWidget {
   final Set<String> changedDocTypes;
   /// Менеджер СВХ: галерея / архив, без подписей/оплат.
   final bool svhUploadMode;
+  /// false — секция «Оплата» не показывается (уже в блоке «Финансы и оплата»).
+  final bool includePaymentSection;
 
   bool _isHighlighted(CustomsRequestFile file) {
     final code = normalizeDocType(file.docType ?? '');
@@ -389,34 +392,36 @@ class RequestDetailFilesSections extends StatelessWidget {
     );
 
     final paymentRows = <Widget>[];
-    addPaymentPairGroups(
-      out: paymentRows,
-      allFiles: item.files,
-      buildFileRow: (f, {required highlight, badge, embedded = false, isNew = false, isChanged = false}) =>
-          buildFileRow(
-            f,
-            highlight: highlight,
-            badge: badge,
-            embedded: embedded,
-            isNew: isNew,
-            isChanged: isChanged,
-          ),
-      strings: s,
-      isHighlighted: _isHighlighted,
-      isNewFile: _isNew,
-      isChangedFile: _isChanged,
-      onUploadDocType: svhUploadMode ? null : onUploadDocType,
-      uploadingDocType: uploadingDocType,
-      uploadReceiptLabelOverride: uploadReceiptLabel,
-    );
+    if (includePaymentSection) {
+      addPaymentPairGroups(
+        out: paymentRows,
+        allFiles: item.files,
+        buildFileRow: (f, {required highlight, badge, embedded = false, isNew = false, isChanged = false}) =>
+            buildFileRow(
+              f,
+              highlight: highlight,
+              badge: badge,
+              embedded: embedded,
+              isNew: isNew,
+              isChanged: isChanged,
+            ),
+        strings: s,
+        isHighlighted: _isHighlighted,
+        isNewFile: _isNew,
+        isChangedFile: _isChanged,
+        onUploadDocType: svhUploadMode ? null : onUploadDocType,
+        uploadingDocType: uploadingDocType,
+        uploadReceiptLabelOverride: uploadReceiptLabel,
+      );
 
-    addSection(
-      sectionKey: RequestDetailSectionKeys.filesPayment,
-      title: s.requestFilesSectionPayment,
-      needsAction: svhUploadMode ? false : paymentSectionNeedsAction(item, grouped),
-      sectionFiles: grouped.payment,
-      rows: paymentRows,
-    );
+      addSection(
+        sectionKey: RequestDetailSectionKeys.filesPayment,
+        title: s.requestFilesSectionPayment,
+        needsAction: svhUploadMode ? false : paymentSectionNeedsAction(item, grouped),
+        sectionFiles: grouped.payment,
+        rows: paymentRows,
+      );
+    }
 
     if (_shouldShowSvhCarGallery(item, grouped)) {
       final photos = grouped.svhCarGallery

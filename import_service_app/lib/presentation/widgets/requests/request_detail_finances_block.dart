@@ -5,11 +5,15 @@ import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
+import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_line_labels.dart';
+import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_collapsible_section.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_finance_card.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_files_sections.dart';
+import 'package:import_service_app/presentation/widgets/requests/request_detail_payment_groups.dart';
 
-/// Финансы: аванс / факт / к возврату + строки оплат (свернуто по умолчанию).
+/// Финансы и оплата: суммы + файлы/квитанции оплаты в одном блоке.
 class RequestDetailFinancesBlock extends StatelessWidget {
   const RequestDetailFinancesBlock({
     super.key,
@@ -17,15 +21,33 @@ class RequestDetailFinancesBlock extends StatelessWidget {
     required this.item,
     required this.strings,
     this.onUploadReceipt,
+    this.buildFileRow,
+    this.onUploadDocType,
+    this.uploadingDocType,
+    this.uploadReceiptLabel,
+    this.highlightedDocTypes = const {},
+    this.newDocTypes = const {},
+    this.changedDocTypes = const {},
+    this.svhUploadMode = false,
   });
 
   final String requestId;
   final CarListItem item;
   final JsonStringsService strings;
   final void Function(String docType)? onUploadReceipt;
+  final RequestFileRowBuilder? buildFileRow;
+  final void Function(String docType)? onUploadDocType;
+  final String? uploadingDocType;
+  final String? uploadReceiptLabel;
+  final Set<String> highlightedDocTypes;
+  final Set<String> newDocTypes;
+  final Set<String> changedDocTypes;
+  final bool svhUploadMode;
 
   static bool shouldShow(CarListItem item) {
-    return RequestDetailFinancesBlock._hasAmounts(item) || item.financeItems.isNotEmpty;
+    return RequestDetailFinancesBlock._hasAmounts(item) ||
+        item.financeItems.isNotEmpty ||
+        groupedFilesForItem(item).payment.isNotEmpty;
   }
 
   static bool _hasAmounts(CarListItem item) {
@@ -43,10 +65,29 @@ class RequestDetailFinancesBlock extends StatelessWidget {
     return '$t ₽';
   }
 
+  bool _isHighlighted(CustomsRequestFile file) {
+    final code = normalizeDocType(file.docType ?? '');
+    if (code.isEmpty) return false;
+    return highlightedDocTypes.contains(code);
+  }
+
+  bool _isNew(CustomsRequestFile file) {
+    final code = normalizeDocType(file.docType ?? '');
+    if (code.isEmpty) return false;
+    return newDocTypes.contains(code);
+  }
+
+  bool _isChanged(CustomsRequestFile file) {
+    final code = normalizeDocType(file.docType ?? '');
+    if (code.isEmpty) return false;
+    return changedDocTypes.contains(code);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final children = <Widget>[];
+    final grouped = groupedFilesForItem(item);
 
     if (_hasAmounts(item)) {
       if (_nonEmpty(item.advancePayment)) {
@@ -98,8 +139,47 @@ class RequestDetailFinancesBlock extends StatelessWidget {
       }
     }
 
+    if (buildFileRow != null) {
+      final paymentRows = <Widget>[];
+      addPaymentPairGroups(
+        out: paymentRows,
+        allFiles: item.files,
+        buildFileRow: (f, {required highlight, badge, embedded = false, isNew = false, isChanged = false}) =>
+            buildFileRow!(
+              f,
+              highlight: highlight,
+              badge: badge,
+              embedded: embedded,
+              isNew: isNew,
+              isChanged: isChanged,
+            ),
+        strings: strings,
+        isHighlighted: _isHighlighted,
+        isNewFile: _isNew,
+        isChangedFile: _isChanged,
+        onUploadDocType: svhUploadMode ? null : onUploadDocType,
+        uploadingDocType: uploadingDocType,
+        uploadReceiptLabelOverride: uploadReceiptLabel,
+      );
+      if (children.isNotEmpty) children.add(const Gap(12));
+      if (paymentRows.isEmpty) {
+        children.add(
+          Text(
+            strings.text('requestFilesSectionEmpty'),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        );
+      } else {
+        for (var i = 0; i < paymentRows.length; i++) {
+          children.add(paymentRows[i]);
+          if (i < paymentRows.length - 1) children.add(const Gap(8));
+        }
+      }
+    }
+
     final hasRefund = _nonEmpty(item.refundAmount);
-    final hasExpandedContent = children.isNotEmpty;
     final refundPreview = hasRefund
         ? _RefundPreview(
             label: strings.text('requestDetailRefundAmount'),
@@ -108,78 +188,25 @@ class RequestDetailFinancesBlock extends StatelessWidget {
           )
         : null;
 
-    if (!hasRefund && !hasExpandedContent) {
-      return RequestDetailCollapsibleSection(
-        requestId: requestId,
-        sectionKey: RequestDetailSectionKeys.finances,
-        title: strings.requestDetailFinances,
-        needsAction: false,
-        children: [
-          Text(
-            strings.text('requestFilesSectionEmpty'),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (!hasExpandedContent) {
-      return _FinancesRefundOnlyShell(
-        title: strings.requestDetailFinances,
-        refundPreview: refundPreview!,
-        theme: theme,
-      );
-    }
+    final needsAction =
+        !svhUploadMode && paymentSectionNeedsAction(item, grouped);
 
     return RequestDetailCollapsibleSection(
       requestId: requestId,
       sectionKey: RequestDetailSectionKeys.finances,
       title: strings.requestDetailFinances,
-      needsAction: false,
+      needsAction: needsAction,
       subtitle: refundPreview,
-      children: children,
-    );
-  }
-}
-
-class _FinancesRefundOnlyShell extends StatelessWidget {
-  const _FinancesRefundOnlyShell({
-    required this.title,
-    required this.refundPreview,
-    required this.theme,
-  });
-
-  final String title;
-  final _RefundPreview refundPreview;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = 14.0;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppTheme.sectionTint,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppTheme.primaryBlue.withValues(alpha: 0.6)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w600,
+      children: children.isEmpty
+          ? [
+              Text(
+                strings.text('requestFilesSectionEmpty'),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
               ),
-            ),
-            refundPreview,
-          ],
-        ),
-      ),
+            ]
+          : children,
     );
   }
 }

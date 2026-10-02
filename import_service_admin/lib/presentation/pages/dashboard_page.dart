@@ -36,6 +36,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _uploadingApk = false;
   bool _verifyingApk = false;
   final _apkVersionCtrl = TextEditingController();
+  final _apkChangelogCtrl = TextEditingController();
   Uint8List? _apkBytes;
   String? _apkFileName;
   String? _apkVerifyResult;
@@ -49,6 +50,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void dispose() {
     _apkVersionCtrl.dispose();
+    _apkChangelogCtrl.dispose();
     super.dispose();
   }
 
@@ -135,6 +137,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final published = _apkStatus?['versionName']?.toString().trim();
     _apkVersionCtrl.text =
         (published != null && published.isNotEmpty) ? published : '';
+    _apkChangelogCtrl.text = '';
     final fileName = _apkFileName!;
     final sizeMb = (_apkBytes!.length / (1024 * 1024)).toStringAsFixed(1);
     String? dialogError;
@@ -149,32 +152,48 @@ class _DashboardPageState extends State<DashboardPage> {
             return AlertDialog(
               title: const Text('Публикация APK'),
               content: SizedBox(
-                width: 420,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('Файл: $fileName ($sizeMb МБ)'),
-                    const Gap(16),
-                    TextField(
-                      controller: _apkVersionCtrl,
-                      enabled: !_uploadingApk,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        labelText: 'Версия',
-                        hintText: '1.0.53',
-                        helperText: build == null
-                            ? 'Формат X.Y.Z — билд = последние цифры'
-                            : 'Билд: $build',
-                        border: const OutlineInputBorder(),
-                        errorText: dialogError,
+                width: 460,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Файл: $fileName ($sizeMb МБ)'),
+                      const Gap(16),
+                      TextField(
+                        controller: _apkVersionCtrl,
+                        enabled: !_uploadingApk,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          labelText: 'Версия',
+                          hintText: '1.0.54',
+                          helperText: build == null
+                              ? 'Формат X.Y.Z — билд = последние цифры'
+                              : 'Билд: $build',
+                          border: const OutlineInputBorder(),
+                          errorText: dialogError,
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        onChanged: (_) =>
+                            setDialogState(() => dialogError = null),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                      const Gap(12),
+                      TextField(
+                        controller: _apkChangelogCtrl,
+                        enabled: !_uploadingApk,
+                        maxLines: 6,
+                        decoration: const InputDecoration(
+                          labelText: 'Что изменилось',
+                          hintText:
+                              '• пункт 1\n• пункт 2\n• пункт 3',
+                          border: OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                        ),
                       ),
-                      onChanged: (_) => setDialogState(() => dialogError = null),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -193,7 +212,14 @@ class _DashboardPageState extends State<DashboardPage> {
                           if (code == null) {
                             setDialogState(() {
                               dialogError =
-                                  'Укажите версию вида 1.0.53';
+                                  'Укажите версию вида 1.0.54';
+                            });
+                            return;
+                          }
+                          if (_apkChangelogCtrl.text.trim().isEmpty) {
+                            setDialogState(() {
+                              dialogError =
+                                  'Укажите, что изменилось в этой версии';
                             });
                             return;
                           }
@@ -252,11 +278,22 @@ class _DashboardPageState extends State<DashboardPage> {
     final sizeLine = sizeMatches == false
         ? 'Размер: ${_fmtMb(size)} ⚠ не совпадает с файлом на диске'
         : 'Размер: ${_fmtMb(size)}';
+    final changelog = _apkStatus!['changelog']?.toString().trim() ?? '';
     return 'Опубликован: ${name ?? '—'}'
         '${code != null ? ' (build $code)' : ''}'
         '\n$sizeLine'
         '${shaShort.isNotEmpty ? '\nSHA256: $shaShort' : ''}'
-        '${updated != null ? '\n$updated' : ''}';
+        '${updated != null ? '\n$updated' : ''}'
+        '${changelog.isNotEmpty ? '\n\nЧто изменилось:\n$changelog' : ''}';
+  }
+
+  List<Map<String, dynamic>> _apkHistoryRows() {
+    final raw = _apkStatus?['history'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+        .toList();
   }
 
   /// Билд из хвоста версии: 1.0.53 → 53.
@@ -343,6 +380,7 @@ class _DashboardPageState extends State<DashboardPage> {
         fileBytes: _apkBytes!,
         fileName: _apkFileName!,
         versionName: versionName,
+        changelog: _apkChangelogCtrl.text.trim(),
       );
       if (!mounted) return;
       final remoteSize = _asInt(result['sizeBytes']);
@@ -600,6 +638,34 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
           ),
+          if (_apkHistoryRows().isNotEmpty) ...[
+            const Gap(16),
+            Text(
+              'История выкладок APK',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const Gap(8),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFE0E0E0)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _apkHistoryRows().length; i++) ...[
+                      if (i > 0) const Divider(height: 20),
+                      _ApkHistoryTile(row: _apkHistoryRows()[i]),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
           const Gap(28),
           Row(
             children: [
@@ -677,6 +743,48 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApkHistoryTile extends StatelessWidget {
+  const _ApkHistoryTile({required this.row});
+
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = row['versionName']?.toString() ?? '—';
+    final code = row['versionCode'];
+    final updated = row['updatedAt']?.toString() ?? '';
+    final changelog = row['changelog']?.toString().trim() ?? '';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$name${code != null ? ' (build $code)' : ''}',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          if (updated.isNotEmpty)
+            Text(
+              updated,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.black54,
+                  ),
+            ),
+          const Gap(6),
+          Text(
+            changelog.isEmpty ? 'Без описания изменений' : changelog,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: changelog.isEmpty ? Colors.black45 : null,
+                ),
           ),
         ],
       ),

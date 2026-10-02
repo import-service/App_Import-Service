@@ -63,7 +63,7 @@ String? sectionKeyForUploadedDocType(String docType) {
   final code = docType.trim().toLowerCase();
   if (code.endsWith('_sign')) return RequestDetailSectionKeys.filesSigning;
   if (code.contains('receipt') || code.startsWith('payment_')) {
-    return RequestDetailSectionKeys.filesPayment;
+    return RequestDetailSectionKeys.finances;
   }
   if (code == 'add_doc1' || code == 'add_doc2') {
     return RequestDetailSectionKeys.filesOther;

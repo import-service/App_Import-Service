@@ -120,6 +120,7 @@ module.exports = async function androidApkRoutes(fastify) {
 
       const versionName = multipartFieldValue(fields, 'versionName');
       const versionCodeRaw = multipartFieldValue(fields, 'versionCode');
+      const changelog = multipartFieldValue(fields, 'changelog');
       if (!versionName) {
         return reply.code(400).send({
           error: 'VALIDATION_ERROR',
@@ -146,6 +147,7 @@ module.exports = async function androidApkRoutes(fastify) {
         const manifest = await publishApkBuffer(fileBuffer, {
           versionCode,
           versionName,
+          changelog,
         });
         const dto = await getStatusDto(publicBase());
         fastify.log.info(
@@ -154,6 +156,7 @@ module.exports = async function androidApkRoutes(fastify) {
             versionName: manifest.versionName,
             sizeBytes: manifest.sizeBytes,
             fileName,
+            hasChangelog: Boolean(manifest.changelog),
           },
           'android apk published',
         );
@@ -165,6 +168,7 @@ module.exports = async function androidApkRoutes(fastify) {
               versionName: dto.versionName,
               apkUrl: dto.apkUrl,
               sizeBytes: dto.sizeBytes ?? dto.fileSizeBytes,
+              changelog: dto.changelog || changelog || '',
             },
             fastify.log,
           );

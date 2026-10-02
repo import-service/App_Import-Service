@@ -24,10 +24,12 @@ class AndroidApkRemoteDataSource {
     required List<int> fileBytes,
     required String fileName,
     required String versionName,
+    String changelog = '',
   }) async {
     try {
       final form = FormData.fromMap(<String, dynamic>{
         'versionName': versionName.trim(),
+        if (changelog.trim().isNotEmpty) 'changelog': changelog.trim(),
         'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
       });
       final response = await _dio.post<dynamic>(
