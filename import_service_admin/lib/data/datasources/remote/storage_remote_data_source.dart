@@ -2,6 +2,35 @@ import 'package:dio/dio.dart';
 import 'package:import_service_admin/core/error/error_handler.dart';
 import 'package:import_service_admin/core/error/exceptions.dart';
 
+class ArchiveEligibleFilters {
+  const ArchiveEligibleFilters({
+    this.requireClosed = true,
+    this.inactivityDays = 30,
+    this.checkRequestUpdated = true,
+    this.checkChatMessages = true,
+    this.checkFiles = true,
+    this.checkOrgSessions = true,
+  });
+
+  final bool requireClosed;
+  final int inactivityDays;
+  final bool checkRequestUpdated;
+  final bool checkChatMessages;
+  final bool checkFiles;
+  final bool checkOrgSessions;
+
+  Map<String, dynamic> toQuery() => <String, dynamic>{
+        'requireClosed': requireClosed,
+        'inactivityDays': inactivityDays,
+        'checkRequestUpdated': checkRequestUpdated,
+        'checkChatMessages': checkChatMessages,
+        'checkFiles': checkFiles,
+        'checkOrgSessions': checkOrgSessions,
+      };
+
+  Map<String, dynamic> toJson() => toQuery();
+}
+
 class StorageRemoteDataSource {
   StorageRemoteDataSource(this._dio);
 
@@ -89,11 +118,17 @@ class StorageRemoteDataSource {
 
   Future<Map<String, dynamic>> previewEligible({
     required String archiveBefore,
+    ArchiveEligibleFilters filters = const ArchiveEligibleFilters(),
+    bool testMode = false,
   }) async {
     try {
       final response = await _dio.get<dynamic>(
         'admin/archives/preview',
-        queryParameters: <String, dynamic>{'archiveBefore': archiveBefore},
+        queryParameters: <String, dynamic>{
+          'archiveBefore': archiveBefore,
+          ...filters.toQuery(),
+          if (testMode) 'testMode': true,
+        },
       );
       final data = response.data;
       if (data is! Map<String, dynamic>) {
@@ -105,28 +140,52 @@ class StorageRemoteDataSource {
     }
   }
 
-  Future<({List<int> bytes, String filename})> archiveZip({
+  Future<Map<String, dynamic>> archiveExport({
     required String archiveBefore,
     required String archivedByName,
     String? archiveLocation,
+    required List<int> requestIds,
+    ArchiveEligibleFilters filters = const ArchiveEligibleFilters(),
+    bool testMode = false,
   }) async {
     try {
       final body = <String, dynamic>{
         'archiveBefore': archiveBefore,
         'archivedByName': archivedByName,
         'purgeFromServer': true,
+        'filters': filters.toJson(),
+        if (requestIds.isNotEmpty) 'requestIds': requestIds,
+        if (testMode) 'testMode': true,
       };
       final loc = archiveLocation?.trim();
       if (loc != null && loc.isNotEmpty) {
         body['archiveLocation'] = loc;
       }
-      final response = await _dio.post<List<int>>(
+      final response = await _dio.post<dynamic>(
         'admin/archives/export',
         data: body,
         options: Options(
-          responseType: ResponseType.bytes,
           receiveTimeout: const Duration(minutes: 10),
           sendTimeout: const Duration(minutes: 2),
+        ),
+      );
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ архивации');
+      }
+      return data;
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<({List<int> bytes, String filename})> downloadArchiveZip(int archiveId) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        'admin/archives/$archiveId/download',
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(minutes: 10),
         ),
       );
       final bytes = response.data ?? <int>[];
@@ -136,6 +195,35 @@ class StorageRemoteDataSource {
         bytes: bytes,
         filename: m?.group(1) ?? 'archive.zip',
       );
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> seedArchiveTestMode() async {
+    try {
+      final response = await _dio.post<dynamic>(
+        'admin/archives/test-mode/seed',
+        options: Options(receiveTimeout: const Duration(minutes: 2)),
+      );
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ seed');
+      }
+      return data;
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> cleanupArchiveTestMode() async {
+    try {
+      final response = await _dio.post<dynamic>('admin/archives/test-mode/cleanup');
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const UnknownServerException('Некорректный ответ cleanup');
+      }
+      return data;
     } on DioException catch (e) {
       throw ErrorHandler.handle(e);
     }

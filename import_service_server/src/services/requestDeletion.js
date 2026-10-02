@@ -150,6 +150,60 @@ async function deleteChatForRequest(pool, requestId) {
   return { chatMessagesSoftDeleted, chatFilesRemoved };
 }
 
+/** Soft-delete общего чата org + вложения o{orgId}_* с диска. */
+async function deleteOrgChatForOrganization(pool, organizationId) {
+  const orgId = Number(organizationId);
+  if (!Number.isFinite(orgId) || orgId <= 0) {
+    return { chatMessagesSoftDeleted: 0, chatFilesRemoved: 0 };
+  }
+
+  const storedNames = new Set();
+  try {
+    const [msgRows] = await pool.query(
+      `SELECT attachments_json FROM organization_messages WHERE organization_id = ?`,
+      [orgId],
+    );
+    for (const row of msgRows) {
+      for (const name of collectChatStoredNamesFromJson(row.attachments_json)) {
+        if (/^o\d+_/i.test(name)) storedNames.add(name);
+      }
+    }
+  } catch (e) {
+    if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+    return { chatMessagesSoftDeleted: 0, chatFilesRemoved: 0 };
+  }
+
+  try {
+    const entries = await fs.readdir(CHAT_UPLOAD_ROOT);
+    const prefix = `o${orgId}_`;
+    for (const name of entries) {
+      if (name.startsWith(prefix)) storedNames.add(name);
+    }
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
+
+  let chatFilesRemoved = 0;
+  for (const name of storedNames) {
+    if (await unlinkChatAttachment(name)) chatFilesRemoved += 1;
+  }
+
+  let chatMessagesSoftDeleted = 0;
+  try {
+    const [result] = await pool.query(
+      `UPDATE organization_messages
+       SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+       WHERE organization_id = ? AND deleted_at IS NULL`,
+      [orgId],
+    );
+    chatMessagesSoftDeleted = Number(result.affectedRows) || 0;
+  } catch (e) {
+    if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+  }
+
+  return { chatMessagesSoftDeleted, chatFilesRemoved };
+}
+
 /**
  * Мягкое удаление заявки + файлы заявки + чат/вложения чата с диска.
  */
@@ -254,6 +308,7 @@ module.exports = {
   deleteCustomsRequestWithFiles,
   purgeExpiredClosedRequests,
   deleteChatForRequest,
+  deleteOrgChatForOrganization,
   deleteFilesFromDisk,
   collectChatStoredNamesFromJson,
   DEFAULT_UPLOAD_ROOT,

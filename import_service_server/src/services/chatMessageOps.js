@@ -785,6 +785,7 @@ async function listChatsForOrganization(pool, organizationId) {
        GROUP BY request_id
      ) u ON u.request_id = r.id
      WHERE r.deleted_at IS NULL
+       AND COALESCE(r.is_test, 0) = 0
        AND r.external_1c_id IS NOT NULL
        AND r.external_1c_id <> ''
        ${orgFilter}

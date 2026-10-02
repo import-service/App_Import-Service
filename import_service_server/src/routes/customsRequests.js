@@ -663,7 +663,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
       const vin = normalize(request.query.vin).toUpperCase();
       const q = normalize(request.query.q);
 
-      const where = ['deleted_at IS NULL'];
+      const where = ['deleted_at IS NULL', 'COALESCE(is_test, 0) = 0'];
       const args = [];
       const staff = isCatalogStaffRequest(request);
       if (!staff) {
@@ -764,10 +764,10 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const data = await fetchRequestById(fastify.pool, id);
-      if (!data || !denyUnlessOwnsRequest(request, reply, data.row)) {
-        if (!data) {
-          return reply.code(404).send({ error: 'NOT_FOUND' });
-        }
+      if (!data || Number(data.row.is_test) === 1) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      if (!denyUnlessOwnsRequest(request, reply, data.row)) {
         return;
       }
 
@@ -1095,7 +1095,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
 
       const data = await fetchRequestByExternal1cId(fastify.pool, ext);
-      if (!data) {
+      if (!data || Number(data.row.is_test) === 1) {
         fastify.log.warn(
           {
             external1cId: ext,

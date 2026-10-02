@@ -5,6 +5,7 @@ const { getAppSettings } = require('./appSettings');
 const { pushCustomsRequestCreateTo1C } = require('./oneCCreateSync');
 const { pushCustomsRequestUpdateTo1C } = require('./oneCUpdateSync');
 const { purgeExpiredClosedRequests, DEFAULT_UPLOAD_ROOT } = require('./requestDeletion');
+const { deleteExpiredArchiveZips } = require('./requestArchive');
 const { CHAT_UPLOAD_ROOT } = require('./chatAttachmentStorage');
 const { runStoreVersionScan } = require('./storeVersionScanner');
 
@@ -224,6 +225,10 @@ function startBackgroundJobs(fastify) {
       const r = await runHourlyOneCRetry(fastify);
       if (r.createRetries || r.updateRetries) {
         fastify.log.info(r, 'hourly 1C retry tick');
+      }
+      const zipPurge = await deleteExpiredArchiveZips(fastify.pool);
+      if (zipPurge.deleted) {
+        fastify.log.info(zipPurge, 'expired archive zips removed');
       }
     } catch (e) {
       fastify.log.error({ err: e.message }, 'hourly 1C retry job failed');

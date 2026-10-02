@@ -1,4 +1,4 @@
-# Full prod deploy: pack -> scp -> extract -> npm -> pm2 restart -> curl check
+# Full prod deploy: pack -> scp -> extract -> npm -> pm2 reload -> health wait -> curl check
 # Run from repo root: .\scripts\deploy-server-vps.ps1
 param(
   [string]$SshHost = 'root@157.22.173.7',
@@ -18,7 +18,8 @@ $remoteTgz = '/tmp/import-service-update.tgz'
 Write-Host "SCP -> ${SshHost}:${remoteTgz}" -ForegroundColor Cyan
 & scp -o BatchMode=yes $tgz "${SshHost}:${remoteTgz}"
 
-$remoteCmd = "set -e && cd '$RemoteDir' && tar -xzf '$remoteTgz' && npm install --omit=dev && pm2 restart '$Pm2Name' && sleep 2 && curl -sS -o /dev/null -w 'admin_http=%{http_code} content_type=%{content_type}\n' '$CheckUrl'"
+# reload мягче restart; ждём 200 на :3000 (nginx retry тоже сглаживает краткий простой).
+$remoteCmd = "set -e && cd '$RemoteDir' && tar -xzf '$remoteTgz' && npm install --omit=dev && (pm2 reload '$Pm2Name' --update-env || pm2 restart '$Pm2Name' --update-env) && ok=0 && for i in `$(seq 1 25); do code=`$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 5 'http://127.0.0.1:3000/admin/' || true); if [ `"`$code`" = '200' ]; then ok=1; break; fi; sleep 1; done && [ `"`$ok`" = '1' ] && curl -sS -o /dev/null -w 'admin_http=%{http_code} content_type=%{content_type}\n' '$CheckUrl'"
 
 Write-Host "SSH deploy on $SshHost" -ForegroundColor Cyan
 & ssh -o BatchMode=yes $SshHost $remoteCmd

@@ -1789,27 +1789,39 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives</code><span class="desc">Журнал архивов (кто, куда, период в имени ZIP).</span></summary>
           <div class="body"><p><b>Auth:</b> admin JWT</p>
-            <p><b>Success:</b> <code>{ items: [{ id, periodFrom, periodTo, periodLabel, archivedByName, archiveLocation, adminLogin, requestCount, zipFileName, createdAt }] }</code></p>
+            <p><b>Success:</b> <code>{ items: [{ id, periodFrom, periodTo, periodLabel, archivedByName, archiveLocation, adminLogin, requestCount, zipFileName, createdAt, zipSizeBytes, zipExpiresAt, downloadAvailable, downloadState, organizations }] }</code></p>
           </div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives/preview</code><span class="desc">Сколько закрытых заявок попадёт под архив.</span></summary>
-          <div class="body"><p>Query: <code>archiveBefore</code> (YYYY-MM-DD) — закрытые, <b>созданные до</b> этой даты, без активности 30 дней (чат, файлы, обновление, вход клиента).</p>
-            <p><b>Success:</b> <code>{ archiveBefore, count, organizationCount, organizations[], items[] }</code></p></div>
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives/preview</code><span class="desc">Список заявок под архив (фильтры).</span></summary>
+          <div class="body"><p>Query: <code>archiveBefore</code> (YYYY-MM-DD). Фильтры (bool, по умолчанию true): <code>requireClosed</code>, <code>checkRequestUpdated</code>, <code>checkChatMessages</code>, <code>checkFiles</code>, <code>checkOrgSessions</code>; <code>inactivityDays</code> (по умолчанию 30). <code>testMode=1</code> — только <code>is_test=1</code>; без флага — только боевые.</p>
+            <p><b>Success:</b> <code>{ archiveBefore, filters, testMode, count, organizationCount, organizations[], items[] }</code> — в items: <code>storageBytes</code>.</p></div>
         </details>
         <details class="card">
-          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/export</code><span class="desc">ZIP + снятие заявок с сервера.</span></summary>
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/export</code><span class="desc">ZIP на сервере + снятие файлов заявок.</span></summary>
           <div class="body"><p>Тело:</p><pre>{
   "archiveBefore": "2026-01-20",
   "archivedByName": "Иванов Иван Иванович",
   "archiveLocation": "D:\\Архив\\2026-Q1",
-  "purgeFromServer": true
+  "purgeFromServer": true,
+  "requestIds": [101, 102],
+  "filters": { "inactivityDays": 30 }
 }</pre>
-            <p>Имя ZIP: <code>DD_MM_YY-to-DD_MM_YY.zip</code> (создание первой заявки — закрытие последней в архиве).</p>
-            <p>В ZIP: заявки (meta, files, messages, chat-files), общий чат организаций (<code>organizations/{orgId}/</code>).</p>
-            <p><code>purgeFromServer</code> по умолчанию <code>true</code>: файлы заявок удаляются, в МП — заглушка «на физносителе».</p>
-            <p>Ответ: <code>application/zip</code>, заголовки <code>X-Archive-Id</code>, <code>X-Archive-Count</code>, <code>X-Archive-Purged</code>.</p>
+            <p>Упаковка → проверка (manifest + sha256) → ZIP на сервере 24 ч → пометка заявок → удаление файлов с диска. Общий чат org в ZIP; снимается с сервера, когда у org не осталось неочищенных заявок.</p>
+            <p>Ответ JSON: <code>{ ok, archiveId, zipFileName, requestCount, sha256, zipExpiresAt, downloadPath }</code>. Query <code>?browserDownload=1</code> — <code>application/zip</code>. Тело <code>testMode: true</code> — архивировать только тестовые.</p>
           </div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/test-mode/seed</code><span class="desc">Создать набор тестовых заявок (is_test).</span></summary>
+          <div class="body"><p>Auth: admin JWT. Предварительно чистит старые тестовые. МП/1С тестовые не видят.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/test-mode/cleanup</code><span class="desc">Удалить все тестовые заявки и org.</span></summary>
+          <div class="body"><p>Auth: admin JWT.</p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/archives/:id/download</code><span class="desc">Скачать ZIP с сервера (24 ч).</span></summary>
+          <div class="body"><p>Ответ <code>application/zip</code>. После истечения срока — 404.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/archives/import-preview</code><span class="desc">Разобрать ZIP: дерево организаций.</span></summary>

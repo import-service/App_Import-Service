@@ -27,7 +27,9 @@ cd D:\Projects\import_servis
 .\scripts\deploy-server-vps.ps1
 ```
 
-Скрипт: `pack-server-update.ps1` → `scp` архива → `tar` на VPS → `npm install --omit=dev` → `pm2 restart import-service` → `curl` + локальная проверка `/admin/`.
+Скрипт: `pack-server-update.ps1` → `scp` архива → `tar` на VPS → `npm install --omit=dev` → **`pm2 reload`** (fallback `restart`) → wait до HTTP 200 на `:3000` → `curl` `/admin/`.
+
+Nginx `app.import-service.su`: `upstream` + `proxy_next_upstream` (меньше «зависаний» браузера при кратком простое Node). На VPS файл часто с `chattr +i` — перед правкой `chattr -i`, после — снова `+i`. При одном fork-процессе окно ~1–2 с 502 при reload всё ещё возможно; это лучше, чем `ERR_TIMED_OUT`.
 
 ## Если правки только в git (без сервера)
 

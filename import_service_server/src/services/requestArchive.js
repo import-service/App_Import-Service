@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
 const JSZip = require('jszip');
@@ -10,13 +11,51 @@ const {
 } = require('./chatAttachmentStorage');
 const {
   deleteChatForRequest,
+  deleteOrgChatForOrganization,
   deleteFilesFromDisk,
   collectChatStoredNamesFromJson,
   DEFAULT_UPLOAD_ROOT,
 } = require('./requestDeletion');
 
 const RECENT_ACTIVITY_DAYS = 30;
+const ZIP_RETENTION_HOURS = 24;
+const ARCHIVE_ZIP_ROOT = path.join(process.cwd(), 'uploads', 'request-archives');
 const KIND = 'request-archive';
+
+function defaultArchiveFilters() {
+  return {
+    requireClosed: true,
+    inactivityDays: RECENT_ACTIVITY_DAYS,
+    checkRequestUpdated: true,
+    checkChatMessages: true,
+    checkFiles: true,
+    checkOrgSessions: true,
+  };
+}
+
+function parseArchiveFilters(raw) {
+  const base = defaultArchiveFilters();
+  if (!raw || typeof raw !== 'object') return base;
+  const truthy = (v, def) => {
+    if (v === undefined || v === null || v === '') return def;
+    if (typeof v === 'boolean') return v;
+    const s = String(v).toLowerCase();
+    if (s === '0' || s === 'false' || s === 'no') return false;
+    if (s === '1' || s === 'true' || s === 'yes') return true;
+    return def;
+  };
+  const days = Number(raw.inactivityDays ?? raw.recentActivityDays);
+  return {
+    requireClosed: truthy(raw.requireClosed, base.requireClosed),
+    inactivityDays: Number.isFinite(days) && days >= 0 && days <= 365
+      ? Math.floor(days)
+      : base.inactivityDays,
+    checkRequestUpdated: truthy(raw.checkRequestUpdated, base.checkRequestUpdated),
+    checkChatMessages: truthy(raw.checkChatMessages, base.checkChatMessages),
+    checkFiles: truthy(raw.checkFiles, base.checkFiles),
+    checkOrgSessions: truthy(raw.checkOrgSessions, base.checkOrgSessions),
+  };
+}
 
 function toIso(value) {
   if (!value) return null;
@@ -71,9 +110,58 @@ function buildZipFileName(minCreatedAt, maxClosedAt) {
   return `${from}-to-${to}.zip`;
 }
 
-/** Закрытые заявки, созданные до archiveBefore, без активности за RECENT_ACTIVITY_DAYS. */
-async function listRequestsEligibleForArchive(pool, archiveBefore) {
+/** Закрытые заявки, созданные до archiveBefore; фильтры ослабляют критерии неактивности. */
+async function listRequestsEligibleForArchive(pool, archiveBefore, filtersInput, options = {}) {
   const before = assertArchiveBefore(archiveBefore);
+  const filters = parseArchiveFilters(filtersInput);
+  const testMode = Boolean(options.testMode);
+  const days = filters.inactivityDays;
+  const args = [before];
+  const parts = [
+    `r.deleted_at IS NULL`,
+    `r.archive_purged_at IS NULL`,
+    `r.created_at < DATE_ADD(?, INTERVAL 1 DAY)`,
+  ];
+  if (testMode) {
+    parts.push(`COALESCE(r.is_test, 0) = 1`);
+  } else {
+    parts.push(`COALESCE(r.is_test, 0) = 0`);
+  }
+  if (filters.requireClosed) {
+    parts.push(`r.status = 'closed'`);
+  }
+  if (filters.checkRequestUpdated && days > 0) {
+    parts.push(`r.updated_at < DATE_SUB(NOW(3), INTERVAL ? DAY)`);
+    args.push(days);
+  }
+  if (filters.checkChatMessages && days > 0) {
+    parts.push(`NOT EXISTS (
+         SELECT 1 FROM customs_request_messages m
+         WHERE m.request_id = r.id AND m.deleted_at IS NULL
+           AND m.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
+       )`);
+    args.push(days);
+  }
+  if (filters.checkFiles && days > 0) {
+    parts.push(`NOT EXISTS (
+         SELECT 1 FROM customs_request_files f
+         WHERE f.request_id = r.id AND f.deleted_at IS NULL
+           AND (
+             f.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
+             OR f.updated_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
+           )
+       )`);
+    args.push(days, days);
+  }
+  if (filters.checkOrgSessions && days > 0) {
+    parts.push(`NOT EXISTS (
+         SELECT 1 FROM user_sessions us
+         WHERE us.user_id = r.organization_id
+           AND us.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
+       )`);
+    args.push(days);
+  }
+
   const [rows] = await pool.query(
     `SELECT r.id, r.vin, r.car_make, r.car_model, r.owner_full_name,
             r.organization_id, r.status, r.created_at, r.updated_at, r.archived_at,
@@ -81,40 +169,11 @@ async function listRequestsEligibleForArchive(pool, archiveBefore) {
      FROM customs_requests r
      INNER JOIN organizations o
        ON o.id = r.organization_id AND o.deleted_at IS NULL
-     WHERE r.deleted_at IS NULL
-       AND r.archive_purged_at IS NULL
-       AND r.status = 'closed'
-       AND r.created_at < DATE_ADD(?, INTERVAL 1 DAY)
-       AND r.updated_at < DATE_SUB(NOW(3), INTERVAL ? DAY)
-       AND NOT EXISTS (
-         SELECT 1 FROM customs_request_messages m
-         WHERE m.request_id = r.id AND m.deleted_at IS NULL
-           AND m.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
-       )
-       AND NOT EXISTS (
-         SELECT 1 FROM customs_request_files f
-         WHERE f.request_id = r.id AND f.deleted_at IS NULL
-           AND (
-             f.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
-             OR f.updated_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
-           )
-       )
-       AND NOT EXISTS (
-         SELECT 1 FROM user_sessions us
-         WHERE us.user_id = r.organization_id
-           AND us.created_at >= DATE_SUB(NOW(3), INTERVAL ? DAY)
-       )
+     WHERE ${parts.join(' AND ')}
      ORDER BY r.organization_id ASC, r.id ASC`,
-    [
-      before,
-      RECENT_ACTIVITY_DAYS,
-      RECENT_ACTIVITY_DAYS,
-      RECENT_ACTIVITY_DAYS,
-      RECENT_ACTIVITY_DAYS,
-      RECENT_ACTIVITY_DAYS,
-    ],
+    args,
   );
-  return rows.map((row) => ({
+  const mapped = rows.map((row) => ({
     id: Number(row.id),
     vin: row.vin || '',
     carMake: row.car_make || '',
@@ -127,6 +186,210 @@ async function listRequestsEligibleForArchive(pool, archiveBefore) {
     updatedAt: toIso(row.updated_at),
     alreadyArchived: Boolean(row.archived_at),
   }));
+  const bytesMap = await batchRequestStorageBytes(pool, mapped.map((x) => x.id));
+  return mapped.map((item) => ({
+    ...item,
+    storageBytes: bytesMap.get(item.id) || 0,
+  }));
+}
+
+async function batchRequestStorageBytes(pool, requestIds) {
+  const ids = [...new Set(requestIds.map(Number).filter((n) => n > 0))];
+  const map = new Map();
+  if (!ids.length) return map;
+  const placeholders = ids.map(() => '?').join(',');
+  const [fileRows] = await pool.query(
+    `SELECT request_id, COALESCE(SUM(file_size_bytes), 0) AS bytes
+     FROM customs_request_files
+     WHERE deleted_at IS NULL AND request_id IN (${placeholders})
+     GROUP BY request_id`,
+    ids,
+  );
+  for (const row of fileRows) {
+    map.set(Number(row.request_id), Number(row.bytes) || 0);
+  }
+  for (const id of ids) {
+    if (!map.has(id)) map.set(id, 0);
+    map.set(id, (map.get(id) || 0) + await chatDiskBytesForRequest(id));
+  }
+  return map;
+}
+
+async function chatDiskBytesForRequest(requestId) {
+  const id = Number(requestId);
+  if (!id) return 0;
+  let total = 0;
+  try {
+    const entries = await fs.readdir(CHAT_UPLOAD_ROOT);
+    const prefix = `r${id}_`;
+    for (const name of entries) {
+      if (!name.startsWith(prefix)) continue;
+      const disk = chatAttachmentDiskPath(name);
+      if (!disk) continue;
+      try {
+        const st = await fs.stat(disk);
+        total += st.size;
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+    }
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
+  return total;
+}
+
+async function computeRequestStorageBytes(pool, requestId) {
+  const m = await batchRequestStorageBytes(pool, [requestId]);
+  return m.get(Number(requestId)) || 0;
+}
+
+function sha256Buffer(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+async function verifyArchiveZipBuffer(buffer, expectedIds) {
+  const zip = await JSZip.loadAsync(buffer);
+  const manifest = await parseManifest(zip);
+  const manifestIds = (manifest.requests || []).map((r) => Number(r.id)).filter((n) => n > 0);
+  const want = [...new Set(expectedIds.map(Number).filter((n) => n > 0))].sort((a, b) => a - b);
+  const got = [...new Set(manifestIds)].sort((a, b) => a - b);
+  if (want.length !== got.length || want.some((id, i) => id !== got[i])) {
+    const e = new Error('ARCHIVE_VERIFY_FAILED');
+    e.code = 'ARCHIVE_VERIFY_FAILED';
+    e.messageRu = 'ZIP не совпадает со списком заявок';
+    throw e;
+  }
+  for (const id of want) {
+    if (!zip.file(`requests/${id}/meta.json`)) {
+      const e = new Error('ARCHIVE_VERIFY_FAILED');
+      e.code = 'ARCHIVE_VERIFY_FAILED';
+      e.messageRu = `В ZIP нет meta.json для заявки ${id}`;
+      throw e;
+    }
+  }
+  return { manifest, sha256: sha256Buffer(buffer) };
+}
+
+function archiveZipAbsPath(relativePath) {
+  const rel = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!rel || rel.includes('..')) return null;
+  return path.join(ARCHIVE_ZIP_ROOT, rel);
+}
+
+async function writeServerArchiveZip(archiveId, zipFileName, buffer) {
+  const safeName = String(zipFileName || 'archive.zip').replace(/[^\w.\-()]+/g, '_');
+  const relative = `${archiveId}/${safeName}`;
+  const abs = archiveZipAbsPath(relative);
+  if (!abs) {
+    const e = new Error('VALIDATION_ERROR');
+    e.code = 'VALIDATION_ERROR';
+    e.messageRu = 'Некорректное имя ZIP';
+    throw e;
+  }
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, buffer);
+  return { relative, abs, sizeBytes: buffer.length };
+}
+
+async function deleteExpiredArchiveZips(pool) {
+  let rows = [];
+  try {
+    const [r] = await pool.query(
+      `SELECT id, zip_server_path
+       FROM request_archives
+       WHERE zip_deleted_at IS NULL
+         AND zip_server_path IS NOT NULL
+         AND zip_expires_at IS NOT NULL
+         AND zip_expires_at <= NOW(3)
+       ORDER BY id ASC
+       LIMIT 40`,
+    );
+    rows = r;
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR') return { deleted: 0, skipped: true };
+    throw e;
+  }
+
+  let deleted = 0;
+  for (const row of rows) {
+    const rel = row.zip_server_path;
+    const abs = archiveZipAbsPath(rel);
+    if (abs) {
+      try {
+        await fs.unlink(abs);
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+    }
+    await pool.query(
+      `UPDATE request_archives SET zip_deleted_at = NOW(3) WHERE id = ?`,
+      [row.id],
+    );
+    deleted += 1;
+  }
+  return { deleted, scanned: rows.length };
+}
+
+async function readServerArchiveZip(pool, archiveId) {
+  const id = Number(archiveId);
+  const [rows] = await pool.query(
+    `SELECT id, zip_file_name, zip_server_path, zip_expires_at, zip_deleted_at
+     FROM request_archives WHERE id = ? LIMIT 1`,
+    [id],
+  );
+  if (!rows.length) {
+    const e = new Error('NOT_FOUND');
+    e.code = 'NOT_FOUND';
+    e.messageRu = 'Архив не найден';
+    throw e;
+  }
+  const row = rows[0];
+  if (row.zip_deleted_at) {
+    const e = new Error('NOT_FOUND');
+    e.code = 'NOT_FOUND';
+    e.messageRu = 'Файл архива уже удалён с сервера';
+    throw e;
+  }
+  if (row.zip_expires_at && new Date(row.zip_expires_at) <= new Date()) {
+    await deleteExpiredArchiveZips(pool);
+    const e = new Error('NOT_FOUND');
+    e.code = 'NOT_FOUND';
+    e.messageRu = 'Срок скачивания архива истёк (24 ч)';
+    throw e;
+  }
+  const abs = archiveZipAbsPath(row.zip_server_path);
+  if (!abs) {
+    const e = new Error('NOT_FOUND');
+    e.code = 'NOT_FOUND';
+    throw e;
+  }
+  try {
+    const buf = await fs.readFile(abs);
+    return { buffer: buf, zipFileName: row.zip_file_name || 'archive.zip' };
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      const err = new Error('NOT_FOUND');
+      err.code = 'NOT_FOUND';
+      err.messageRu = 'Файл архива на диске не найден';
+      throw err;
+    }
+    throw e;
+  }
+}
+
+async function maybePurgeOrgChatAfterArchive(pool, organizationId) {
+  const orgId = Number(organizationId);
+  if (!orgId) return { purged: false };
+  const [rows] = await pool.query(
+    `SELECT id FROM customs_requests
+     WHERE organization_id = ? AND deleted_at IS NULL AND archive_purged_at IS NULL
+     LIMIT 1`,
+    [orgId],
+  );
+  if (rows.length) return { purged: false };
+  const r = await deleteOrgChatForOrganization(pool, orgId);
+  return { purged: true, ...r };
 }
 
 async function addDiskFileToZip(zip, zipPath, diskPath) {
@@ -301,8 +564,13 @@ async function buildArchiveZip(pool, {
   adminLogin,
   uploadRoot = DEFAULT_UPLOAD_ROOT,
   purgeFromServer = true,
+  filters: filtersInput,
+  requestIds: selectedIdsInput,
+  storeOnServer = true,
+  testMode = false,
 }) {
   const before = assertArchiveBefore(archiveBefore);
+  const filters = parseArchiveFilters(filtersInput);
   const name = String(archivedByName || '').trim();
   if (!name) {
     const e = new Error('VALIDATION_ERROR');
@@ -311,11 +579,28 @@ async function buildArchiveZip(pool, {
     throw e;
   }
 
-  const items = await listRequestsEligibleForArchive(pool, before);
+  const eligible = await listRequestsEligibleForArchive(pool, before, filters, { testMode });
+  const eligibleMap = new Map(eligible.map((x) => [x.id, x]));
+  let items = eligible;
+  const selectedRaw = Array.isArray(selectedIdsInput) ? selectedIdsInput : [];
+  const selectedIds = selectedRaw.map(Number).filter((n) => n > 0);
+  if (selectedIds.length) {
+    items = [];
+    for (const id of selectedIds) {
+      const row = eligibleMap.get(id);
+      if (!row) {
+        const e = new Error('VALIDATION_ERROR');
+        e.code = 'VALIDATION_ERROR';
+        e.messageRu = `Заявка ${id} не подходит под фильтры или уже снята с сервера`;
+        throw e;
+      }
+      items.push(row);
+    }
+  }
   if (!items.length) {
     const e = new Error('NOT_FOUND');
     e.code = 'NOT_FOUND';
-    e.messageRu = 'Нет подходящих закрытых заявок для архива';
+    e.messageRu = 'Нет заявок для архива (проверьте фильтры и выбор)';
     throw e;
   }
 
@@ -372,24 +657,81 @@ async function buildArchiveZip(pool, {
     if (entry) entry.messageCount = packed.messages;
   }
 
-  const [ins] = await pool.query(
-    `INSERT INTO request_archives
-      (period_from, period_to, archived_by_name, archive_location,
-       admin_user_id, admin_login, request_ids_json, request_count, zip_file_name)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      manifest.periodFrom,
-      manifest.periodTo,
-      name,
-      loc,
-      adminUserId || null,
-      adminLogin || null,
-      JSON.stringify(ids),
-      ids.length,
-      zipFileName,
-    ],
-  );
-  const archiveId = ins.insertId;
+  const buffer = await zip.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+
+  const { sha256 } = await verifyArchiveZipBuffer(buffer, ids);
+  const manifestDetail = {
+    organizations: groupManifestOrganizations(manifest),
+    filters,
+    archiveBefore: before,
+  };
+
+  const zipExpiresAt = new Date(Date.now() + ZIP_RETENTION_HOURS * 60 * 60 * 1000);
+
+  let archiveId;
+  try {
+    const [ins] = await pool.query(
+      `INSERT INTO request_archives
+        (period_from, period_to, archived_by_name, archive_location,
+         admin_user_id, admin_login, request_ids_json, request_count, zip_file_name,
+         zip_sha256, zip_size_bytes, zip_expires_at, manifest_detail_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        manifest.periodFrom,
+        manifest.periodTo,
+        name,
+        loc,
+        adminUserId || null,
+        adminLogin || null,
+        JSON.stringify(ids),
+        ids.length,
+        zipFileName,
+        sha256,
+        buffer.length,
+        zipExpiresAt,
+        JSON.stringify(manifestDetail),
+      ],
+    );
+    archiveId = ins.insertId;
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    const [ins] = await pool.query(
+      `INSERT INTO request_archives
+        (period_from, period_to, archived_by_name, archive_location,
+         admin_user_id, admin_login, request_ids_json, request_count, zip_file_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        manifest.periodFrom,
+        manifest.periodTo,
+        name,
+        loc,
+        adminUserId || null,
+        adminLogin || null,
+        JSON.stringify(ids),
+        ids.length,
+        zipFileName,
+      ],
+    );
+    archiveId = ins.insertId;
+  }
+
+  let zipServerPath = null;
+  if (storeOnServer) {
+    try {
+      const saved = await writeServerArchiveZip(archiveId, zipFileName, buffer);
+      zipServerPath = saved.relative;
+      await pool.query(
+        `UPDATE request_archives SET zip_server_path = ? WHERE id = ?`,
+        [zipServerPath, archiveId],
+      );
+    } catch (e) {
+      if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    }
+  }
 
   await pool.query(
     `UPDATE customs_requests
@@ -404,19 +746,18 @@ async function buildArchiveZip(pool, {
 
   let purged = 0;
   let filesRemoved = 0;
+  let orgChatsPurged = 0;
   if (purgeFromServer) {
     for (const id of ids) {
       const r = await purgeOneRequestAfterArchive(pool, id, uploadRoot);
       purged += 1;
       filesRemoved += r.filesRemoved || 0;
     }
+    for (const orgId of orgIds) {
+      const pr = await maybePurgeOrgChatAfterArchive(pool, orgId);
+      if (pr.purged) orgChatsPurged += 1;
+    }
   }
-
-  const buffer = await zip.generateAsync({
-    type: 'nodebuffer',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 6 },
-  });
 
   return {
     buffer,
@@ -426,7 +767,13 @@ async function buildArchiveZip(pool, {
     orgCount: orgIds.length,
     purged,
     filesRemoved,
+    orgChatsPurged,
     manifest,
+    sha256,
+    zipSizeBytes: buffer.length,
+    zipExpiresAt: zipExpiresAt.toISOString(),
+    zipServerPath,
+    downloadPath: `/api/admin/archives/${archiveId}/download`,
   };
 }
 
@@ -471,35 +818,82 @@ function groupManifestOrganizations(manifest) {
   return [...orgMap.values()];
 }
 
+function parseManifestDetailJson(row) {
+  const raw = row.manifest_detail_json;
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function archiveDownloadState(row) {
+  if (row.zip_deleted_at) return 'deleted';
+  if (!row.zip_server_path) return 'unavailable';
+  if (row.zip_expires_at && new Date(row.zip_expires_at) <= new Date()) return 'expired';
+  return 'available';
+}
+
 async function listArchives(pool, limit = 50) {
+  await deleteExpiredArchiveZips(pool);
   const take = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const [rows] = await pool.query(
-    `SELECT id, period_from, period_to, archived_by_name, archive_location,
-            admin_login, request_ids_json, request_count, zip_file_name, created_at
-     FROM request_archives
-     ORDER BY id DESC
-     LIMIT ?`,
-    [take],
-  );
-  return rows.map((row) => ({
-    id: Number(row.id),
-    periodFrom: row.period_from,
-    periodTo: row.period_to,
-    periodLabel: row.zip_file_name
-      ? String(row.zip_file_name).replace(/\.zip$/i, '')
-      : null,
-    archivedByName: row.archived_by_name,
-    archiveLocation: row.archive_location,
-    adminLogin: row.admin_login,
-    requestIds: Array.isArray(row.request_ids_json)
-      ? row.request_ids_json
-      : (() => {
-        try { return JSON.parse(row.request_ids_json || '[]'); } catch { return []; }
-      })(),
-    requestCount: Number(row.request_count) || 0,
-    zipFileName: row.zip_file_name,
-    createdAt: toIso(row.created_at),
-  }));
+  let rows;
+  try {
+    const [r] = await pool.query(
+      `SELECT id, period_from, period_to, archived_by_name, archive_location,
+              admin_login, request_ids_json, request_count, zip_file_name, created_at,
+              zip_server_path, zip_sha256, zip_size_bytes, zip_expires_at, zip_deleted_at,
+              manifest_detail_json
+       FROM request_archives
+       ORDER BY id DESC
+       LIMIT ?`,
+      [take],
+    );
+    rows = r;
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+    const [r] = await pool.query(
+      `SELECT id, period_from, period_to, archived_by_name, archive_location,
+              admin_login, request_ids_json, request_count, zip_file_name, created_at
+       FROM request_archives
+       ORDER BY id DESC
+       LIMIT ?`,
+      [take],
+    );
+    rows = r;
+  }
+  return rows.map((row) => {
+    const downloadState = archiveDownloadState(row);
+    const detail = parseManifestDetailJson(row);
+    return {
+      id: Number(row.id),
+      periodFrom: row.period_from,
+      periodTo: row.period_to,
+      periodLabel: row.zip_file_name
+        ? String(row.zip_file_name).replace(/\.zip$/i, '')
+        : null,
+      archivedByName: row.archived_by_name,
+      archiveLocation: row.archive_location,
+      adminLogin: row.admin_login,
+      requestIds: Array.isArray(row.request_ids_json)
+        ? row.request_ids_json
+        : (() => {
+          try { return JSON.parse(row.request_ids_json || '[]'); } catch { return []; }
+        })(),
+      requestCount: Number(row.request_count) || 0,
+      zipFileName: row.zip_file_name,
+      createdAt: toIso(row.created_at),
+      zipSizeBytes: row.zip_size_bytes != null ? Number(row.zip_size_bytes) : null,
+      zipExpiresAt: toIso(row.zip_expires_at),
+      zipDeletedAt: toIso(row.zip_deleted_at),
+      downloadState,
+      downloadAvailable: downloadState === 'available',
+      organizations: detail?.organizations || null,
+      manifestDetail: detail,
+    };
+  });
 }
 
 function parseManifest(zip) {
@@ -586,8 +980,8 @@ async function restoreOneRequest(pool, zip, requestId, uploadRoot) {
       `INSERT INTO customs_requests (id, organization_id,
         legal_entity_name, legal_email, legal_phone, legal_inn,
         individual_full_name, individual_phone, individual_snils,
-        car_make, car_model, vin, status, created_at, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW(3)), NOW(3), NULL)`,
+        car_make, car_model, vin, status, is_test, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW(3)), NOW(3), NULL)`,
       [
         id,
         orgId,
@@ -602,17 +996,20 @@ async function restoreOneRequest(pool, zip, requestId, uploadRoot) {
         meta.car_model || '',
         meta.vin || '',
         meta.status || 'closed',
+        Number(meta.is_test) === 1 ? 1 : 0,
         meta.created_at || null,
       ],
     );
   }
 
+  const isTestFlag = Number(meta.is_test) === 1 ? 1 : 0;
   await pool.query(
     `UPDATE customs_requests SET
        deleted_at = NULL,
        archive_purged_at = NULL,
        archived_at = NULL,
        archive_id = NULL,
+       is_test = ?,
        owner_full_name = COALESCE(?, owner_full_name),
        car_make = COALESCE(?, car_make),
        car_model = COALESCE(?, car_model),
@@ -629,6 +1026,7 @@ async function restoreOneRequest(pool, zip, requestId, uploadRoot) {
        updated_at = NOW(3)
      WHERE id = ?`,
     [
+      isTestFlag,
       meta.owner_full_name || null,
       meta.car_make || null,
       meta.car_model || null,
@@ -946,8 +1344,12 @@ async function purgeMarkedArchivedRequests(pool, uploadRoot = DEFAULT_UPLOAD_ROO
 
 module.exports = {
   RECENT_ACTIVITY_DAYS,
+  ZIP_RETENTION_HOURS,
+  ARCHIVE_ZIP_ROOT,
   KIND,
   assertArchiveBefore,
+  parseArchiveFilters,
+  defaultArchiveFilters,
   listRequestsEligibleForArchive,
   listRequestsInPeriod,
   buildArchiveZip,
@@ -957,4 +1359,8 @@ module.exports = {
   importFromZip,
   purgeMarkedArchivedRequests,
   groupManifestOrganizations,
+  batchRequestStorageBytes,
+  computeRequestStorageBytes,
+  deleteExpiredArchiveZips,
+  readServerArchiveZip,
 };

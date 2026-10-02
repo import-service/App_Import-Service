@@ -15,7 +15,14 @@ const {
   previewZip,
   importFromZip,
   purgeMarkedArchivedRequests,
+  parseArchiveFilters,
+  computeRequestStorageBytes,
+  readServerArchiveZip,
 } = require('../services/requestArchive');
+const {
+  seedArchiveTestMode,
+  cleanupArchiveTestMode,
+} = require('../services/archiveTestMode');
 const {
   getStorageStats,
   fetchStaleOutbound,
@@ -661,9 +668,13 @@ module.exports = async function adminRoutes(fastify) {
         [id],
       );
 
-      return reply.send(
-        toCustomsRequestDto(fastify, request, rows[0], fileRows, detailDtoOptions),
-      );
+      const dto = toCustomsRequestDto(fastify, request, rows[0], fileRows, detailDtoOptions);
+      try {
+        dto.storageBytes = await computeRequestStorageBytes(fastify.pool, id);
+      } catch {
+        dto.storageBytes = null;
+      }
+      return reply.send(dto);
     },
   );
 
@@ -1143,6 +1154,57 @@ module.exports = async function adminRoutes(fastify) {
     },
   );
 
+  function archiveFiltersFromRequest(request) {
+    const q = request.query || {};
+    return parseArchiveFilters({
+      requireClosed: q.requireClosed,
+      inactivityDays: q.inactivityDays ?? q.recentActivityDays,
+      checkRequestUpdated: q.checkRequestUpdated,
+      checkChatMessages: q.checkChatMessages,
+      checkFiles: q.checkFiles,
+      checkOrgSessions: q.checkOrgSessions,
+    });
+  }
+
+  function testModeFromQuery(query) {
+    const raw = String(query?.testMode ?? '').toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+  }
+
+  fastify.post(
+    '/admin/archives/test-mode/seed',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (_request, reply) => {
+      try {
+        const result = await seedArchiveTestMode(fastify.pool);
+        return reply.send(result);
+      } catch (e) {
+        fastify.log.error({ err: e }, 'archive test seed failed');
+        return reply.code(500).send({
+          error: 'SEED_FAILED',
+          message: e.messageRu || e.message || 'Не удалось создать тестовые заявки',
+        });
+      }
+    },
+  );
+
+  fastify.post(
+    '/admin/archives/test-mode/cleanup',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (_request, reply) => {
+      try {
+        const result = await cleanupArchiveTestMode(fastify.pool);
+        return reply.send({ ok: true, ...result });
+      } catch (e) {
+        fastify.log.error({ err: e }, 'archive test cleanup failed');
+        return reply.code(500).send({
+          error: 'CLEANUP_FAILED',
+          message: e.messageRu || e.message || 'Не удалось удалить тестовые заявки',
+        });
+      }
+    },
+  );
+
   fastify.get(
     '/admin/archives/preview',
     { onRequest: [fastify.authenticateAdmin] },
@@ -1152,9 +1214,13 @@ module.exports = async function adminRoutes(fastify) {
           || request.query.before
           || request.query.periodTo
           || request.query.to;
+        const filters = archiveFiltersFromRequest(request);
+        const testMode = testModeFromQuery(request.query);
         const items = await listRequestsEligibleForArchive(
           fastify.pool,
           archiveBefore,
+          filters,
+          { testMode },
         );
         const orgMap = new Map();
         for (const item of items) {
@@ -1164,6 +1230,7 @@ module.exports = async function adminRoutes(fastify) {
             orgMap.set(oid, {
               organizationId: oid,
               organizationName: item.organizationName || `Org #${oid}`,
+              orgChat: { available: true },
               requests: [],
             });
           }
@@ -1171,6 +1238,8 @@ module.exports = async function adminRoutes(fastify) {
         }
         return reply.send({
           archiveBefore,
+          filters,
+          testMode,
           count: items.length,
           organizationCount: orgMap.size,
           organizations: [...orgMap.values()],
@@ -1200,6 +1269,13 @@ module.exports = async function adminRoutes(fastify) {
             archivedByName: { type: 'string', minLength: 1, maxLength: 255 },
             archiveLocation: { type: 'string', maxLength: 1000 },
             purgeFromServer: { type: 'boolean' },
+            requestIds: {
+              type: 'array',
+              items: { type: 'integer', minimum: 1 },
+            },
+            filters: { type: 'object', additionalProperties: true },
+            testMode: { type: 'boolean' },
+            browserDownload: { type: 'boolean' },
           },
         },
       },
@@ -1210,6 +1286,7 @@ module.exports = async function adminRoutes(fastify) {
         const archiveBefore = request.body.archiveBefore
           || request.body.periodTo
           || request.body.periodFrom;
+        const filters = parseArchiveFilters(request.body.filters || {});
         const result = await buildArchiveZip(fastify.pool, {
           archiveBefore,
           archivedByName: request.body.archivedByName,
@@ -1217,18 +1294,67 @@ module.exports = async function adminRoutes(fastify) {
           adminUserId: actor.id,
           adminLogin: actor.login,
           purgeFromServer: request.body.purgeFromServer !== false,
+          filters,
+          requestIds: request.body.requestIds,
+          storeOnServer: true,
+          testMode: request.body.testMode === true,
         });
-        return reply
-          .header('Content-Type', 'application/zip')
-          .header('Content-Disposition', `attachment; filename="${result.zipFileName}"`)
-          .header('X-Archive-Id', String(result.archiveId))
-          .header('X-Archive-Count', String(result.requestCount))
-          .header('X-Archive-Purged', String(result.purged || 0))
-          .send(result.buffer);
+        const browserDownload = request.query.browserDownload === '1'
+          || request.query.download === '1'
+          || request.body.browserDownload === true;
+        if (browserDownload) {
+          return reply
+            .header('Content-Type', 'application/zip')
+            .header('Content-Disposition', `attachment; filename="${result.zipFileName}"`)
+            .header('X-Archive-Id', String(result.archiveId))
+            .header('X-Archive-Count', String(result.requestCount))
+            .header('X-Archive-Purged', String(result.purged || 0))
+            .send(result.buffer);
+        }
+        return reply.send({
+          ok: true,
+          archiveId: result.archiveId,
+          zipFileName: result.zipFileName,
+          requestCount: result.requestCount,
+          orgCount: result.orgCount,
+          purged: result.purged,
+          filesRemoved: result.filesRemoved,
+          orgChatsPurged: result.orgChatsPurged,
+          sha256: result.sha256,
+          zipSizeBytes: result.zipSizeBytes,
+          zipExpiresAt: result.zipExpiresAt,
+          downloadPath: result.downloadPath,
+        });
       } catch (e) {
         if (e.code === 'VALIDATION_ERROR') {
           return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.messageRu || e.message });
         }
+        if (e.code === 'NOT_FOUND') {
+          return reply.code(404).send({ error: 'NOT_FOUND', message: e.messageRu || e.message });
+        }
+        if (e.code === 'ARCHIVE_VERIFY_FAILED') {
+          return reply.code(500).send({ error: 'ARCHIVE_VERIFY_FAILED', message: e.messageRu || e.message });
+        }
+        throw e;
+      }
+    },
+  );
+
+  fastify.get(
+    '/admin/archives/:id/download',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      try {
+        const id = Number(request.params.id);
+        if (!Number.isFinite(id) || id <= 0) {
+          return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+        }
+        const { buffer, zipFileName } = await readServerArchiveZip(fastify.pool, id);
+        return reply
+          .header('Content-Type', 'application/zip')
+          .header('Content-Disposition', `attachment; filename="${zipFileName}"`)
+          .send(buffer);
+      } catch (e) {
         if (e.code === 'NOT_FOUND') {
           return reply.code(404).send({ error: 'NOT_FOUND', message: e.messageRu || e.message });
         }
