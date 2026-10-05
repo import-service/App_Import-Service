@@ -11,7 +11,7 @@ alwaysApply: true
 
 | | |
 |---|---|
-| SSH | `root@157.22.173.7` (ключ в `~/.ssh`, `BatchMode=yes`) |
+| SSH | `root@168.113.158.82` (ключ в `~/.ssh`, `BatchMode=yes`) |
 | Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
 | pm2 | `import-service` |
 | URL админки | `https://app.import-service.su/admin/` → **200**, `text/html` |
@@ -32,6 +32,8 @@ cd D:\Projects\import_servis
 2. **`deploy-server-vps.ps1`** — `pack-server-update.ps1` → `scp` `import-service-update.tgz` → на VPS: `tar`, `npm install --omit=dev`, `pm2 restart import-service` → `curl` и локальная проверка `/admin/`.
 
 Документация: `docs/api-app.md` (§ Веб-админка, § API веб-админки).
+
+На дашборде (`dashboard_page.dart`) — кнопка **«Документация API»** → `https://app.import-service.su/docs` (новая вкладка).
 
 ## Только сервер (без Flutter)
 

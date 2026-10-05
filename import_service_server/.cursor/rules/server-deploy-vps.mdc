@@ -12,7 +12,7 @@ alwaysApply: true
 
 | | |
 |---|---|
-| SSH | `root@157.22.173.7` (ключ в `~/.ssh`, host в `known_hosts`) |
+| SSH | `root@168.113.158.82` (ключ в `~/.ssh`, host в `known_hosts`; старый IP `157.22.173.7` выведен) |
 | Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
 | pm2 | `import-service` |
 | `PUBLIC_BASE_URL` | **`https://app.import-service.su`** (все абсолютные ссылки: APK, файлы, письма). Не sslip. |
@@ -73,8 +73,8 @@ Nginx `app.import-service.su`: `upstream` + `proxy_next_upstream` (меньше 
 LE максимум ~90 дней. При «сертификат истёк» / HSTS: проверить ACME `/.well-known/acme-challenge/` (HTTP **200**, не 404 Node), затем:
 
 ```bash
-ssh root@157.22.173.7 '/usr/local/mgr5/sbin/letsencrypt --cert-id 1 && nginx -t && nginx -s reload'
+ssh root@168.113.158.82 '/usr/local/mgr5/sbin/letsencrypt --cert-id 1 && nginx -t && nginx -s reload'
 ```
 
-Или заново прогнать `setup-ssl-autorenew.sh` с `DOMAIN=157-22-173-7.sslip.io CERT_ID=1 LISTEN_IP=157.22.173.7`.
+Или заново прогнать `setup-ssl-autorenew.sh` с `DOMAIN=157-22-173-7.sslip.io CERT_ID=1 LISTEN_IP=168.113.158.82`.
 Не проксировать ACME в Node; на HTTP не ставить server-level `return 301` на весь server.

@@ -268,7 +268,7 @@ Native самоустановка APK (`ApkInstallSupport` + PackageInstaller) �
 
 1. Разрешение unknown sources **до** скачивания (`_ensureUnknownSourcesPermission` + resume).
 2. Прогресс: connecting / downloading / verifying.
-3. Установка: native `PackageInstaller.Session` (`MainActivity.kt`) — системный Install, **не** `ACTION_VIEW` / share sheet.
+3. После скачивания — диалог **«Установить?»** (`appUpdateServerInstallTitle` / `InstallAction`); по подтверждению native `PackageInstaller.Session` (`MainActivity.kt`), не `ACTION_VIEW`.
 4. Профиль: локальная версия + **Android:** сервер / Google / RuStore; **iOS:** App Store (без server APK и без кнопки скачивания).
 
 **Flavor store:** Play / RuStore / ссылки; без `REQUEST_INSTALL_PACKAGES`.

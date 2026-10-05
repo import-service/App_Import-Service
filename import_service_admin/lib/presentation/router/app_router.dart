@@ -8,6 +8,7 @@ import 'package:import_service_admin/presentation/pages/svh_manager_detail_page.
 import 'package:import_service_admin/presentation/pages/svh_managers_page.dart';
 import 'package:import_service_admin/presentation/pages/broadcast_page.dart';
 import 'package:import_service_admin/presentation/pages/client_errors_page.dart';
+import 'package:import_service_admin/presentation/pages/apk_release_history_page.dart';
 import 'package:import_service_admin/presentation/pages/dashboard_page.dart';
 import 'package:import_service_admin/presentation/pages/login_page.dart';
 import 'package:import_service_admin/presentation/pages/organizations_page.dart';
@@ -52,6 +53,13 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/dashboard',
               builder: (context, state) => const DashboardPage(),
+              routes: [
+                GoRoute(
+                  path: 'apk-history',
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (context, state) => const ApkReleaseHistoryPage(),
+                ),
+              ],
             ),
           ],
         ),

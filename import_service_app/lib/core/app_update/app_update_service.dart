@@ -426,6 +426,37 @@ final class AppUpdateService {
         }
       }
 
+      final installCtx = _dialogContext(dialogCtx);
+      var shouldInstall = true;
+      if (installCtx != null && installCtx.mounted) {
+        final confirmed = await showDialog<bool>(
+          context: installCtx,
+          useRootNavigator: true,
+          builder: (dCtx) => AlertDialog(
+            title: Text(strings.text('appUpdateServerInstallTitle')),
+            content: Text(strings.text('appUpdateServerInstallPrompt')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dCtx).pop(false),
+                child: Text(strings.text('appUpdateServerCancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dCtx).pop(true),
+                child: Text(strings.text('appUpdateServerInstallAction')),
+              ),
+            ],
+          ),
+        );
+        shouldInstall = confirmed == true;
+      }
+      if (!shouldInstall) {
+        _feedback(
+          strings: strings.text('appUpdateServerInstallSkipped'),
+          kind: AppFeedbackKind.warning,
+        );
+        return;
+      }
+
       await ApkInstaller.installApk(file.path);
       _feedback(
         strings: strings.text('appUpdateServerReady'),

@@ -15,6 +15,8 @@ import 'package:import_service_admin/data/datasources/remote/android_apk_remote_
 import 'package:import_service_admin/data/datasources/remote/store_versions_remote_data_source.dart';
 import 'package:import_service_admin/domain/repositories/customs_requests_repository.dart';
 import 'package:import_service_admin/domain/repositories/organizations_repository.dart';
+import 'package:import_service_admin/presentation/widgets/apk_release_history_tile.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -296,6 +298,13 @@ class _DashboardPageState extends State<DashboardPage> {
         .toList();
   }
 
+  /// На дашборде только 2 последних билда.
+  List<Map<String, dynamic>> _apkHistoryPreviewRows() {
+    final all = _apkHistoryRows();
+    if (all.length <= 2) return all;
+    return all.take(2).toList(growable: false);
+  }
+
   /// Билд из хвоста версии: 1.0.53 → 53.
   int? _buildFromVersion(String raw) {
     final name = raw.trim();
@@ -510,11 +519,25 @@ class _DashboardPageState extends State<DashboardPage> {
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Text(
-            'Обзор',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Обзор',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final uri = Uri.parse('https://app.import-service.su/docs');
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+                icon: const Icon(Icons.menu_book_outlined, size: 18),
+                label: const Text('Документация API'),
+              ),
+            ],
           ),
           const Gap(20),
           Wrap(
@@ -640,11 +663,20 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           if (_apkHistoryRows().isNotEmpty) ...[
             const Gap(16),
-            Text(
-              'История выкладок APK',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+            Row(
+              children: [
+                Text(
+                  'Последние выкладки',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => context.push('/dashboard/apk-history'),
+                  child: const Text('История'),
+                ),
+              ],
             ),
             const Gap(8),
             Card(
@@ -657,9 +689,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    for (var i = 0; i < _apkHistoryRows().length; i++) ...[
+                    for (var i = 0; i < _apkHistoryPreviewRows().length; i++) ...[
                       if (i > 0) const Divider(height: 20),
-                      _ApkHistoryTile(row: _apkHistoryRows()[i]),
+                      ApkReleaseHistoryTile(row: _apkHistoryPreviewRows()[i]),
                     ],
                   ],
                 ),
@@ -743,48 +775,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ApkHistoryTile extends StatelessWidget {
-  const _ApkHistoryTile({required this.row});
-
-  final Map<String, dynamic> row;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = row['versionName']?.toString() ?? '—';
-    final code = row['versionCode'];
-    final updated = row['updatedAt']?.toString() ?? '';
-    final changelog = row['changelog']?.toString().trim() ?? '';
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$name${code != null ? ' (build $code)' : ''}',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          if (updated.isNotEmpty)
-            Text(
-              updated,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.black54,
-                  ),
-            ),
-          const Gap(6),
-          Text(
-            changelog.isEmpty ? 'Без описания изменений' : changelog,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: changelog.isEmpty ? Colors.black45 : null,
-                ),
           ),
         ],
       ),

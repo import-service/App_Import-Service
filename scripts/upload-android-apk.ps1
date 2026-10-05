@@ -9,7 +9,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$SshHost = 'root@157.22.173.7'
+$SshHost = 'root@168.113.158.82'
 $RemoteRoot = '/var/www/www-root/data/www/157-22-173-7.sslip.io'
 $RemoteApkDir = "$RemoteRoot/uploads/app-releases"
 $RemoteApk = "$RemoteApkDir/import-service-latest.apk"

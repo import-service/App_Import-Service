@@ -1,7 +1,7 @@
 # Full prod deploy: pack -> scp -> extract -> npm -> pm2 reload -> health wait -> curl check
 # Run from repo root: .\scripts\deploy-server-vps.ps1
 param(
-  [string]$SshHost = 'root@157.22.173.7',
+  [string]$SshHost = 'root@168.113.158.82',
   [string]$RemoteDir = '/var/www/www-root/data/www/157-22-173-7.sslip.io',
   [string]$Pm2Name = 'import-service',
   [string]$CheckUrl = 'https://app.import-service.su/admin/'
