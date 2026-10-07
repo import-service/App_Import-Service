@@ -1,7 +1,7 @@
 const { verifyIntegrationBearer } = require('../util/integrationAuth');
 const { mpOrganizationId } = require('../util/requestOrganizationAccess');
 const { integrationFileUploadPayload } = require('../util/integrationFileUrl');
-const { parseChatAttachmentJsonBody, parseStandaloneFileBase64Body } = require('../util/uploadBase64');
+const { parseStandaloneFileBase64Body } = require('../util/uploadBase64');
 const {
   ensureChatUploadDir,
   saveChatAttachment,
@@ -327,17 +327,25 @@ module.exports = async function orgChatRoutes(fastify) {
     async (request, reply) => {
       const contentType = String(request.headers['content-type'] || '').toLowerCase();
 
-      if (contentType.includes('application/json')) {
+      // Общий чат: id_1c организации (не external1cId заявки).
+      // JSON+fileBase64 — через parseStandaloneFileBase64Body (без требования external1cId).
+      if (contentType.includes('application/json') || contentType.includes('text/plain')) {
         let parsed;
         try {
-          parsed = parseChatAttachmentJsonBody(request.body || {});
+          parsed = parseStandaloneFileBase64Body(request.body || {});
         } catch (e) {
           return reply.code(400).send({
             error: 'VALIDATION_ERROR',
             message: e.message || 'Некорректное тело JSON',
           });
         }
-        const id1c = readId1c(request, parsed);
+        const id1c = readId1c(request, request.body);
+        if (!id1c) {
+          return reply.code(400).send({
+            error: 'VALIDATION_ERROR',
+            message: 'Нужен query/body id_1c',
+          });
+        }
         const org = await findOrganizationById1c(fastify.pool, id1c);
         if (!org) {
           return reply.code(404).send({ error: 'NOT_FOUND' });

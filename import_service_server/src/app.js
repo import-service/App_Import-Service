@@ -14,17 +14,24 @@ async function buildApp() {
   });
 
   const defaultJsonParser = fastify.getDefaultJsonParser('error', 'error');
+  function parseJsonAllowEmpty(req, body, done) {
+    if (body === '' || body == null) {
+      done(null, {});
+      return;
+    }
+    defaultJsonParser(req, body, done);
+  }
   fastify.removeContentTypeParser('application/json');
   fastify.addContentTypeParser(
     'application/json',
     { parseAs: 'string', bodyLimit: fastify.initialConfig.bodyLimit },
-    function parseJsonAllowEmpty(req, body, done) {
-      if (body === '' || body == null) {
-        done(null, {});
-        return;
-      }
-      defaultJsonParser(req, body, done);
-    },
+    parseJsonAllowEmpty,
+  );
+  // 1С иногда шлёт JSON с Content-Type: text/plain → иначе Fastify даёт 415.
+  fastify.addContentTypeParser(
+    'text/plain',
+    { parseAs: 'string', bodyLimit: fastify.initialConfig.bodyLimit },
+    parseJsonAllowEmpty,
   );
 
   fastify.decorate('config', config);

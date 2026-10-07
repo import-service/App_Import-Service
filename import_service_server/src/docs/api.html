@@ -1348,7 +1348,23 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/organization-messages/attachments</code><span class="desc">Вложение общего чата с 1С → fileUrl.</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p>
-            <p><b>Query/body:</b> <code>id_1c</code>. JSON+<code>fileBase64</code> или multipart. Имя файла: <code>o{organizationId}_…</code>.</p>
+            <div class="callout"><b>Для 1С (обязательно):</b> заголовок <code>Content-Type: application/json</code>. Без него Fastify отвечает <code>415 Unsupported Media Type</code>. Файл — строка base64 в <code>fileBase64</code>. Не используйте multipart.</div>
+            <p><b>Ключ организации:</b> <code>id_1c</code> (GUID организации в 1С / <code>organizations.id_1c</code>). Это <b>не</b> <code>external1cId</code> заявки.</p>
+            <p><b>Request:</b></p><pre>{
+  "id_1c": "d9c95c7f-79eb-11f1-b0b4-000c29155852",
+  "fileName": "scan.pdf",
+  "mimeType": "application/pdf",
+  "fileBase64": "JVBERi0xLjQK..."
+}</pre>
+            <table class="fields">
+              <tr><th>Поле</th><th>Обяз.</th><th>Описание</th></tr>
+              <tr><td><code>id_1c</code></td><td>да</td><td>Id организации в 1С (также query <code>?id_1c=</code> или заголовок <code>X-Id-1c</code>).</td></tr>
+              <tr><td><code>fileBase64</code></td><td>да</td><td>Содержимое файла. Альт.: <code>file</code>, <code>fileContent</code>, <code>base64</code>.</td></tr>
+              <tr><td><code>fileName</code></td><td>нет</td><td>Имя файла.</td></tr>
+              <tr><td><code>mimeType</code></td><td>нет</td><td>MIME, напр. <code>application/pdf</code>.</td></tr>
+            </table>
+            <p>Имя на диске: <code>o{organizationId}_…</code>. <b>Success:</b> <code>201</code> + <code>{ fileUrl, fileName, mimeType, … }</code> — подставить в <code>attachments[]</code> при POST сообщения общего чата.</p>
+            <p><b>Errors:</b> <code>415</code> — нет/неверный Content-Type; <code>400</code> — нет <code>id_1c</code> / base64; <code>404</code> — организация не найдена.</p>
           </div>
         </details>
       </section>
