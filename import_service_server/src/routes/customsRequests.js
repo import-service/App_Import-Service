@@ -151,6 +151,7 @@ function validateCreateBody(body) {
     'individualFullName',
     'individualPhone',
     'individualSnils',
+    'individualInn',
     'carMake',
     'carModel',
     'vin',
@@ -162,8 +163,27 @@ function validateCreateBody(body) {
     }
   }
 
-  resolveLegalInnFromBody(body, { required: true });
+  // legalInn с формы МП не обязателен — подставим из профиля организации.
+  resolveLegalInnFromBody(body, { required: false });
   resolveIndividualInnFromBody(body, { required: true });
+}
+
+/** ИНН ЮЛ/ИП: из тела заявки, иначе из organizations.inn профиля. */
+async function resolveLegalInnForCreate(pool, orgId, body) {
+  const fromBody = resolveLegalInnFromBody(body, { required: false });
+  if (fromBody) return fromBody;
+  if (!orgId) return null;
+  const [rows] = await pool.query(
+    `SELECT inn FROM organizations WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+    [orgId],
+  );
+  if (!rows.length) return null;
+  const digits = String(rows[0].inn ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length !== 10 && digits.length !== 12) {
+    throw new Error('VALIDATION_ERROR: ИНН в профиле организации должен содержать 10 или 12 цифр');
+  }
+  return digits;
 }
 
 function rejectDeprecatedStateFields(body, reply) {
@@ -499,6 +519,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
             'individualFullName',
             'individualPhone',
             'individualSnils',
+            'individualInn',
             'carMake',
             'carModel',
             'vin',
@@ -553,13 +574,18 @@ module.exports = async function customsRequestsRoutes(fastify) {
         });
       }
 
-      const legalInn = resolveLegalInnFromBody(request.body, { required: true });
       const individualInn = resolveIndividualInnFromBody(request.body, { required: true });
       const questionnaire = questionnaireFromBody(request.body);
       const questionnaireDb = questionnaireToDbValues(questionnaire);
       const orgId = mpOrganizationId(request);
       if (!orgId) {
         return reply.code(401).send({ error: 'UNAUTHORIZED' });
+      }
+      let legalInn;
+      try {
+        legalInn = await resolveLegalInnForCreate(fastify.pool, orgId, request.body);
+      } catch (e) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.message });
       }
       const isTestRequest =
         fastify.config.demoFlow?.enabled &&

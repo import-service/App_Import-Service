@@ -98,7 +98,7 @@
 
 - `id` (string)
 - `ownerFullName`
-- `legalEntityName`, `legalEmail`, `legalPhone`, **`legalInn`** (ИНН ЮЛ/ИП из анкеты; алиас в ответе `inn`)
+- `legalEntityName`, `legalEmail`, `legalPhone`; **`legalInn`** / `inn` в create **не обязательны** (сервер из профиля org); обязателен **`individualInn`** (12 цифр)
 - `individualFullName`, `individualPhone`, `individualSnils`, **`individualInn`** (ИНН физлица «кому везут», 12 цифр)
 - `carMake`, `carModel`, `vin`
 - `status`, `statusSubType`, `statusSubTypeDateTime`
@@ -134,7 +134,7 @@
 }
 ```
 
-МП может отправить **`legalInn`** и/или **`inn`** с одним значением (10 или 12 цифр). Это **поле анкеты**, не путать с `docType: "inn"` — скан ИНН в `files[]` при upload.
+МП в create шлёт **`individualInn`** (физлицо «кому везут»). **`legalInn`** / **`inn`** опциональны: если нет — сервер подставляет ИНН из `organizations.inn`. Не путать с `docType: "inn"` — скан в `files[]`.
 
 **Ввоз за 12 мес. / другие авто:** не галочки. Списки `previousImportDates` (`YYYY-MM-DD`) и `ownedVehicles` (`name` + `year`). Пустой список = нет. Сервер выставляет `importedLast12Months` / `ownsOtherCars` сам.
 

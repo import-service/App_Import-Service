@@ -121,7 +121,7 @@ final class CarsRepositoryImpl implements CarsRepository {
         );
         final patchedItem = created.item.legalInn?.trim().isNotEmpty == true
             ? created.item
-            : created.item.copyWith(legalInn: form.companyInn.trim());
+            : _patchMissingLegalInn(created.item);
         final remoteItems = await _remoteDataSource.listRequests();
         await _carInventory.replaceAll(
           remoteItems.map(_patchMissingLegalInn).toList(growable: false),
@@ -252,9 +252,9 @@ final class CarsRepositoryImpl implements CarsRepository {
       carModel: form.carModel.trim(),
       vin: form.vin.trim(),
       status: RequestStatus.newRequest,
-      legalInn: form.companyInn.trim(),
       createdAt: DateTime.now().toUtc().toIso8601String(),
     );
+    item = _patchMissingLegalInn(item);
     await _carInventory.add(item);
 
     final entries = CustomsRequestsRemoteDataSource.fileEntriesFromForm(form);

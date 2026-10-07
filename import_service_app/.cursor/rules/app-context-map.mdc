@@ -123,7 +123,9 @@ alwaysApply: true
 | `presentation/pages/declarant_home_page.dart` | Shell декларанта |
 | `presentation/pages/svh_qr_scan_page.dart` | QR → VIN для фильтра списка СВХ |
 | `presentation/pages/svh_request_detail_page.dart` | Устарело; роутер → `CarRequestDetailPage` |
-| `presentation/pages/request_create_page.dart` | Создание / редактирование заявки (только клиент) |
+| `presentation/pages/request_create_page.dart` | Создание заявки; org без ИНН; ИНН только «кому везут» |
+| `presentation/helpers/inn_label.dart` | Тип орг для длины ИНН (лейбл поля везде «ИНН») |
+| `presentation/widgets/tabs/profile_tab_view.dart` | Профиль клиента: поле ИНН без суффикса типа |
 | `presentation/pages/request_video_player_page.dart` | Плеер видео заявки + Скачать/Поделиться |
 | `presentation/widgets/requests/cached_auth_image.dart` | Картинка с auth + диск-кэш по stamp |
 | `presentation/widgets/requests/request_file_video_thumb.dart` | Превью видео (кэш) |

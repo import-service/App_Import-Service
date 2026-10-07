@@ -198,7 +198,7 @@ class _HomePageState extends State<HomePage> {
                 phoneLabel: strings.profilePhoneLabel,
                 emailLabel: strings.profileEmailLabel,
                 companyLabel: strings.profileCompanyLabel,
-                innLabel: strings.profileInnLabel,
+                innLabel: strings.innLabel,
                 logoutLabel: strings.logoutButton,
                 onLogout: () => _logout(context),
                 companyName: looksLikeEmailOrLogin(

@@ -264,8 +264,7 @@ final class CustomsRequestsRemoteDataSource {
     return <String, dynamic>{
       'orgType': form.organizationType.profileApiLabel,
       'legalEntityName': form.companyName.trim(),
-      'inn': form.companyInn.trim(),
-      'legalInn': form.companyInn.trim(),
+      // legalInn / inn — с сервера из профиля организации, МП не шлёт.
       'legalEmail': form.companyEmail.trim(),
       'legalPhone': form.companyPhone.trim(),
       'individualFullName': form.personFullName.trim(),

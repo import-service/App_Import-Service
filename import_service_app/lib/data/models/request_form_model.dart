@@ -25,7 +25,8 @@ final class OwnedVehicleItem {
 }
 
 final class RequestFormModel {
-  static const int trackedFieldCount = 23;
+  /// Без ИНН организации (он только в профиле); ИНН «кому везут» в счётчике есть.
+  static const int trackedFieldCount = 22;
 
   const RequestFormModel({
     this.organizationType = OrganizationType.ooo,
@@ -104,7 +105,6 @@ final class RequestFormModel {
     var n = 0;
     // Прогресс черновика считаем только по обязательным полям (max = trackedFieldCount).
     if (m.companyName.trim().isNotEmpty) n++;
-    if (m.companyInn.trim().isNotEmpty) n++;
     if (m.companyEmail.trim().isNotEmpty) n++;
     if (m.companyPhone.trim().isNotEmpty) n++;
     if (m.personFullName.trim().isNotEmpty) n++;

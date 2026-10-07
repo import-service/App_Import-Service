@@ -287,13 +287,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                               if (widget.showInn &&
                                   (widget.inn ?? '').trim().isNotEmpty)
                                 ProfileMetaRow(
-                                  label: () {
-                                    final digits = widget.inn!
-                                        .replaceAll(RegExp(r'\D'), '');
-                                    return digits.length == 10
-                                        ? s.text('innLabelLegal')
-                                        : s.text('innLabelPerson');
-                                  }(),
+                                  label: widget.innLabel,
                                   value: InnInputFormatter.formatDigits(
                                     widget.inn!.trim(),
                                     maxDigits: widget.inn!
