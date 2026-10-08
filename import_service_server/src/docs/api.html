@@ -396,7 +396,7 @@
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/customs-requests/files/:storedName</code><span class="desc">Скачать файл по сохраненной ссылке.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer accessToken or Bearer INTEGRATION_BEARER_TOKEN</p><p>Один endpoint для <b>всех</b> файлов: документы заявки и вложения чата. В ответах API поле <code>fileUrl</code> — всегда relative path: <code>/api/customs-requests/files/{storedName}</code>. В 1С: хост в <code>HTTPСоединение</code>, в <code>HTTPЗапрос</code> — только этот path (не целый URL).</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>binary</pre><p><b>Errors (404 JSON, не binary):</b></p><pre>{
+          <div class="body"><p><b>Auth:</b> Bearer accessToken or Bearer INTEGRATION_BEARER_TOKEN</p><p>Один endpoint для <b>всех</b> файлов: документы заявки и вложения чата. В ответах API поле <code>fileUrl</code> — всегда relative path: <code>/api/customs-requests/files/{storedName}</code>. В 1С: хост в <code>HTTPСоединение</code>, в <code>HTTPЗапрос</code> — только этот path (не целый URL).</p><p><b>Request:</b></p><pre>Без тела</pre><p><b>Success:</b></p><pre>binary</pre><p>Заголовки: <code>Content-Type</code> по mime/расширению; <code>Content-Disposition: attachment; filename="…"; filename*=UTF-8''…</code> (имя с расширением — для «Сохранить как» в 1С/ОС). Чат: имя из storedName (<code>r62_….pdf</code>); файл заявки: <code>original_name</code> или storedName.</p><p><b>Errors (404 JSON, не binary):</b></p><pre>{
   "error": "FILE_NOT_ON_DISK",
   "message": "Вложение чата: файл отсутствует на диске сервера",
   "storedName": "r18_abc….jpg",

@@ -39,6 +39,21 @@ function mimeFromStoredName(storedName, fallback = 'application/octet-stream') {
   return fallback;
 }
 
+/** Content-Disposition: filename + filename* (UTF-8) для 1С/ОС «Сохранить как». */
+function contentDispositionAttachment(fileName) {
+  const raw = normalize(fileName) || 'file.bin';
+  const ascii =
+    raw.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_') || 'file.bin';
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(raw)}`;
+}
+
+function sendBinaryFile(reply, { mimeType, downloadFileName, body }) {
+  return reply
+    .type(mimeType || 'application/octet-stream')
+    .header('Content-Disposition', contentDispositionAttachment(downloadFileName))
+    .send(body);
+}
+
 function buildFileDownloadError(fastify, request, {
   error,
   message,
@@ -106,7 +121,7 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
 
   try {
     const [rows] = await fastify.pool.query(
-      `SELECT f.mime_type, f.stored_name, f.preview_stored_name, r.organization_id
+      `SELECT f.mime_type, f.stored_name, f.preview_stored_name, f.original_name, r.organization_id
        FROM customs_request_files f
        INNER JOIN customs_requests r ON r.id = f.request_id AND r.deleted_at IS NULL
        WHERE f.deleted_at IS NULL
@@ -165,7 +180,14 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
         });
       }
 
-      return reply.type(mimeType).send(await fs.readFile(requestFilePath));
+      const downloadName = isPreview
+        ? storedName
+        : normalize(rows[0].original_name) || storedName;
+      return sendBinaryFile(reply, {
+        mimeType,
+        downloadFileName: downloadName,
+        body: await fs.readFile(requestFilePath),
+      });
     }
 
     const chatDiskPath = chatAttachmentDiskPath(storedName);
@@ -264,7 +286,11 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
     }
 
     const contentType = mimeFromStoredName(storedName);
-    return reply.type(contentType).send(await fs.readFile(chatDiskPath));
+    return sendBinaryFile(reply, {
+      mimeType: contentType,
+      downloadFileName: storedName,
+      body: await fs.readFile(chatDiskPath),
+    });
   } catch (e) {
     if (e.code === 'ENOENT') {
       return sendFileDownloadError(reply, fastify, request, 404, {
@@ -302,4 +328,5 @@ module.exports = {
   serveChatFileLegacyAlias,
   sanitizeFileName,
   buildFileDownloadError,
+  contentDispositionAttachment,
 };

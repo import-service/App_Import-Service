@@ -284,7 +284,10 @@ Future<File> _mediaCacheFile(String key, String extension) async {
   return File(p.join(dir.path, '$key$ext'));
 }
 
-/// Relative `/api/...` → абсолютный URL API.
+/// Relative `/api/...` или path от корня хоста → абсолютный URL API.
+///
+/// Важно: path вида `/api/customs-requests/files/…` нельзя «отрезать» ведущий `/`
+/// и resolve к base `…/api/` — получится `/api/api/…` (чат-вложения не открывались).
 String? resolveApiAbsoluteUrl(String? rawUrl) {
   final value = rawUrl?.trim();
   if (value == null || value.isEmpty) return null;
@@ -292,9 +295,34 @@ String? resolveApiAbsoluteUrl(String? rawUrl) {
   final base = ApiConfig.baseUrl.trim();
   final normalized = base.endsWith('/') ? base : '$base/';
   final apiUri = Uri.parse(normalized);
-  return apiUri
-      .resolve(value.startsWith('/') ? value.substring(1) : value)
-      .toString();
+  // Абсолютный path от корня (`/api/...`) — оставляем leading `/` для Uri.resolve.
+  if (value.startsWith('/')) {
+    return apiUri.resolve(value).toString();
+  }
+  return apiUri.resolve(value).toString();
+}
+
+/// Короткое имя для UI: при длине > [maxLen] — точки **в середине**, расширение сохраняем.
+/// По умолчанию maxLen=25.
+String middleEllipsizeFileName(String name, {int maxLen = 25}) {
+  final t = name.trim();
+  if (t.isEmpty) return 'Файл';
+  if (t.length <= maxLen) return t;
+  const ell = '…';
+  final ext = p.extension(t);
+  final stem = ext.isNotEmpty ? t.substring(0, t.length - ext.length) : t;
+  if (ext.length >= maxLen - 1) {
+    return '$ell${t.substring(t.length - (maxLen - 1))}';
+  }
+  final budget = maxLen - ell.length - ext.length;
+  if (budget <= 1) return '$ell$ext';
+  final head = (budget + 1) ~/ 2;
+  final tail = budget - head;
+  final start = stem.substring(0, head.clamp(0, stem.length));
+  final end = tail > 0 && stem.length > head
+      ? stem.substring(stem.length - tail)
+      : '';
+  return '$start$ell$end$ext';
 }
 
 String chatAttachmentSaveName({

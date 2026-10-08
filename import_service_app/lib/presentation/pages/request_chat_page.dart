@@ -18,6 +18,7 @@ import 'package:import_service_app/data/websocket/chat_broadcast_wss_client.dart
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/entities/chat_message.dart';
 import 'package:import_service_app/presentation/helpers/chat_attachment_open_helper.dart';
+import 'package:import_service_app/presentation/helpers/request_file_preview_helper.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
 import 'package:import_service_app/domain/repositories/request_chat_repository.dart';
 import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory_cubit.dart';
@@ -324,11 +325,13 @@ class _RequestChatViewState extends State<_RequestChatView> {
                     separatorBuilder: (_, _) => const Gap(6),
                     itemBuilder: (context, i) {
                       final a = cstate.pendingAttachments[i];
-                      final label = (a.fileName?.trim().isNotEmpty ?? false)
-                          ? a.fileName!.trim()
-                          : 'файл';
+                      final label = middleEllipsizeFileName(
+                        (a.fileName?.trim().isNotEmpty ?? false)
+                            ? a.fileName!.trim()
+                            : 'файл',
+                      );
                       return InputChip(
-                        label: Text(label, overflow: TextOverflow.ellipsis),
+                        label: Text(label),
                         onDeleted: cstate.isSending
                             ? null
                             : () => context
@@ -626,14 +629,15 @@ class _ChatBubble extends StatelessWidget {
                                     const Gap(4),
                                     Flexible(
                                       child: Text(
-                                        (a.fileName?.trim().isNotEmpty ?? false)
-                                            ? a.fileName!.trim()
-                                            : 'Файл',
+                                        middleEllipsizeFileName(
+                                          (a.fileName?.trim().isNotEmpty ??
+                                                  false)
+                                              ? a.fileName!.trim()
+                                              : 'Файл',
+                                        ),
                                         style: t.textTheme.bodySmall?.copyWith(
                                           color: AppTheme.primaryBlue,
-                                          decoration: TextDecoration.underline,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],

@@ -8,7 +8,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:import_service_app/core/auth/auth_session_controller.dart';
 import 'package:import_service_app/core/auth/session_role.dart';
 import 'package:import_service_app/core/constants/customs_catalog.dart';
-import 'package:import_service_app/core/constants/api_config.dart';
 import 'package:import_service_app/core/di/injection_container.dart';
 import 'package:import_service_app/core/extensions/navigation_context.dart';
 import 'package:import_service_app/core/logging/app_log.dart';
@@ -1491,15 +1490,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   }
 }
 
-String? _resolveFileUrl(String? rawUrl) {
-  final value = rawUrl?.trim();
-  if (value == null || value.isEmpty) return null;
-  if (value.startsWith('http://') || value.startsWith('https://')) return value;
-  final base = ApiConfig.baseUrl.trim();
-  final normalized = base.endsWith('/') ? base : '$base/';
-  final apiUri = Uri.parse(normalized);
-  return apiUri.resolve(value.startsWith('/') ? value.substring(1) : value).toString();
-}
+String? _resolveFileUrl(String? rawUrl) => resolveApiAbsoluteUrl(rawUrl);
 
 String? _statusDateText(CarListItem item) {
   final subDt = item.statusSubTypeDateTime?.trim();

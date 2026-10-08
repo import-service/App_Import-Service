@@ -290,6 +290,9 @@ Native самоустановка APK (`ApkInstallSupport` + PackageInstaller) �
 - Повторное открытие / Share — из кэша, без повторной загрузки.
 - **Скачать** → галерея (`gal`: `Gal.putImage` / `Gal.putVideo`), **не** share sheet.
 - **Поделиться** → `share_plus` / `shareLocalRequestFile`.
+- **URL файлов:** `resolveApiAbsoluteUrl` — path `/api/customs-requests/files/…` стыковать к base `…/api/` **с** ведущим `/` (`Uri.resolve`). Отрезать `/` → `/api/api/…`, чат-вложения не открываются. То же для деталки через `_resolveFileUrl` → тот же хелпер. Открытие чата: `chat_attachment_open_helper.dart`.
+- **Имена вложений в чате:** без `TextDecoration.underline` (подчёркивание было только в пузыре чата, не в теме глобально; `AppAccentUnderlinedTextButton` на логине — отдельно, осознанно). Длинные имена — `middleEllipsizeFileName` (точки в середине, max **25**, расширение сохраняем).
+- **Changelog следующего билда** (для модалки APK / сайта): копить в `docs/customer-tasks/NEXT_BUILD_CHANGELOG.md` сразу после каждой фичи/фикса до релиза.
 
 ---
 
