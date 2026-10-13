@@ -21,6 +21,7 @@ import 'package:import_service_app/presentation/widgets/bottom_sheets/request_dr
 import 'package:import_service_app/presentation/widgets/cards/car_card.dart';
 import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
+import 'package:import_service_app/presentation/helpers/request_status_sub_type_labels.dart';
 import 'package:import_service_app/presentation/widgets/filters/car_status_chips_bar.dart';
 import 'package:import_service_app/presentation/widgets/forms/app_search_bar_field.dart';
 
@@ -244,6 +245,8 @@ class _CarsTabViewState extends State<CarsTabView> {
             pendingActionHints: requestDetailUrgentActionHints(c, strings),
             isArchivedOffline: c.isArchivedOffline,
             archivedByName: c.archivedByName,
+            statusSubType: c.statusSubType,
+            statusSubTypeLabel: requestStatusSubTypeLabel(c.statusSubType, strings),
           ),
         )
         .toList();

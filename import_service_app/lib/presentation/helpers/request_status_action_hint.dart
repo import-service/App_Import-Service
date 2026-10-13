@@ -10,10 +10,12 @@ String? requestStatusActionHint(CarListItem item, JsonStringsService s) {
   if (sub == null) return null;
 
   switch (sub) {
+    // Подпись — только urgent-баннер по факту незагруженных *_sign
+    // (`requestDetailUrgentActionHints`). Иначе после загрузки подписей
+    // info-баннер «Подпишите…» снова появляется, пока 1С не сменит подстатус.
     case RequestStatusSubType.signatureRevisionRequired:
-      return s.requestHintSignatureRevision;
     case RequestStatusSubType.primaryDocumentsSent:
-      return s.requestHintSignDocuments;
+      return null;
     case RequestStatusSubType.originalsPartialNoTransit:
     case RequestStatusSubType.originalsCompleteNoTransit:
     case RequestStatusSubType.originalsMissingTransit:

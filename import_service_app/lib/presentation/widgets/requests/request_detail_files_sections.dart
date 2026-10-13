@@ -509,9 +509,9 @@ class RequestDetailFilesSections extends StatelessWidget {
   }
 
   bool _shouldShowSvhCarGallery(CarListItem item, RequestFilesGrouped grouped) {
-    if (grouped.svhCarGallery.isNotEmpty) return true;
-    // Менеджер СВХ: галерея на любом этапе заявки.
-    return svhUploadMode;
+    // Всегда показываем секции (даже пустые): клиент видит «Фото/Видео машины»,
+    // загрузка — у менеджера СВХ (`svhUploadMode`).
+    return true;
   }
 
   List<Widget> _buildSvhCarPhotoRows({
@@ -522,6 +522,18 @@ class RequestDetailFilesSections extends StatelessWidget {
     final photoCount = photos.length;
     final rows = <Widget>[];
     final canDelete = svhUploadMode && onDeleteSvhMediaFile != null;
+
+    if (!svhUploadMode && photos.isEmpty) {
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            s.text('requestFilesSectionSvhCarGalleryClientHint'),
+            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+          ),
+        ),
+      );
+    }
 
     if (svhUploadMode && onUploadSvhCarGallery != null) {
       final full = photoCount >= kSvhCarGalleryMaxPhotos;
@@ -576,6 +588,18 @@ class RequestDetailFilesSections extends StatelessWidget {
     final videoCount = videos.length;
     final rows = <Widget>[];
     final canDelete = svhUploadMode && onDeleteSvhMediaFile != null;
+
+    if (!svhUploadMode && videos.isEmpty) {
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            s.text('requestFilesSectionSvhCarVideoClientHint'),
+            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+          ),
+        ),
+      );
+    }
 
     if (svhUploadMode && onUploadSvhCarVideos != null) {
       final full = videoCount >= kSvhCarGalleryMaxVideos;

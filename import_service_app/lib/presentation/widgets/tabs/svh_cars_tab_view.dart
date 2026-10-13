@@ -10,6 +10,7 @@ import 'package:import_service_app/core/util/vin_from_scan.dart';
 import 'package:import_service_app/domain/entities/car_list_item.dart';
 import 'package:import_service_app/domain/repositories/cars_repository.dart';
 import 'package:import_service_app/presentation/helpers/request_status_labels.dart';
+import 'package:import_service_app/presentation/helpers/request_status_sub_type_labels.dart';
 import 'package:import_service_app/presentation/models/demo_car.dart';
 import 'package:import_service_app/presentation/widgets/cards/car_card.dart';
 import 'package:import_service_app/presentation/widgets/filters/manager_filter_bar.dart';
@@ -217,6 +218,8 @@ class SvhCarsTabViewState extends State<SvhCarsTabView> {
       clientRatingComment: c.clientRatingComment,
       isArchivedOffline: c.isArchivedOffline,
       archivedByName: c.archivedByName,
+      statusSubType: c.statusSubType,
+      statusSubTypeLabel: requestStatusSubTypeLabel(c.statusSubType, strings),
     );
   }
 

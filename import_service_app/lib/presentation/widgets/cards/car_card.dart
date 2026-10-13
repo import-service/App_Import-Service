@@ -162,6 +162,20 @@ class CarCard extends StatelessWidget {
                         foregroundColor: car.requestStatus.listChipForeground,
                       ),
                     ),
+                    if ((car.statusSubTypeLabel ?? '').trim().isNotEmpty) ...[
+                      const Gap(6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          car.statusSubTypeLabel!.trim(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF2E7D32),
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
                     if (car.hasPendingActions) ...[
                       const Gap(6),
                       Row(

@@ -653,23 +653,26 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final feedback = sl<AppFeedbackService>();
     final s = sl<JsonStringsService>();
     feedback.show(s.requestFileAttachSuccess, kind: AppFeedbackKind.success);
+    final code = normalizeDocType(docType);
     final sectionKey = sectionKeyForUploadedDocType(docType);
+    // Клиент грузит несколько *_sign / чеков подряд — секцию не сворачиваем
+    // (иначе «выброс» из «На подпись» в корень карточки).
+    final keepSectionOpen = _stayOnDetailAfterAttach(docType);
     if (sectionKey != null) {
       await sl<RequestDetailSectionPrefs>().saveExpanded(
         widget.requestId,
         sectionKey,
-        false,
+        keepSectionOpen,
       );
     }
     await sl<CarsRepository>().getVehicle(itemId);
     if (!mounted) return;
     setState(() {});
 
-    // СВХ / архив / доп. доки: менеджер добавляет несколько файлов подряд —
-    // не выходим в список заявок.
+    // СВХ / подписи / чеки / архив: несколько файлов подряд — не pop в список.
     if (_stayOnDetailAfterAttach(docType)) {
       AppLog.trace(
-        'attach ok stayOnDetail docType=$docType requestId=$itemId',
+        'attach ok stayOnDetail docType=$code requestId=$itemId',
         tag: 'SvhUpload',
       );
       return;
@@ -678,14 +681,14 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final updated = _itemFromInventory(itemId);
     if (updated != null && !hasPendingClientUploadActions(updated)) {
       AppLog.trace(
-        'attach ok pop detail (no pending client actions) docType=$docType',
+        'attach ok pop detail (no pending client actions) docType=$code',
         tag: 'SvhUpload',
       );
       context.pop();
     }
   }
 
-  /// Галерея авто / видео / транзит / add_doc — остаёмся на карточке.
+  /// Галерея / видео / транзит / add_doc / подписи / чеки — остаёмся на карточке.
   bool _stayOnDetailAfterAttach(String docType) {
     final code = normalizeDocType(docType);
     if (code.isEmpty) return false;
@@ -694,6 +697,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     }
     if (code.startsWith('transit_archive')) return true;
     if (code == 'add_doc1' || code == 'add_doc2') return true;
+    if (code.endsWith('_sign')) return true;
+    if (code.contains('receipt') || code.startsWith('payment_')) return true;
     return false;
   }
 
@@ -1033,6 +1038,13 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     }
 
     final urgentHints = requestDetailUrgentActionHints(item, s).toSet().toList();
+    // После успешной загрузки подписей сбрасываем «красная точка» docsAction от push.
+    if (!signingSectionNeedsAction(item, groupedFilesForItem(item)) &&
+        attentionState.hasDocsAction(item.id)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        sl<RequestAttentionCubit>().clearDocsAction(item.id);
+      });
+    }
     for (var i = 0; i < urgentHints.length; i++) {
       if (i > 0) out.add(const Gap(10));
       out.add(RequestDetailActionHintBanner(message: urgentHints[i], urgent: true));

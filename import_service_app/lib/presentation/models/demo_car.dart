@@ -21,6 +21,8 @@ class DemoCar {
     this.pendingActionHints = const [],
     this.isArchivedOffline = false,
     this.archivedByName,
+    this.statusSubType,
+    this.statusSubTypeLabel,
   });
 
   final String id;
@@ -43,12 +45,19 @@ class DemoCar {
   final List<String> pendingActionHints;
   final bool isArchivedOffline;
   final String? archivedByName;
+  final String? statusSubType;
+  /// Подпись подстатуса 1С для списка (зелёным под чипом верхнего статуса).
+  final String? statusSubTypeLabel;
 
   bool get hasPendingActions => pendingActionHints.isNotEmpty;
 
-  bool get showRatingBlock =>
-      requestStatus == RequestStatus.delivered ||
-      requestStatus == RequestStatus.closed;
+  /// Оценка только после «Выдано клиенту» (или заявка уже закрыта).
+  bool get showRatingBlock {
+    final sub = statusSubType?.trim().toLowerCase() ?? '';
+    if (sub == 'issued_to_client' || sub == 'request_closed') return true;
+    // Закрыта без подстатуса — тоже можно оценить.
+    return requestStatus == RequestStatus.closed;
+  }
 
   String get displayCarLine {
     final a = carMake.trim();

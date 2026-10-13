@@ -118,6 +118,10 @@ LoginPage._login() / тап по «Недавние входы»
 
 **Недавние входы (устройство):** список на экране логина и в профиле (`RecentAccountsList`). Строка: email + роль. Сортировка по дате входа. Тап = logout текущего + обычный login сохранёнными данными → нужный shell. Удаления из списка нет.
 
+**QA-сиды быстрых входов:** `QaKnownAccounts` (`core/auth/qa_known_accounts.dart`) мержатся в `RecentAccountsService.list()` — всегда видны даже на чистом устройстве (логин и профиль). Канон «клиентского» входа для проверок: `admin@gmail.com` / `123456` — на API `role=admin`, shell `/home` (как у клиента). Новые QA-учётки добавлять туда же.
+
+**Chat WSS URL:** `ApiConfig.chatWebsocketUrl` / `orgChatWebsocketUrl` — для `wss`/`ws` всегда явный порт (`443`/`80` или порт из `API_BASE_URL`). Иначе Dart даёт `Uri.port == 0` → коннект на `:0` и `WebSocketException` (upgrade fail).
+
 **Профиль:** в круге — логотип Import Service (`assets/images/logo_import_service.png`), не силуэт человека.
 
 **VIN:** `formatVinForList` / `formatVinForDetail` показывают номер целиком (маскирование снято по требованию заказчика).
@@ -293,6 +297,12 @@ Native самоустановка APK (`ApkInstallSupport` + PackageInstaller) �
 - **URL файлов:** `resolveApiAbsoluteUrl` — path `/api/customs-requests/files/…` стыковать к base `…/api/` **с** ведущим `/` (`Uri.resolve`). Отрезать `/` → `/api/api/…`, чат-вложения не открываются. То же для деталки через `_resolveFileUrl` → тот же хелпер. Открытие чата: `chat_attachment_open_helper.dart`.
 - **Имена вложений в чате:** без `TextDecoration.underline` (подчёркивание было только в пузыре чата, не в теме глобально; `AppAccentUnderlinedTextButton` на логине — отдельно, осознанно). Длинные имена — `middleEllipsizeFileName` (точки в середине, max **25**, расширение сохраняем).
 - **Changelog следующего билда** (для модалки APK / сайта): копить в `docs/customer-tasks/NEXT_BUILD_CHANGELOG.md` сразу после каждой фичи/фикса до релиза.
+- **Оценка:** блок на карточке списка только при `statusSubType=issued_to_client` (или `request_closed` / closed).
+- **Список заявок:** API list отдаёт `files[]` (для алармов чек/подпись без деталки).
+- **Аларм подписи:** info-hint по `primaryDocumentsSent` не дублирует urgent; после загрузки *_sign — `clearDocsAction`. Канон: urgent снимается по факту загруженных подписей, не по дате оригиналов в 1С.
+- **После upload `*_sign`:** секция «На подпись» остаётся раскрытой (не `saveExpanded(false)`, не автосворот по снятию `needsAction`).
+- **APK server-flavor:** `ApkInstallSupport` обязан `startActivity` на EXTRA_INTENT системного installer (не фильтровать по package нашего приложения).
+- **СВХ медиа:** секции «Фото/Видео машины» всегда в карточке клиента; upload только `svh_manager`.
 
 ---
 

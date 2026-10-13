@@ -637,6 +637,14 @@ class _ChatBubble extends StatelessWidget {
                                         ),
                                         style: t.textTheme.bodySmall?.copyWith(
                                           color: AppTheme.primaryBlue,
+                                          decoration: TextDecoration.none,
+                                          decorationThickness: 0,
+                                        ),
+                                        // Material 3 иногда тянет underline из DefaultTextStyle.
+                                        textHeightBehavior:
+                                            const TextHeightBehavior(
+                                          applyHeightToFirstAscent: false,
+                                          applyHeightToLastDescent: false,
                                         ),
                                       ),
                                     ),

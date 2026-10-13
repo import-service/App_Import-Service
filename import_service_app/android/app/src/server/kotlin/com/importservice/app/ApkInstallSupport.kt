@@ -30,12 +30,15 @@ object ApkInstallSupport {
                 @Suppress("DEPRECATION")
                 intent.getParcelableExtra(Intent.EXTRA_INTENT)
             } ?: return
-            // Только системный диалог подтверждения установки нашего пакета.
-            if (confirm.`package` != null && confirm.`package` != context.packageName) {
-                return
-            }
+            // EXTRA_INTENT — системный UI подтверждения (package часто
+            // com.android.packageinstaller / com.google.android.packageinstaller).
+            // Фильтр по packageName нашего приложения глотал диалог → «тишина» после snackbar.
             confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(confirm)
+            try {
+                context.startActivity(confirm)
+            } catch (_: Exception) {
+                // нет Activity — пользователь увидит только snackbar в Flutter
+            }
         }
     }
 

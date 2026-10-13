@@ -39,6 +39,11 @@ alwaysApply: true
 - **Запрещено** показывать пользователю сырые коды (`INVALID_CREDENTIALS`, `NOT_FOUND` и т.п.) из `ServerException.message`.
 - Маппинг в i18n: `presentation/helpers/login_error_message.dart`, ключи в `assets/i18n/*.json`.
 
+## 9. Chat WSS URL и порт `:0`
+- Схема `wss`/`ws` в Dart **без** default port → `Uri.port == 0` → коннект на `host:0` → `WebSocketException: … was not upgraded`.
+- **Правило:** в `ApiConfig.chatWebsocketUrl` / `orgChatWebsocketUrl` всегда явный порт `443`/`80` (или порт из `API_BASE_URL`).
+- **Сервер:** upgrade МП `/ws/{requestId}/` — СВХ/декларант должны проходить (как REST), не только `organization_id === sub`. Иначе nginx `upstream prematurely closed` / 502.
+
 ## Чек-лист
 - [ ] Порядок `await` / сессия / `go` проверен (+ трассы на время отладки)
 - [ ] `Stack`+`Expanded` — не `loose`+`shrink` в ловушку

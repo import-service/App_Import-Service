@@ -45,6 +45,30 @@ function requestRef(requestId) {
   return id ? `Заявка №${id}` : 'Заявка';
 }
 
+/** «Иванов Иван Иванович» → «Иванов И.И.»; иначе fallback на № заявки. */
+function formatSurnameInitials(fullName) {
+  const parts = String(fullName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0];
+  const surname = parts[0];
+  const initials = parts
+    .slice(1)
+    .map((p) => {
+      const ch = Array.from(p)[0];
+      return ch ? `${ch.toUpperCase()}.` : '';
+    })
+    .join('');
+  return `${surname} ${initials}`.trim();
+}
+
+function personOrRequestRef({ individualFullName, ownerFullName, requestId }) {
+  const person = formatSurnameInitials(individualFullName || ownerFullName);
+  return person || requestRef(requestId);
+}
+
 function subtypeUserHint(code) {
   const c = String(code ?? '').trim();
   if (!c) return '';
@@ -100,6 +124,22 @@ function buildStatePushTitle({ requestId, status, statusSubType }) {
   if (sub === 'primary_documents_sent' || sub === 'signature_revision_required') {
     return clipText('Документы на подпись', MAX_TITLE_LEN);
   }
+function buildStatePushTitle({
+  requestId,
+  status,
+  statusSubType,
+  individualFullName,
+  ownerFullName,
+}) {
+  const req = personOrRequestRef({
+    individualFullName,
+    ownerFullName,
+    requestId,
+  });
+  const sub = String(statusSubType ?? '').trim();
+  if (sub === 'primary_documents_sent' || sub === 'signature_revision_required') {
+    return clipText('Документы на подпись', MAX_TITLE_LEN);
+  }
   if (sub === 'request_closed') {
     return clipText('Заявка закрыта', MAX_TITLE_LEN);
   }
@@ -122,14 +162,18 @@ function classifyChangedFiles(changedDocTypes) {
 /**
  * Текст пуша при upload файлов от 1С.
  */
-function buildFilesChangeSummary({ requestId, status, changedDocTypes }) {
-  const req = requestRef(requestId);
-  const statusPhrase = formatStatusPhrase(status);
-  const { types, categories } = classifyChangedFiles(changedDocTypes);
-
-  if (!types.length) {
-    return clipText(`${req}: появились новые файлы`);
-  }
+function buildFilesChangeSummary({
+  requestId,
+  status,
+  changedDocTypes,
+  individualFullName,
+  ownerFullName,
+}) {
+  const req = personOrRequestRef({
+    individualFullName,
+    ownerFullName,
+    requestId,
+  });
 
   const signingTypes = types.filter(
     (t) => !t.endsWith('_sign') && (docTypeCategory(t) === 'signing' || t === 'contract'),
@@ -176,18 +220,26 @@ function buildFilesPushTitle({ requestId, changedDocTypes }) {
     (t) => !t.endsWith('_sign') && (docTypeCategory(t) === 'signing' || t === 'contract'),
   );
   if (signingTypes.length) {
+function buildFilesPushTitle({
+  requestId,
+  changedDocTypes,
+  individualFullName,
+  ownerFullName,
+}) {
+  const { types } = classifyChangedFiles(changedDocTypes);
+  const signingTypes = types.filter(
+    (t) => !t.endsWith('_sign') && (docTypeCategory(t) === 'signing' || t === 'contract'),
+  );
+  if (signingTypes.length) {
     return clipText('Документы на подпись', MAX_TITLE_LEN);
   }
   if (types.some((t) => t === 'payment_recycling_fee' || t === 'payment_customs_duty')) {
     return clipText('Квитанция к оплате', MAX_TITLE_LEN);
   }
-  return clipText(requestRef(requestId), MAX_TITLE_LEN);
-}
-
-let app = null;
-
-function ensureFirebaseApp(config) {
-  if (app) return app;
+  return clipText(
+    personOrRequestRef({ individualFullName, ownerFullName, requestId }),
+    MAX_TITLE_LEN,
+  );
   const fcm = config?.push?.fcm || {};
   if (!fcm.projectId || !fcm.clientEmail || !fcm.privateKey) {
     return null;
@@ -226,16 +278,29 @@ async function resolveOrgIdByRequestId(pool, requestId) {
      JOIN organizations o ON o.login = r.legal_email AND o.deleted_at IS NULL
      WHERE r.id = ? AND r.deleted_at IS NULL
      LIMIT 1`,
+  const ctx = await resolveRequestPushContext(pool, requestId);
+  return ctx?.orgId ?? null;
+}
+
+/** orgId + ФИО для текста пуша (вместо «Заявка №N»). */
+async function resolveRequestPushContext(pool, requestId) {
+  const [rows] = await pool.query(
+    `SELECT o.id AS org_id,
+            r.individual_full_name,
+            r.owner_full_name
+     FROM customs_requests r
+     JOIN organizations o ON o.login = r.legal_email AND o.deleted_at IS NULL
+     WHERE r.id = ? AND r.deleted_at IS NULL
+     LIMIT 1`,
     [requestId],
   );
   if (!rows.length) return null;
-  return Number(rows[0].id);
-}
-
-async function markTokensDeleted(pool, tokens) {
-  if (!Array.isArray(tokens) || !tokens.length) return;
-  await pool.query(
-    `UPDATE user_push_tokens
+  const row = rows[0];
+  return {
+    orgId: Number(row.org_id),
+    individualFullName: String(row.individual_full_name || '').trim(),
+    ownerFullName: String(row.owner_full_name || '').trim(),
+  };
      SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
      WHERE token IN (?) AND deleted_at IS NULL`,
     [tokens],
@@ -293,15 +358,27 @@ async function notifyFilesChangedFrom1C(fastify, dto) {
   const changeSummary =
     dto.changeSummary ||
     buildFilesChangeSummary({
+  const ctx = await resolveRequestPushContext(fastify.pool, dto.requestId);
+  const orgId = ctx?.orgId ?? null;
+  const requestId = String(dto.requestId || '');
+  const person = {
+    individualFullName: ctx?.individualFullName,
+    ownerFullName: ctx?.ownerFullName,
+  };
+  const changed = Array.isArray(dto.changedDocTypes) ? dto.changedDocTypes : [];
+  const changeSummary =
+    dto.changeSummary ||
+    buildFilesChangeSummary({
       requestId,
       status: dto.status,
       changedDocTypes: changed,
+      ...person,
     });
 
   return sendPushToOrganization(fastify, orgId, {
     title:
       dto.title ||
-      buildFilesPushTitle({ requestId, changedDocTypes: changed }),
+      buildFilesPushTitle({ requestId, changedDocTypes: changed, ...person }),
     body: changeSummary,
     data: {
       type: 'request_files_update',
@@ -317,8 +394,13 @@ async function notifyFilesChangedFrom1C(fastify, dto) {
 }
 
 async function notifyStateChangedFrom1C(fastify, dto) {
-  const orgId = await resolveOrgIdByRequestId(fastify.pool, dto.requestId);
+  const ctx = await resolveRequestPushContext(fastify.pool, dto.requestId);
+  const orgId = ctx?.orgId ?? null;
   const requestId = String(dto.requestId || '');
+  const person = {
+    individualFullName: ctx?.individualFullName,
+    ownerFullName: ctx?.ownerFullName,
+  };
   const status = String(dto.status || '').trim();
   const statusSubType = String(dto.statusSubType || '').trim();
   const previousStatusRaw = String(dto.previousStatus ?? '').trim();
@@ -333,6 +415,7 @@ async function notifyStateChangedFrom1C(fastify, dto) {
       status,
       previousStatusSubType: dto.previousStatusSubType,
       statusSubType,
+      ...person,
     });
 
   const data = {
@@ -354,22 +437,21 @@ async function notifyStateChangedFrom1C(fastify, dto) {
   return sendPushToOrganization(fastify, orgId, {
     title:
       dto.title ||
-      buildStatePushTitle({ requestId, status, statusSubType }),
+      buildStatePushTitle({ requestId, status, statusSubType, ...person }),
     body: changeSummary,
     data,
   });
 }
 
 async function notifyMessageFrom1C(fastify, dto) {
-  const orgId = await resolveOrgIdByRequestId(fastify.pool, dto.requestId);
+  const ctx = await resolveRequestPushContext(fastify.pool, dto.requestId);
+  const orgId = ctx?.orgId ?? null;
   const requestId = String(dto.requestId || '');
-  const req = requestRef(requestId);
-  return sendPushToOrganization(fastify, orgId, {
-    title: 'Сообщение от менеджера',
-    body: clipText(dto.text || `${req}: новое сообщение в чате`),
-    data: {
-      type: 'new_message',
-      requestId,
+  const req = personOrRequestRef({
+    individualFullName: ctx?.individualFullName,
+    ownerFullName: ctx?.ownerFullName,
+    requestId,
+  });
       request_id: requestId,
       id: requestId,
       external1cId: dto.external1cId || '',

@@ -443,7 +443,15 @@ function startChatWss(fastify) {
           return;
         }
         const row = await findRequestById(fastify.pool, roomId);
-        if (!row || Number(row.organization_id) !== userId) {
+        if (!row) {
+          socket.destroy();
+          return;
+        }
+        // Как REST: СВХ/декларант — все заявки; клиент — только своя org.
+        const role = String(auth.decoded?.role || '').trim();
+        const isCatalogStaff =
+          role === 'svh_manager' || role === 'declarant_manager';
+        if (!isCatalogStaff && Number(row.organization_id) !== userId) {
           socket.destroy();
           return;
         }

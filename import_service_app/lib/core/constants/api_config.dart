@@ -11,6 +11,10 @@ class ApiConfig {
   );
 
   /// [api-app.md]: `wss://<host>/ws/<requestId>/?token=…` (путь с завершающим `/` перед `?`).
+  ///
+  /// Важно: у схемы `wss`/`ws` в Dart нет default port → `Uri.port == 0`,
+  /// а `WebSocketChannel` midает на `:0` и upgrade падает. Всегда задаём 443/80
+  /// (или явный порт из API_BASE_URL, напр. `:3000`).
   static String chatWebsocketUrl(String requestId, String accessToken) {
     final raw = baseUrl.trim();
     final u = Uri.parse(raw.endsWith('/') ? raw : '$raw/');
@@ -19,7 +23,7 @@ class ApiConfig {
     return Uri(
       scheme: scheme,
       host: u.host,
-      port: u.hasPort ? u.port : null,
+      port: _websocketPort(u, scheme),
       path: '/ws/$idEnc/',
       queryParameters: <String, String>{'token': accessToken},
     ).toString();
@@ -33,9 +37,16 @@ class ApiConfig {
     return Uri(
       scheme: scheme,
       host: u.host,
-      port: u.hasPort ? u.port : null,
+      port: _websocketPort(u, scheme),
       path: '/ws/org/',
       queryParameters: <String, String>{'token': accessToken},
     ).toString();
+  }
+
+  static int _websocketPort(Uri apiBase, String wsScheme) {
+    if (apiBase.hasPort && apiBase.port > 0) {
+      return apiBase.port;
+    }
+    return wsScheme == 'wss' ? 443 : 80;
   }
 }

@@ -61,9 +61,9 @@ class _RequestDetailCollapsibleSectionState
   @override
   void didUpdateWidget(RequestDetailCollapsibleSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.needsAction && !widget.needsAction && _expanded == true) {
-      _setExpanded(false, persist: true);
-    } else if (!oldWidget.needsAction && widget.needsAction) {
+    // Urgent появился — раскрыть. Снятие urgent больше НЕ сворачивает:
+    // иначе после каждого *_sign клиент «вылетает» в корень карточки.
+    if (!oldWidget.needsAction && widget.needsAction) {
       _setExpanded(true, persist: false);
     }
     if (widget.newCount > oldWidget.newCount ||

@@ -14,4 +14,6 @@
 | Файл | Заказчик | Тема | Статус |
 |------|----------|------|--------|
 | [NEXT_BUILD_CHANGELOG.md](./NEXT_BUILD_CHANGELOG.md) | — | Черновик «Что изменилось» для следующего APK / сайта | living |
+| [2026-10-13-ksenia-android-pass.md](./2026-10-13-ksenia-android-pass.md) | Ксения | Прогон Android + своё (сверка с 12.10) | open |
+| [2026-10-12-remarks-batch.md](./2026-10-12-remarks-batch.md) | заказчик | Пакет замечаний 1–19 | in progress |
 | [2026-10-08-chat-attachments-no-filetype.md](./2026-10-08-chat-attachments-no-filetype.md) | Ксения Костырева | Чат: вложения не открывались / тип файла | open — МП ок; UI имён; 1С по желанию |

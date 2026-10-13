@@ -737,8 +737,34 @@ module.exports = async function customsRequestsRoutes(fastify) {
         args,
       );
 
+      // Файлы в списке нужны МП для красных алармов (чек оплаты, подпись)
+      // без обязательного открытия деталки.
+      const filesByRequestId = new Map();
+      const requestIds = rows.map((r) => Number(r.id)).filter((id) => id > 0);
+      if (requestIds.length) {
+        const [fileRows] = await fastify.pool.query(
+          `SELECT ${CUSTOMS_REQUEST_FILE_SELECT}
+           FROM customs_request_files
+           WHERE deleted_at IS NULL
+             AND request_id IN (${requestIds.map(() => '?').join(',')})
+           ORDER BY id ASC`,
+          requestIds,
+        );
+        for (const f of fileRows) {
+          const rid = Number(f.request_id);
+          if (!filesByRequestId.has(rid)) filesByRequestId.set(rid, []);
+          filesByRequestId.get(rid).push(f);
+        }
+      }
+
       const items = rows.map((row) =>
-        toCustomsRequestDto(fastify, request, row, [], listDtoOptions),
+        toCustomsRequestDto(
+          fastify,
+          request,
+          row,
+          filesByRequestId.get(Number(row.id)) || [],
+          { includeFiles: true },
+        ),
       );
       return reply.send({ items, limit, offset });
     },

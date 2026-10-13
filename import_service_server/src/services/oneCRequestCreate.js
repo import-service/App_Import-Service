@@ -10,6 +10,42 @@ function normalize(v) {
   return String(v ?? '').trim();
 }
 
+/**
+ * Дубль анкеты в комментарий для наглядности в 1С:
+ * «Повторный ввоз» + даты; авто в собственности.
+ * Структурные поля previousImportDates / ownedVehicles остаются как были.
+ */
+function enrichCommentTextForOneC(commentText, q) {
+  const parts = [];
+  const base = normalize(commentText);
+  if (base) parts.push(base);
+
+  const dates = Array.isArray(q?.previousImportDates)
+    ? q.previousImportDates.map((d) => normalize(d)).filter(Boolean)
+    : [];
+  if (dates.length) {
+    parts.push(`Повторный ввоз. Даты предшествующего ввоза: ${dates.join(', ')}`);
+  }
+
+  const cars = Array.isArray(q?.ownedVehicles) ? q.ownedVehicles : [];
+  if (cars.length) {
+    const lines = cars
+      .map((c) => {
+        if (c == null) return '';
+        if (typeof c === 'string') return normalize(c);
+        const name = normalize(c.name || c.title || '');
+        const year = c.year != null && String(c.year).trim() !== '' ? String(c.year).trim() : '';
+        return [name, year].filter(Boolean).join(', ');
+      })
+      .filter(Boolean);
+    if (lines.length) {
+      parts.push(`Авто в собственности: ${lines.join('; ')}`);
+    }
+  }
+
+  return parts.length ? parts.join('\n') : null;
+}
+
 function buildCreatePayloadFromBody(requestId, body, orgMeta = {}) {
   const files = Array.isArray(body.files) ? body.files : [];
   const legalInn = normalize(String(body.legalInn ?? body.inn ?? '').replace(/\D/g, ''));
@@ -40,7 +76,7 @@ function buildCreatePayloadFromBody(requestId, body, orgMeta = {}) {
     ownsOtherCars: q.ownsOtherCars,
     previousImportDates: q.previousImportDates,
     ownedVehicles: q.ownedVehicles,
-    commentText: normalize(body.commentText) || null,
+    commentText: enrichCommentTextForOneC(body.commentText, q),
     isTest: Boolean(body.isTest),
     files: files.map((f) => ({
       docType: normalize(f.docType),
