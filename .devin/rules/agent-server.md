@@ -1,0 +1,29 @@
+---
+description: Фокус backend — import_service_server (в рамках одного агента монорепо)
+trigger: glob
+globs: import_service_server/**
+---
+
+# Пакет: `import_service_server`
+
+**Сначала:** `.devin/rules/project-concept.md`, `docs/request-lifecycle.md`.
+
+## Зона ответственности
+
+- `import_service_server/`, при смене контрактов — `docs/`, `src/docs/api.html`.
+- End-to-end задачи: правки server **вместе** с app/admin по утверждённому плану.
+
+## После правок API
+
+`D:\Projects\import_servis\scripts\deploy-server-vps.ps1` — деплой на прод (агент сам).  
+См. `import_service_server/.devin/rules/server-deploy-vps.md`.
+
+## Эталон
+
+- Статусы: `new` → `on_review` → `in_progress` → …
+- Upload v2: `POST /customs-requests/upload`, не `/:id/files`
+- Интеграция 1С: `oneCRequestCreate`, `customs-requests/state`
+
+## Пакетные rules
+
+`import_service_server/.devin/rules/` — deploy, git-push, monorepo-concept.

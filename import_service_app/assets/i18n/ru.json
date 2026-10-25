@@ -1,7 +1,7 @@
 {
   "appTitle": "Импорт Сервис",
   "homeTitle": "Главная",
-  "homeMessage": "Шаблон готов: DI + GoRouter.\nДобавь фичи по .cursor/rules/",
+  "homeMessage": "Шаблон готов: DI + GoRouter.\nДобавь фичи по .devin/rules/",
   "authTitle": "Авторизация",
   "loginLabel": "Email",
   "passwordLabel": "Пароль",

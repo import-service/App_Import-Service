@@ -82,6 +82,6 @@ String? get displayImageUrl {
 - [ ] Лимиты 25/100 МБ на клиенте
 - [ ] Убрать UI удаления заявки из МП (если был)
 
-Промпт для агента МП (copy-paste): `import_service_app/.cursor/prompts/preview-url-photo-video.md`
+Промпт для агента МП (skill): `import_service_app/.devin/skills/preview-url-photo-video/SKILL.md`
 
 Документация API: https://157-22-173-7.sslip.io/docs/integration и `/docs` (карточки upload, files[]).

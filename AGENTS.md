@@ -1,8 +1,8 @@
-# Import Service — монорепо (один агент Cursor)
+# Import Service — монорепо (один агент)
 
 ## ПРАВИЛО №1 (важнее всего)
 
-**`.cursor/rules/approve-before-any-action.mdc`**
+**`.devin/rules/approve-before-any-action.md`**
 
 Пока пользователь не утвердил план («делай» / «ок» / «да») — **запрещены любые tool calls** (SSH, логи, код, деплой, «быстро проверить»). Сначала: разъяснить → план → «Утверждаешь?» → ждать. Вопрос («почему?», «что ответить?») = только текст.
 
@@ -19,31 +19,31 @@
 Пользователь общается с **одним агентом** на app + server + admin + docs.  
 Subagent/Task — только после утверждённого плана в этом чате.
 
-## Корневые правила (alwaysApply)
+## Корневые правила (trigger: always_on)
 
 | Файл | Назначение |
 |------|------------|
-| `approve-before-any-action.mdc` | **№1** — план + утверждение **до** любых тулов |
-| `customer-literal-ui-fidelity.mdc` | Делать 1:1 по словам/скрину заказчика и пользователя (не подменять UI) |
-| `one-app-version-store-and-debug.mdc` | Один `pubspec` version для debug и стора; не откатывать ниже опубликованной |
-| `import-platform-workspace.mdc` | Структура монорепо, порядок end-to-end |
-| `feature-delivery-workflow.mdc` | План → утверждение → код (фичи) |
-| `agent-docs-keep-fresh.mdc` | После фичи/UI — обновлять агентские `.mdc` (карта флоу МП) |
-| `agent-invariants-never-break.mdc` | commit/push/релиз только по просьбе |
-| `agent-does-setup-never-user-chores.mdc` | Агент сам: analyze, деплой, setup (**после** утверждения задачи) |
-| `mandatory-verify-after-code-changes.mdc` | analyze перед «готово» |
-| `project-concept.mdc` | МП ↔ сервер ↔ 1С (+ роли МП: клиент / СВХ) |
-| `monorepo-scope.mdc` | Границы по задаче, не по «трём агентам» |
+| `approve-before-any-action.md` | **№1** — план + утверждение **до** любых тулов |
+| `customer-literal-ui-fidelity.md` | Делать 1:1 по словам/скрину заказчика и пользователя (не подменять UI) |
+| `one-app-version-store-and-debug.md` | Один `pubspec` version для debug и стора; не откатывать ниже опубликованной |
+| `import-platform-workspace.md` | Структура монорепо, порядок end-to-end |
+| `feature-delivery-workflow.md` | План → утверждение → код (фичи) |
+| `agent-docs-keep-fresh.md` | После фичи/UI — обновлять агентские `.md` (карта флоу МП) |
+| `agent-invariants-never-break.md` | commit/push/релиз только по просьбе |
+| `agent-does-setup-never-user-chores.md` | Агент сам: analyze, деплой, setup (**после** утверждения задачи) |
+| `mandatory-verify-after-code-changes.md` | analyze перед «готово» |
+| `project-concept.md` | МП ↔ сервер ↔ 1С (+ роли МП: клиент / СВХ) |
+| `monorepo-scope.md` | Границы по задаче, не по «трём агентам» |
 
 ## Пакетные правила
 
 | Пакет | Каталог |
 |-------|---------|
-| МП | `import_service_app/.cursor/rules/` |
-| Сервер | `import_service_server/.cursor/rules/` |
-| Админка | `import_service_admin/.cursor/rules/` |
+| МП | `import_service_app/.devin/rules/` |
+| Сервер | `import_service_server/.devin/rules/` |
+| Админка | `import_service_admin/.devin/rules/` |
 
-Фокус по globs: `agent-mobile-app.mdc`, `agent-server.mdc`, `agent-admin-web.mdc`.
+Фокус по globs: `agent-mobile-app.md`, `agent-server.md`, `agent-admin-web.md`.
 
 ## Канон документации
 
@@ -52,16 +52,16 @@ Subagent/Task — только после утверждённого плана 
 | `docs/request-lifecycle.md` | Заявки, статусы, upload |
 | `docs/api-app.md`, `docs/api-1c.md` | HTTP API |
 | `docs/catalog-reference.md` | docType, statusSubType |
-| `import_service_app/.cursor/rules/app-runtime-architecture.mdc` | Runtime МП (клиент + СВХ, APK, кэш) |
-| `.cursor/rules/agent-docs-keep-fresh.mdc` | После фичи — обновлять agent `.mdc` |
+| `import_service_app/.devin/rules/app-runtime-architecture.md` | Runtime МП (клиент + СВХ, APK, кэш) |
+| `.devin/rules/agent-docs-keep-fresh.md` | После фичи — обновлять agent `.md` |
 
 **Прод:** https://app.import-service.su/docs
 
 ## Деплой
 
 - Сервер: `scripts/deploy-server-vps.ps1` — агент сам после правок API
-- SSL/LE на VPS: `import_service_server/.cursor/rules/server-deploy-vps.mdc` (§ SSL) + `scripts/setup-ssl-autorenew.sh`; канон для новых VPS — шаблон `fastify-api` (`ssl-letsencrypt-vps.mdc`)
-- APK/IPA: только по явной просьбе — `import_service_app/.cursor/rules/release-apk-handoff.mdc`
+- SSL/LE на VPS: `import_service_server/.devin/rules/server-deploy-vps.md` (§ SSL) + `scripts/setup-ssl-autorenew.sh`; канон для новых VPS — шаблон `fastify-api` (`ssl-letsencrypt-vps.mdc`)
+- APK/IPA: только по явной просьбе — `import_service_app/.devin/rules/release-apk-handoff.md`
 
 ## Git
 

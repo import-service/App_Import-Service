@@ -1,0 +1,79 @@
+---
+description: Деплой API на прод — агент выполняет сам, без вопросов пользователю
+trigger: always_on
+---
+
+# Деплой сервера на VPS (прод) — ОБЯЗАТЕЛЬНО для агента
+
+**Git push не обновляет прод.** После любых правок в `import_service_server` агент **сам** выполняет деплой и **сам** проверяет URL. **Не просить пользователя** «залить архив» / «перезапустите pm2» — делать через SSH.
+
+## Параметры (зафиксированы)
+
+| | |
+|---|---|
+| SSH | `root@168.113.158.82` (ключ в `~/.ssh`, host в `known_hosts`; старый IP `157.22.173.7` выведен) |
+| Каталог Node на VPS | `/var/www/www-root/data/www/157-22-173-7.sslip.io` |
+| pm2 | `import-service` |
+| `PUBLIC_BASE_URL` | **`https://app.import-service.su`** (все абсолютные ссылки: APK, файлы, письма). Не sslip. |
+| Проверка | `https://app.import-service.su/admin/` → **200**, `text/html` (не JSON 404); legacy sslip тоже ок |
+
+`ssh-prod` в `~/.ssh/config` — **другой** сервер (joypick), **не** Import Service.
+
+## Одна команда (Windows, из корня монорепо)
+
+```powershell
+cd D:\Projects\import_servis
+.\scripts\deploy-server-vps.ps1
+```
+
+Скрипт: `pack-server-update.ps1` → `scp` архива → `tar` на VPS → `npm install --omit=dev` → **`pm2 reload`** (fallback `restart`) → wait до HTTP 200 на `:3000` → `curl` `/admin/`.
+
+Nginx `app.import-service.su`: `upstream` + `proxy_next_upstream` (меньше «зависаний» браузера при кратком простое Node). На VPS файл часто с `chattr +i` — перед правкой `chattr -i`, после — снова `+i`. При одном fork-процессе окно ~1–2 с 502 при reload всё ещё возможно; это лучше, чем `ERR_TIMED_OUT`.
+
+## Если правки только в git (без сервера)
+
+Сначала при необходимости:
+
+```powershell
+.\scripts\push-monorepo.ps1 -Message "..."
+```
+
+Потом **всё равно** `.\scripts\deploy-server-vps.ps1`.
+
+## Веб-админка `/admin`
+
+- Статика: `import_service_server/web/` (в `.tgz` есть `web/index.html`).
+- Код: `src/routes/adminWeb.js`, подключение в `src/routes/docs.js`.
+- Flutter: `.\scripts\deploy-admin-web.ps1`, затем снова `deploy-server-vps.ps1`.
+
+## Ошибка `Route GET:/admin/ not found`
+
+На VPS старый `src/` без `adminWeb.js` — нужен **deploy-server-vps.ps1**, не только push в GitHub.
+
+## Запрещено агенту
+
+- Писать «сделайте на VPS» без попытки `deploy-server-vps.ps1`.
+- Считать, что push в GitHub обновил прод.
+- Использовать `ssh-prod` для этого проекта.
+
+## SSL Let’s Encrypt (прод)
+
+| | |
+|---|---|
+| Домен | `app.import-service.su` (certbot `/etc/letsencrypt/live/…`) + legacy `157-22-173-7.sslip.io` (ISPmanager LE id=1) |
+| Cert files (app) | `/etc/letsencrypt/live/app.import-service.su/fullchain.pem` |
+| Cert files (sslip) | `/var/www/httpd-cert/www-root/157-22-173-7.sslip.io_le1.crt` |
+| Cert ID (sslip) | `1` (ISPmanager LE) |
+| Safety renew sslip | `/usr/local/sbin/renew-sslip-le.sh` (cron пн 04:15) |
+| Renew app | `certbot renew` (systemd timer) |
+| Шаблон/канон | `F:\_ARC\Projects\_my_template\fastify-api\.cursor\rules\ssl-letsencrypt-vps.mdc` |
+| Скрипт | `scripts/setup-ssl-autorenew.sh` (из корня монорепо) |
+
+LE максимум ~90 дней. При «сертификат истёк» / HSTS: проверить ACME `/.well-known/acme-challenge/` (HTTP **200**, не 404 Node), затем:
+
+```bash
+ssh root@168.113.158.82 '/usr/local/mgr5/sbin/letsencrypt --cert-id 1 && nginx -t && nginx -s reload'
+```
+
+Или заново прогнать `setup-ssl-autorenew.sh` с `DOMAIN=157-22-173-7.sslip.io CERT_ID=1 LISTEN_IP=168.113.158.82`.
+Не проксировать ACME в Node; на HTTP не ставить server-level `return 301` на весь server.

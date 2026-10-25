@@ -1,0 +1,96 @@
+---
+description: Сборка release APK для заказчика — версия, артеfact, push в git
+trigger: model_decision
+---
+
+# Release APK (import_service_app)
+
+Когда пользователь просит **APK / AAB / сборку для заказчика / iOS / выложить приложение** — выполняй **весь** флоу сам.
+
+## Android: обязательный путь сборки
+
+**Не** вызывать сырой `flutter build apk` в sandbox-окружении агента.
+
+```powershell
+cd D:\Projects\import_servis
+# APK на наш сервер (flavor server):
+.\scripts\build-release-android.ps1 -UploadApk
+# + AAB для сторов (flavor store):
+.\scripts\build-release-android.ps1 -AlsoStoreAab -UploadApk
+# + APK для RuStore (flavor store):
+.\scripts\build-release-android.ps1 -AlsoStoreAab -AlsoStoreApk
+```
+
+Скрипт:
+
+- ставит `GRADLE_USER_HOME=%USERPROFILE%\.gradle` (запрет `cursor-sandbox-cache`);
+- `gradlew --stop` перед сборкой;
+- **server** APK → `D:\Temp\import_service_app_1_{BUILD}.apk` (на сервер);
+- **store** AAB → `D:\Temp\import_service_app_1_{BUILD}.aab`;
+- **store** APK → `D:\Temp\import_service_app_store_1_{BUILD}.apk`.
+
+Flavors: `server` (самоустановка APK) / `store` (Play/RuStore, без `REQUEST_INSTALL_PACKAGES`, без native PackageInstaller/`EXTRA_INTENT`).
+
+Канон про зависания Gradle: `.devin/rules/android-release-gradle-never-sandbox.md`.
+
+## Android: APK (шаги)
+
+1. **Поднять версию** в `import_service_app/pubspec.yaml`:
+   - Формат: `MAJOR.MINOR.PATCH+BUILD` (например `0.1.6+6` → `0.1.7+7`).
+   - **Patch** (+1) и **build number** после `+` (+1) — **оба** шага, если пользователь не указал иначе.
+   - **Нельзя** опускать ниже уже залитой в стор / server-APK версии. Канон: `.devin/rules/one-app-version-store-and-debug.md`.
+   - Тот же `pubspec` для debug `flutter run` и для store/server артефактов.
+   - Build number должен совпадать с числом в имени APK (см. ниже).
+
+2. Сборка — **только** `.\scripts\build-release-android.ps1` (см. выше), не ручной `flutter build` в sandbox.
+
+3. **Скопировать артеfact** уже делает скрипт → `D:\Temp\import_service_app_1_{BUILD}.apk`.
+
+4. **Коммит и push** из **корня монорепо** `D:\Projects\import_servis`:
+   ```powershell
+   cd D:\Projects\import_servis
+   .\scripts\push-monorepo.ps1 -Message "release: МП v0.1.7+7, APK для заказчика"
+   ```
+   Или вручную — см. `git-push-monorepo.md`. Сообщение коммита — **на русском**.
+
+5. **Сообщить пользователю**: путь к APK, новая версия, что push выполнен (или ошибка).
+
+## Android: AAB / store APK (Google Play / RuStore)
+
+Флаги `-AlsoStoreAab` / `-AlsoStoreApk` у `build-release-android.ps1` (**flavor store**).
+
+Имена: `import_service_app_1_{BUILD}.aab`, `import_service_app_store_1_{BUILD}.apk`.
+
+Устаревший `-AlsoAab` = `-AlsoStoreAab`.
+
+## iOS (только macOS)
+
+**Перед открытием Xcode / после pull:** обязательно `import_service_app/scripts/prep-ios-xcode.sh` (см. `ios-xcode-prep.md`) — иначе в Xcode старая `FLUTTER_BUILD_*`.
+
+Проект уже на **FlutterImplicitEngineDelegate + SceneDelegate** (Swift). Перед первой сборкой на Mac:
+
+- `ITSAppUsesNonExemptEncryption = false` в `ios/Runner/Info.plist` — **не спрашивает** export compliance в App Store Connect (только HTTPS).
+- `ios/Runner/Runner.entitlements` — `aps-environment: production` (push).
+- `lib/firebase_options.dart` — iOS `appId` из `GoogleService-Info.plist` (не android).
+- Firebase Console → Cloud Messaging → **APNs Authentication Key** (.p8) загружен для bundle `com.importservice.app`.
+- Apple Developer → App ID → capability **Push Notifications** включена.
+- Prep: `import_service_app/scripts/prep-ios-xcode.sh`
+- IPA: `import_service_app/scripts/build-ios-release.sh`
+- Или: `flutter build ipa --release --export-options-plist=ios/ExportOptions.plist`
+- Подпись: Team + provisioning в Xcode (`Runner` → Signing).
+- Загрузка: Transporter или `xcrun altool --upload-app`.
+
+## Порядок версии (жёстко)
+
+- **Не** собирать APK без bump версии, если пользователь явно просил «флоу с версией».
+- **Не** класть APK только в `build/` — дубликат в **`D:\Temp`** обязателен для передачи заказчику.
+- **Не** коммитить секреты (`.env`, keystore, `firebase-adminsdk-*.json` и т.п.).
+
+## Опционально перед сборкой
+
+- `flutter analyze` — по смыслу задачи; при срочной выдаче APK не блокирует, если нет ошибок компиляции.
+
+## Связанные правила
+
+- Push: `git-push-monorepo.md`
+- Терминал: `agent-workflow.md`

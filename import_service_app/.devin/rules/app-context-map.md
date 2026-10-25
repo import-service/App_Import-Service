@@ -1,0 +1,137 @@
+---
+description: Карта проекта для агента — слои, модели, тема, ключевые виджеты, локальные черновики
+trigger: always_on
+---
+
+# Карта приложения (для агента)
+
+**Полные потоки данных и инварианты:** `app-runtime-architecture.md` (читать перед задачей).
+
+Краткий ориентир по коду. Детали слоёв — `architecture.md`; виджеты — `presentation-widgets.md`.
+
+## Стили и тема
+
+| Что | Где |
+|-----|-----|
+| Цвета, `ThemeData.light` | `lib/core/themes/app_theme.dart` |
+
+## Модели и локальные данные
+
+| Что | Где |
+|-----|-----|
+| Enum `docType` / подстатус / сделка | `lib/domain/entities/customs_doc_type.dart`, `request_status_sub_type.dart`, `deal_type.dart`, `finance_line_type.dart` |
+| Форма заявки (DTO + JSON) | `lib/data/models/request_form_model.dart` |
+| Черновик заявки | `lib/data/models/request_draft.dart` |
+| Хранилище черновиков (SharedPreferences) | `lib/data/local/request_draft_store.dart` |
+| Папка вложений на черновик (`request_draft_attachments/<id>/`) | `lib/data/local/request_draft_attachments_space.dart` |
+| Демо-авто | `lib/presentation/models/demo_car.dart`, `lib/data/demo/demo_cars_remote_mock.dart` |
+| Статусы фильтра (enum) | `lib/presentation/models/demo_car_filter_status.dart` |
+
+## DI и строки
+
+| Что | Где |
+|-----|-----|
+| GetIt | `lib/core/di/injection_container.dart` |
+| i18n JSON + геттеры | `assets/i18n/*.json`, `lib/core/i18n/json_strings_service.dart` |
+
+## Обратная связь (SnackBar)
+
+| Что | Где |
+|-----|-----|
+| Типы / сервис | `lib/core/ui/app_feedback_kind.dart`, `lib/core/ui/app_feedback_service.dart` |
+| Ключ messenger | `lib/core/ui/app_scaffold_messenger_key.dart` |
+
+Показ сообщений — только через **`AppFeedbackService`**.
+
+---
+
+## Реестр ключевых UI (`lib/presentation/widgets/`)
+
+Перед новым виджетом — поиск в дереве `widgets/**`. Новый файл — `snake_case.dart`, одна публичная сущность на файл (см. `presentation-widgets.md`).
+
+| Путь (от `lib/`) | Назначение |
+|------------------|------------|
+| `presentation/widgets/app_bar/brand_primary_app_bar.dart` | Синий AppBar |
+| `presentation/widgets/app_bar/settings_app_bar_action.dart` | Настройки / язык в AppBar |
+| `presentation/widgets/auth/login_brand_logo.dart` | Логотип на входе |
+| `presentation/widgets/bottom_sheets/app_modal_bottom_sheet.dart` | Общая модальная шторка |
+| `presentation/widgets/bottom_sheets/sheet_header.dart` | Заголовок шторки |
+| `presentation/widgets/bottom_sheets/language_selection_bottom_sheet.dart` | Выбор языка |
+| `presentation/widgets/bottom_sheets/registration_request_bottom_sheet.dart` | Заявка на регистрацию |
+| `presentation/widgets/bottom_sheets/request_drafts_bottom_sheet.dart` | Список черновиков заявки |
+| `presentation/widgets/bottom_sheets/request_files_exit_confirm_bottom_sheet.dart` | Подтверждение выхода с экрана файлов без сохранения |
+| `presentation/widgets/buttons/app_primary_filled_wide_button.dart` | Синяя широкая CTA |
+| `presentation/widgets/buttons/app_primary_outlined_wide_button.dart` | Широкая outlined |
+| `presentation/widgets/buttons/app_logout_outlined_wide_button.dart` | Выход |
+| `presentation/widgets/buttons/app_accent_underlined_text_button.dart` | Подчёркнутый акцент |
+| `presentation/widgets/buttons/app_accent_filled_compact_button.dart` | Компактная красная кнопка |
+| `presentation/widgets/cards/car_card.dart` | Карточка авто в списке |
+| `presentation/widgets/requests/car_request_file_slot_row.dart` | Строка слота фото/файла на детализации (те же поля, что [RequestFilesUploadPage]) |
+| `presentation/widgets/requests/request_detail_finance_card.dart` | Финансы (legacy demo): сумма, QR, чек |
+| `presentation/widgets/requests/request_detail_collapsible_section.dart` | Сворачиваемая секция деталки + persist + красная рамка |
+| `presentation/widgets/requests/request_detail_owner_section.dart` | «О заявке»: владелец, сделка, авто |
+| `presentation/widgets/requests/request_detail_finances_block.dart` | «Финансы и оплата»: суммы + файлы оплаты в одном блоке |
+| `presentation/widgets/profile/profile_placeholder_avatar.dart` | Аватар: фото или логотип Import Service |
+| `core/util/vin_display.dart` | VIN в списках/чатах всегда полностью (без `***`) |
+| `presentation/widgets/requests/request_detail_customs_amounts_section.dart` | (legacy) суммы — логика перенесена в finances_block |
+| `data/models/customs_request_upload_result.dart` | Ответ upload, результат батча create |
+| `presentation/widgets/requests/request_detail_photo_placeholders_row.dart` | Ряд плиток-заглушек вместо фото авто |
+| `presentation/widgets/requests/request_detail_files_sections.dart` | Секции файлов заявки: подача, подпись, оплата |
+| `presentation/widgets/requests/request_detail_file_upload_chip.dart` | Загрузка подписи/чека на деталке |
+| `presentation/widgets/requests/request_detail_doc_upload_group.dart` | Блок «документ + загрузить снова» в одной карточке |
+| `presentation/pages/request_pdf_viewer_page.dart` | Встроенный просмотр PDF заявки |
+| `presentation/widgets/requests/request_detail_payment_groups.dart` | Секция «Оплата»: пары квитанция+чек в одном блоке |
+| `presentation/helpers/request_file_uploaded_indicator.dart` | Галочка «загружено клиентом» (подпись, чек) |
+| `presentation/helpers/request_file_picker.dart` | Фото/PDF для загрузки на деталке |
+| `presentation/helpers/request_status_action_hint.dart` | Подсказки по statusSubType на деталке |
+| `presentation/helpers/deal_type_labels.dart` | Подпись вида сделки (`DealType`) |
+| `presentation/widgets/requests/request_detail_action_hint_banner.dart` | Баннер подсказки на деталке |
+| `core/constants/customs_catalog.dart` | Справочник docType / подстатусов (синхрон с сервером) |
+| `domain/services/request_files_grouper.dart` | Группировка `files[]`, пары `*_sign`, нужность подписи |
+| `presentation/helpers/doc_type_labels.dart` | Подписи docType для UI |
+| `presentation/helpers/request_status_labels.dart` | Подписи верхних статусов, фильтры вкладок, доступность чата |
+| `domain/entities/request_detail_finance_line.dart` | Строка суммы в «Финансах» на детализации |
+| `presentation/widgets/drafts/request_draft_list_tile.dart` | Строка черновика заявки |
+| `presentation/widgets/bottom_sheets/request_draft_delete_confirm_bottom_sheet.dart` | Подтверждение удаления черновика (шторка) |
+| `presentation/widgets/filters/car_status_chips_bar.dart` | Чипы статусов |
+| `presentation/widgets/filters/filter_status_checkbox_tile.dart` | Чек строки фильтра |
+| `presentation/widgets/forms/app_field_decoration.dart` | Обводка полей |
+| `presentation/widgets/forms/app_labeled_text_field.dart` | Подпись + поле (в т.ч. пароль) |
+| `presentation/widgets/forms/fields/app_clearable_labeled_field.dart` | База полей с крестиком очистки |
+| `presentation/widgets/forms/fields/app_inn_field.dart` | ИНН: маска, валидация |
+| `presentation/widgets/forms/fields/app_phone_ru_field.dart` | Телефон РФ: маска, валидация |
+| `presentation/widgets/forms/fields/app_snils_field.dart` | СНИЛС: маска, валидация |
+| `presentation/helpers/masked_field_validation.dart` | Общая валидация ИНН/телефон/СНИЛС |
+| `presentation/widgets/forms/app_search_bar_field.dart` | Поиск |
+| `presentation/widgets/forms/request_*.dart` | Форма заявки (базовые поля и фото-ряды) |
+| `presentation/widgets/forms/input_formatters/*` | Маски (ИНН, телефон, VIN) |
+| `presentation/widgets/navigation/home_bottom_nav_bar.dart` | Нижняя навигация главной |
+| `presentation/widgets/tabs/cars_tab_view.dart` | Вкладка «Мои авто»: один UI для демо и прод (список из мока или пусто + черновики) |
+| `presentation/widgets/tabs/svh_cars_tab_view.dart` | Список авто для менеджера СВХ (+ VIN search) |
+| `presentation/widgets/tabs/profile_tab_view.dart` | Профиль; `isActive` → refresh версии APK; недавние входы → switch |
+| `presentation/widgets/auth/recent_accounts_list.dart` | Список недавних входов (email + роль) |
+| `presentation/helpers/account_login_flow.dart` | login / switch account (logout + POST auth/login) |
+| `core/auth/recent_accounts_service.dart` | Secure storage истории входов (+ merge QA-сидов) |
+| `core/auth/qa_known_accounts.dart` | Канон QA-учёток для быстрых входов (клиент: `admin@gmail.com`) |
+| `presentation/widgets/navigation/svh_bottom_nav_bar.dart` | Нижняя навигация shell СВХ |
+| `presentation/widgets/requests/request_detail_files_sections.dart` | Секции документов; всегда видимы; empty «Пока нет файлов» |
+| `presentation/widgets/requests/request_detail_collapsible_section.dart` | Бейджи: красный кружок (new count), жёлтый ! (changed) |
+| `data/local/request_file_seen_store.dart` | Baseline fingerprint файлов для new vs changed |
+| `presentation/bloc/request_attention/*` | newDocTypes / changedDocTypes; гашение при открытии секции |
+| `presentation/widgets/profile/profile_role_switch_section.dart` | Мульти-роль в профиле |
+| `presentation/widgets/filters/manager_filter_bar.dart` | Dropdown фильтра менеджера 1С (Мои / A–Я) |
+| `presentation/pages/svh_home_page.dart` | Shell менеджера СВХ |
+| `presentation/pages/declarant_home_page.dart` | Shell декларанта |
+| `presentation/pages/svh_qr_scan_page.dart` | QR → VIN для фильтра списка СВХ |
+| `presentation/pages/svh_request_detail_page.dart` | Устарело; роутер → `CarRequestDetailPage` |
+| `presentation/pages/request_create_page.dart` | Создание заявки; org без ИНН; ИНН только «кому везут» |
+| `presentation/helpers/inn_label.dart` | Тип орг для длины ИНН (лейбл поля везде «ИНН») |
+| `presentation/widgets/tabs/profile_tab_view.dart` | Профиль клиента: поле ИНН без суффикса типа |
+| `presentation/pages/request_video_player_page.dart` | Плеер видео заявки + Скачать/Поделиться |
+| `presentation/widgets/requests/cached_auth_image.dart` | Картинка с auth + диск-кэш по stamp |
+| `presentation/widgets/requests/request_file_video_thumb.dart` | Превью видео (кэш) |
+| `presentation/helpers/request_file_preview_helper.dart` | Кэш медиа, share, save to gallery (`gal`) |
+| `presentation/helpers/login_error_message.dart` | Коды API → текст SnackBar на входе |
+| `core/auth/session_role.dart` | `svh_manager` → `/svh-home` |
+| `core/app_update/*` | Server APK / store update, bootstrap после логина |
+| `core/util/single_file_path_list.dart` | `mutableSlotPaths`, `singleFilePathList` — один файл, изменяемые списки |

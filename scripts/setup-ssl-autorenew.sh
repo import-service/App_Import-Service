@@ -166,7 +166,7 @@ warn_nested_proxy() {
   if grep -q "proxy_pass http://127.0.0.1:" "$NGINX_VHOST" \
     && grep -q "try_files /does_not_exists @fallback" "$NGINX_VHOST"; then
     echo "WARN: vhost may nest try_files @fallback inside Node proxy_pass — API can 404 via Apache." >&2
-    echo "      See .cursor/rules/ssl-letsencrypt-vps.mdc — clean location / { proxy_pass Node; }" >&2
+    echo "      See import_service_server/.devin/rules/ssl-letsencrypt-vps.md — clean location / { proxy_pass Node; }" >&2
   fi
 }
 

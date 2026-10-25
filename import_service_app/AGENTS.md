@@ -4,18 +4,18 @@
 
 ## ⚠️ СНАЧАЛА ПЛАН — ПОТОМ КОД (жёстко)
 
-**`../../.cursor/rules/feature-delivery-workflow.mdc`** — `alwaysApply: true` в корне.  
+**`../../.devin/rules/feature-delivery-workflow.md`** — `trigger: always_on` в корне.  
 Без явного **«делай»** / **«утверждаю»**: **не** менять код, **не** commit/push, **не** сборки.
 
 ## Жизненный цикл заявки (читать первым по флоу)
 
 **`D:\Projects\import_servis\docs\request-lifecycle.md`** — единый эталон: этапы, статусы, upload/push, секции карточки МП, demo, запреты (лишние слоты на подпись, client-only до пакета, дубль `contract`).  
-Краткая выжимка: **`.cursor/rules/monorepo-project-concept.mdc`** → `project-concept.mdc`. Коды: **`catalog-reference.md`**, upload v2: **`contract-files-v2.md`**.
+Краткая выжимка: **`.devin/rules/monorepo-project-concept.md`** → `project-concept.md`. Коды: **`catalog-reference.md`**, upload v2: **`contract-files-v2.md`**.
 
 ## Главный документ по архитектуре (читать первым по коду)
 
-**`.cursor/rules/app-runtime-architecture.mdc`** — как течёт data/runtime: старт, auth, create+upload, файловые слоты, push, demo vs prod, что можно менять и инварианты.  
-Карта файлов: **`app-context-map.mdc`**. Ловушки: **`pitfalls-and-regression-guards.mdc`**.
+**`.devin/rules/app-runtime-architecture.md`** — как течёт data/runtime: старт, auth, create+upload, файловые слоты, push, demo vs prod, что можно менять и инварианты.  
+Карта файлов: **`app-context-map.md`**. Ловушки: **`pitfalls-and-regression-guards.md`**.
 
 ## API и контракты (источник правды)
 - После правок на бэке **все изменения контрактов, эндпоинтов, полей DTO** брать из каталога:  
@@ -23,18 +23,18 @@
 - Содержимое: `README.md`, **`api-app.md`**, **`api-1c.md`**. Клон репо: рядом с `import_service_app` папка `docs` (`../docs` от корня приложения) или тот же абсолютный путь. Мобильный клиент не плодит отдельную «истину» по API без синхронизации с `docs`.
 
 ## Стек (жёстко)
-- **Clean Architecture** + **`flutter_bloc` (BLoC/Cubit)** + **GetIt (`sl`)** + **go_router** + **Dio**. Подробности: `.cursor/rules/architecture.mdc`, `dependency-injection.mdc`, `bloc-state-management.mdc`.
-- **GetX** в этом репо **не** используем (см. `dependency-injection.mdc`).
+- **Clean Architecture** + **`flutter_bloc` (BLoC/Cubit)** + **GetIt (`sl`)** + **go_router** + **Dio**. Подробности: `.devin/rules/architecture.md`, `dependency-injection.md`, `bloc-state-management.md`.
+- **GetX** в этом репо **не** используем (см. `dependency-injection.md`).
 
 ## Состояние
-- **Фичи / списки / формы** — только **Cubit/BLoC + `emit`**, DI через **GetIt**. **Не** `ChangeNotifier` / `ValueNotifier` для такого (см. `bloc-state-management.mdc`; исключение: узкий `core` вроде сессии для `go_router` — не плодить копий).
+- **Фичи / списки / формы** — только **Cubit/BLoC + `emit`**, DI через **GetIt**. **Не** `ChangeNotifier` / `ValueNotifier` для такого (см. `bloc-state-management.md`; исключение: узкий `core` вроде сессии для `go_router` — не плодить копий).
 - **Жёстко по режимам заявок:** при обычной авторизации старт списка всегда **пустой + лоадер + загрузка с backend**; демо-данные разрешены **только** после явного нажатия «Демо режим» на экране логина. Автовключение демо при старте/перезапуске запрещено.
 
 ## Логи
-- Ошибки: `logging.mdc`. **Новая фича** — `feature-trace-logs.mdc`: `AppLog.trace` **с `tag`**, после подтверждения сценария **удалить** трассы.
+- Ошибки: `logging.md`. **Новая фича** — `feature-trace-logs.md`: `AppLog.trace` **с `tag`**, после подтверждения сценария **удалить** трассы.
 
 ## Подводные камни (импорт-сервис и другие)
-- `pitfalls-and-regression-guards.mdc` — **async + роутер + Cubit**, `Stack`+`shrink`, `PageView`+`ListView`, `buildWhen` и табы; **чек-лист** перед мержем. Соглашения «на вынос» — в шаблон `digitalsquare` (см. ниже).
+- `pitfalls-and-regression-guards.md` — **async + роутер + Cubit**, `Stack`+`shrink`, `PageView`+`ListView`, `buildWhen` и табы; **чек-лист** перед мержем. Соглашения «на вынос» — в шаблон `digitalsquare` (см. ниже).
 
 ## Шаблон (DigitalSquare) — источник правил
 - **Канон** жёстких правил (`.cursor/`, `AGENTS.md` для новых копий) лежит на диске:  
@@ -43,11 +43,11 @@
 
 ## Деплой бэкенда на прод (жёстко)
 
-После правок **`import_service_server`**: агент **сам** запускает `scripts/deploy-server-vps.ps1` и проверяет `https://157-22-173-7.sslip.io/admin/` (200, HTML). **Не спрашивать пользователя**, как выложить на VPS. См. `import_service_server/.cursor/rules/server-deploy-vps.mdc` (`alwaysApply: true`).
+После правок **`import_service_server`**: агент **сам** запускает `scripts/deploy-server-vps.ps1` и проверяет `https://157-22-173-7.sslip.io/admin/` (200, HTML). **Не спрашивать пользователя**, как выложить на VPS. См. `import_service_server/.devin/rules/server-deploy-vps.md` (`trigger: always_on`).
 
 ## Прочее
-- Терминал: **`agent-workflow.mdc`** — агент **может** запускать `flutter analyze` и т.д. по задаче.
-- **Release APK для заказчика:** **`release-apk-handoff.mdc`** — bump версии → `flutter build apk` → `D:\Temp\import_service_app_1_{BUILD}.apk` → push из корня монорепо.
-- **Подготовка для Xcode (macOS):** **`ios-xcode-prep.mdc`** → `./scripts/prep-ios-xcode.sh` (sync версии из pubspec + pods + open workspace). Не только `pub get`/`pod install`.
-- Промпт для другого агента (сервер/админка): **`agent-handoff-prompts.mdc`** — только copy-блок.
-- Правила: `.cursor/rules/`, при сомнении **приоритет репо** над личными user rules.
+- Терминал: **`agent-workflow.md`** — агент **может** запускать `flutter analyze` и т.д. по задаче.
+- **Release APK для заказчика:** **`release-apk-handoff.md`** — bump версии → `flutter build apk` → `D:\Temp\import_service_app_1_{BUILD}.apk` → push из корня монорепо.
+- **Подготовка для Xcode (macOS):** **`ios-xcode-prep.md`** → `./scripts/prep-ios-xcode.sh` (sync версии из pubspec + pods + open workspace). Не только `pub get`/`pod install`.
+- Промпт для другого агента (сервер/админка): **`agent-handoff-prompts.md`** — только copy-блок.
+- Правила: `.devin/rules/`, при сомнении **приоритет репо** над личными user rules.

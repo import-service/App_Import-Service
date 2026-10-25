@@ -1,0 +1,54 @@
+---
+description: Ловушки async/DI/навигации и вёрстки — чтобы не повторять регрессии
+trigger: always_on
+---
+
+# Дефекты, которые дорого стоят (проверка перед мержем)
+
+## 1. Порядок: данные → сессия → роутер
+- Если экран зависит от **Cubit/стор**, а **смена сессии / go_router** открывает маршрут **раньше**, чем завершился `await` записи — **пустой** UI при **нормальных** логах.
+- **Правило:** сначала **данные** в store/cubit (`await replaceAll` / bootstrap), **потом** `enableDemo()` / сессия, **потом** навигация; либо prefs-флаг + сид **до** включения сессии. См. `dependency-injection.md`, `bloc-state-management.md`.
+- Новый поток — **`AppLog.trace` + `tag`** (`feature-trace-logs.md`).
+
+## 2. `Stack` и нулевая высота
+- **`Stack` по умолчанию `loose`**. `Positioned.fill` + `Column` + `Expanded` + **непозиционированный** `SizedBox.shrink()` (например, 0 черновиков) → стек **схлопывается**, список **невидим** — чипы/поиск **есть**, контента **нет**.
+- **Правило:** **`StackFit.expand`** на таком `Stack` или иная вёрстка без `shrink` в том же `Stack` без `expand`.
+
+## 3. `PageView` + `ListView`
+- На части девайсов **пусто**. Если не нужен свайп — **один** список по индексу фильтра, **без** `PageView`.
+
+## 4. `BlocBuilder` + `buildWhen` + смена только таба
+- `buildWhen` не должен **гасить** перерисовку при **только** `setState(индекс таба)`; иначе «логи ок, список пустой».
+
+## 5. Канон правил
+- Общие соглашения — **сначала** в шаблоне `D:\Projects\_my_template\digitalsquare` (`AGENTS.md`), иначе новый клон без фикса.
+
+## 6. Локальные пути файлов на экранах (заявка, черновик)
+- **Любой** `List<String>` в `State`, который мутируется (`add`, `removeAt`, `[i]=`), инициализировать через **`List<String>.from(...)`** или **`mutableSlotPaths()`** (`lib/core/util/single_file_path_list.dart`).
+- **Запрещено** для таких списков: `const []`, возврат `const []` из хелперов, мутация списков из `RequestFilesPayload` / JSON **без копии**.
+- **Один файл на docType (v2):** лимит в UI — **`RequestPhotoRowField(maxPhotos: 1)`** + `if (target.isNotEmpty) return` в `_addPhotoTo`. **Не** ломать рабочий паттерн «`List.from` + `target.add`» ради «упрощения».
+- Эталон экрана файлов: `lib/presentation/pages/request_files_upload_page.dart`.
+
+## 7. FCM / push (cold start, MIUI)
+- **`firebase_messaging_auto_init_enabled=false`** в `AndroidManifest`; **`setAutoInitEnabled(false)`** до UI; **`getToken`** — после первого кадра + ожидание GMS (`google_api_availability`).
+- **Не** вызывать `getToken()` в `main()` до `runApp()`.
+- **Не** показывать «продолжаем без push» — retry + `registerPushTokenIfNeeded()` после логина и восстановления сессии.
+- Эталон: `lib/core/push/push_notifications_service.dart`, `lib/main.dart`.
+
+## 8. Ошибки API в UI
+- **Запрещено** показывать пользователю сырые коды (`INVALID_CREDENTIALS`, `NOT_FOUND` и т.п.) из `ServerException.message`.
+- Маппинг в i18n: `presentation/helpers/login_error_message.dart`, ключи в `assets/i18n/*.json`.
+
+## 9. Chat WSS URL и порт `:0`
+- Схема `wss`/`ws` в Dart **без** default port → `Uri.port == 0` → коннект на `host:0` → `WebSocketException: … was not upgraded`.
+- **Правило:** в `ApiConfig.chatWebsocketUrl` / `orgChatWebsocketUrl` всегда явный порт `443`/`80` (или порт из `API_BASE_URL`).
+- **Сервер:** upgrade МП `/ws/{requestId}/` — СВХ/декларант должны проходить (как REST), не только `organization_id === sub`. Иначе nginx `upstream prematurely closed` / 502.
+
+## Чек-лист
+- [ ] Порядок `await` / сессия / `go` проверен (+ трассы на время отладки)
+- [ ] `Stack`+`Expanded` — не `loose`+`shrink` в ловушку
+- [ ] Списки и табы — без лишнего `PageView`; constraints ок
+- [ ] Файлы заявки: списки путей **изменяемые**; фото после камеры **без** crash
+- [ ] Push: токен в logcat после старта; не блокирует UI
+- [ ] Логин: неверный пароль — человекочитаемый текст, не код API
+- [ ] `flutter analyze` + ручной прогон входа/демо/главного экрана/фото на слоте

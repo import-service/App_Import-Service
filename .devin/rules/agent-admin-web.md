@@ -1,0 +1,34 @@
+---
+description: Фокус админки — import_service_admin (в рамках одного агента монорепо)
+trigger: glob
+globs: import_service_admin/**
+---
+
+# Пакет: `import_service_admin`
+
+**Сначала:** `.devin/rules/project-concept.md`, `docs/api-app.md` (раздел админки).
+
+## Зона ответственности
+
+- `import_service_admin/` — Flutter web, настройки 1С, resend заявок.
+- End-to-end задачи: правки admin **вместе** с server по утверждённому плану.
+
+## Спеки
+
+- `docs/api-app.md` — admin API
+- `docs/TZ-zayavka-mp-server-1c.md`
+- https://157-22-173-7.sslip.io/docs
+
+## Фокус админки
+
+- URL/Bearer исходящих вызовов в 1С: create + update files
+- Resend-to-1c при сбое интеграции
+- Организации = **клиенты** (подают заявки). **Без** галок ролей СВХ/декларант на org.
+- **Менеджеры** — один раздел сотрудников СВХ; на **карточке списка справа** компактные **радио** роли: `svh_manager` | `declarant_manager` (XOR, сохранение сразу). Не высокий блок под кнопками. Не отдельное меню «Декларанты». Канон: `project-concept.md` §15.
+## Пакетные rules
+
+`import_service_admin/.devin/rules/` — deploy, api-docs, git-push.
+
+## Проверки
+
+`flutter analyze`. Commit/push — только по просьбе пользователя.

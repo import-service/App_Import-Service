@@ -8,7 +8,7 @@
 | HTTP-контракт upload/state | [contract-files-v2.md](contract-files-v2.md) |
 | API МП / 1С | [api-app.md](api-app.md), [api-1c.md](api-1c.md) |
 | Полное ТЗ | [TZ-zayavka-mp-server-1c.md](TZ-zayavka-mp-server-1c.md) |
-| Краткая концепция для Cursor | `.cursor/rules/project-concept.mdc` |
+| Краткая концепция для агента | `.devin/rules/project-concept.md` |
 
 **Прод:** `https://157-22-173-7.sslip.io` · **HTML:** `/docs` (вкладка ТЗ)
 
@@ -245,7 +245,7 @@ Demo **не** шлёт лишние docType на подпись и **ждёт** 
 1. **Этот файл** (`request-lifecycle.md`)  
 2. [catalog-reference.md](catalog-reference.md)  
 3. [contract-files-v2.md](contract-files-v2.md)  
-4. `.cursor/rules/project-concept.mdc`  
+4. `.devin/rules/project-concept.md`  
 5. [TZ-zayavka-mp-server-1c.md](TZ-zayavka-mp-server-1c.md)  
 6. HTML `/docs`
 

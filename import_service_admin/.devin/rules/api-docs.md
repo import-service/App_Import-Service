@@ -1,0 +1,28 @@
+---
+description: Спецификации API Import Service — читать перед работой с HTTP, моделями и интеграцией
+trigger: always_on
+---
+
+# Документация API
+
+Перед реализацией или изменением вызовов API, DTO, авторизации, чата, таможенных заявок и деплоя веб-админки **сначала читай** актуальные спецификации в монорепозитории:
+
+**Каталог:** `D:\Projects\import_servis\docs`
+
+| Файл | Когда смотреть |
+|------|----------------|
+| [docs/README.md](D:\Projects\import_servis\docs\README.md) | Оглавление, базовый URL прод |
+| [docs/api-app.md](D:\Projects\import_servis\docs\api-app.md) | Основной контракт для `import_service_admin`: auth, заявки (v2, camelCase), чат, WSS, деплой Flutter Web |
+| [docs/api-1c.md](D:\Projects\import_servis\docs\api-1c.md) | Интеграция 1С (`organizations`, `state`, upload) |
+| [docs/contract-files-v2.md](D:\Projects\import_servis\docs\contract-files-v2.md) | **Файлы v2:** upload, батч, без files в state |
+
+## Обязательно
+
+- Не выдумывай эндпоинты, поля и коды ошибок — сверяйся с Markdown в `docs/`.
+- Прод-база: `https://app.import-service.su/api` (см. README в `docs/`).
+- **Локально** (`flutter run`): API — полный URL (дефолт в `ApiConfig`); SPA — base href `/`.
+- **Деплой** (`flutter build web`): `--base-href=/admin/` и `API_BASE_URL=/api/` — `scripts/deploy-admin-web.ps1` + SSH `scripts/deploy-server-vps.ps1`; см. `.devin/rules/admin-deploy-vps.md`.
+
+## Монорепозиторий
+
+Корень репозитория: `D:\Projects\import_servis`. Доки общие для app, server и admin — правки спецификации при расхождении с бэкендом согласовывай с `import_service_server`.

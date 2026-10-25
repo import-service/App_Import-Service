@@ -1,0 +1,25 @@
+---
+description: Агент запускает команды терминала (flutter, dart, git) для проверки и диагностики
+trigger: always_on
+---
+
+# Работа агента и терминал
+
+- **Команды разрешены и ожидаемы**: агент **сам** выполняет команды терминала, когда это нужно для задачи — `flutter analyze`, `dart analyze`, `flutter test`, `flutter pub get`, `git` и т.д.
+- **Не** ограничивайся только текстовыми инструкциями «выполните команду», если проверку или исправление можно сделать через терминал в этой среде.
+- Сообщай пользователю, **что** запускаешь и **зачем** (кратко); при длительных командах — по возможности показывай результат.
+- Деструктивные действия (`git reset --hard`, удаление без подтверждения и т.п.) — только если пользователь явно попросил или это безопасно следует из задачи.
+
+## Android МП
+
+- Запуск только через `D:\Projects\import_servis\scripts\app-run-android.ps1` (см. `android-fast-run.md`).
+- Не Tee-Object, не убивать Gradle mid-build.
+
+## iOS / Xcode (macOS)
+
+- «Подготовь для Xcode» / после `git pull` на Mac — **только** `./scripts/prep-ios-xcode.sh` из `import_service_app` (или `scripts/prep-ios-xcode.sh` из корня монорепо). См. `ios-xcode-prep.md`.
+- **Не** считать готовым после одного `pub get` / `pod install` — без `flutter build ios --config-only` в Xcode остаётся старая версия.
+
+## Деплой `import_service_server` на прод
+
+После правок бэкенда: **сам** `D:\Projects\import_servis\scripts\deploy-server-vps.ps1` (не только `git push`). **Не** просить пользователя выложить на VPS. См. `import_service_server/.devin/rules/server-deploy-vps.md`.

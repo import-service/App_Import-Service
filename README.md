@@ -31,4 +31,4 @@ cd <путь_к_клону>\import_servis
 .\scripts\push-monorepo.ps1 -Message "Краткое описание изменений на русском"
 ```
 
-Дополнительно см. `.cursor/rules/git-push-monorepo.mdc` внутри каждого проекта.
+Дополнительно см. `.devin/rules/git-push-monorepo.md` внутри каждого проекта.

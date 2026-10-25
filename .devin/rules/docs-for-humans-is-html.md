@@ -1,0 +1,37 @@
+---
+description: Документация для людей и 1С — только HTML на /docs, не markdown
+trigger: always_on
+---
+
+# Куда писать API-документацию
+
+## Для заказчика, 1С, программистов
+
+**Только** HTML на сайте: `import_service_server/src/docs/api.html` → прод `https://app.import-service.su/docs`.
+
+После смены контракта API:
+
+1. Обновить карточки в **`api.html`**
+2. **Задеплоить** сервер (`scripts/deploy-server-vps.ps1`)
+
+Не ссылаться в ответах пользователю на `docs/*.md` как на «документацию для 1С». Пользователь md **не читает и не пересылает**.
+
+## Для агента (внутренний канон)
+
+- `.devin/rules/*.md` — правила агента
+- `docs/*.md` — черновик/канон для агента (можно синхронизировать с html), **не** delivery для людей
+
+## Кодировка HTML (критично)
+
+Файлы `import_service_server/src/docs/*.html` — **UTF-8 без BOM**.
+
+- Править через Node (`fs.writeFileSync` / буфер UTF-8) или редактор с UTF-8 no BOM.
+- **Запрещено** PowerShell `Set-Content -Encoding utf8` / `Out-File -Encoding utf8` — они пишут BOM и/или портят кириллицу (двойная перекодировка → «РЈРґР°Р» вместо «Удалить»).
+- Для массовой замены URL/строк: `node -e` + `readFileSync`/`writeFileSync`, не `(Get-Content) | Set-Content`.
+- После правок — открыть `/docs` и убедиться, что кириллица читается (не «кракозябры»).
+
+## Запрещено
+
+- Считать задачу «документация готова», если правки только в `docs/*.md`, а `api.html` не обновлён / не задеплоен
+- Отвечать «смотри api-1c.md» вместо URL `/docs` или содержимого карточек на сайте
+- Пересохранять `api.html` / `1c-create-fields.html` через PowerShell Set-Content UTF-8
