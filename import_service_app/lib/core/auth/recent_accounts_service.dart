@@ -29,9 +29,7 @@ class RecentAccountsService {
       final items = <RecentAccount>[];
       for (final item in decoded) {
         if (item is! Map) continue;
-        final account = RecentAccount.fromJson(
-          Map<String, dynamic>.from(item),
-        );
+        final account = RecentAccount.fromJson(Map<String, dynamic>.from(item));
         if (account.email.isEmpty || account.password.isEmpty) continue;
         items.add(account);
       }
@@ -41,11 +39,15 @@ class RecentAccountsService {
     }
   }
 
-  /// QA-сиды всегда в списке; пароль/роль сида обновляем, дату входа сохраняем.
+  /// QA-сиды только в debug; пароль/роль сида обновляем, дату входа сохраняем.
+  /// В release вычищаем ранее записанные сид-записи (оставшиеся от старых сборок).
   List<RecentAccount> _mergeQaSeeds(List<RecentAccount> stored) {
-    final byEmail = <String, RecentAccount>{
-      for (final a in stored) a.email: a,
-    };
+    final byEmail = <String, RecentAccount>{for (final a in stored) a.email: a};
+    if (QaKnownAccounts.seeds.isEmpty) {
+      for (final email in QaKnownAccounts.seedEmails) {
+        byEmail.remove(email);
+      }
+    }
     for (final seed in QaKnownAccounts.seeds) {
       final existing = byEmail[seed.email];
       if (existing == null) {
