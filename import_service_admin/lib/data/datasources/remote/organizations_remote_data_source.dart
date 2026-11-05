@@ -14,13 +14,15 @@ class OrganizationsRemoteDataSource {
     int offset = 0,
     String? query,
     bool includeDeleted = false,
+    bool onlyDeleted = false,
   }) async {
     try {
       final q = <String, dynamic>{
         'limit': limit,
         'offset': offset,
         if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
-        if (includeDeleted) 'includeDeleted': 'true',
+        if (onlyDeleted) 'onlyDeleted': 'true',
+        if (includeDeleted && !onlyDeleted) 'includeDeleted': 'true',
       };
       final response = await _dio.get<dynamic>(
         'admin/organizations',
@@ -67,6 +69,14 @@ class OrganizationsRemoteDataSource {
   Future<void> delete(int id) async {
     try {
       await _dio.delete<dynamic>('admin/organizations/$id');
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<void> restore(int id) async {
+    try {
+      await _dio.post<dynamic>('admin/organizations/$id/restore');
     } on DioException catch (e) {
       throw ErrorHandler.handle(e);
     }

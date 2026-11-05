@@ -6,6 +6,7 @@ abstract class OrganizationsRepository {
     int offset,
     String? query,
     bool includeDeleted,
+    bool onlyDeleted,
   });
 
   Future<Organization> getById(int id);
@@ -13,4 +14,6 @@ abstract class OrganizationsRepository {
   Future<Organization> updateRoles(int id, List<String> roles);
 
   Future<void> delete(int id);
+
+  Future<void> restore(int id);
 }

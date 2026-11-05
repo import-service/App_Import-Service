@@ -9,6 +9,10 @@ const { CUSTOMS_REQUEST_SELECT, toCustomsRequestDto } = require('../util/customs
 const { CUSTOMS_REQUEST_FILE_SELECT } = require('../util/requestFileStorage');
 const { deleteCustomsRequestWithFiles } = require('../services/requestDeletion');
 const {
+  softDeleteOrganizationCascade,
+  restoreOrganizationCascade,
+} = require('../services/organizationCleanup');
+const {
   listRequestsEligibleForArchive,
   buildArchiveZip,
   listArchives,
@@ -439,13 +443,20 @@ module.exports = async function adminRoutes(fastify) {
           .trim()
           .toLowerCase() === 'true' ||
         String(request.query.includeDeleted || '').trim() === '1';
+      const onlyDeleted =
+        String(request.query.onlyDeleted || '')
+          .trim()
+          .toLowerCase() === 'true' ||
+        String(request.query.onlyDeleted || '').trim() === '1';
       const q = String(request.query.q || '').trim();
 
       const where = [];
       const args = [];
       // Клиенты 1С — без учёток менеджеров СВХ / декларант.
       where.push(`NOT (${staffManagerRoleSql()})`);
-      if (!includeDeleted) {
+      if (onlyDeleted) {
+        where.push('deleted_at IS NOT NULL');
+      } else if (!includeDeleted) {
         where.push('deleted_at IS NULL');
       }
       if (q) {
@@ -520,28 +531,39 @@ module.exports = async function adminRoutes(fastify) {
       if (!rows.length) {
         return reply.code(404).send({ error: 'NOT_FOUND' });
       }
-      const login = rows[0].login;
+      const { deletedRequests } = await softDeleteOrganizationCascade(
+        fastify.pool,
+        id,
+        rows[0].login,
+      );
+      return reply.send({ ok: true, deleted: true, deletedRequests });
+    },
+  );
 
-      await fastify.pool.query(
-        `UPDATE organizations SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
-         WHERE id = ?`,
-        [id],
-      );
-      const [reqResult] = await fastify.pool.query(
-        `UPDATE customs_requests SET deleted_at = CURRENT_TIMESTAMP(3)
-         WHERE legal_email = ? AND deleted_at IS NULL`,
-        [login],
-      );
-      await fastify.pool.query(
-        'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
-        [id],
-      );
-      await fastify.pool.query(
-        'UPDATE user_push_tokens SET deleted_at = CURRENT_TIMESTAMP(3) WHERE org_id = ? AND deleted_at IS NULL',
-        [id],
-      );
+  fastify.post(
+    '/admin/organizations/:id/restore',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
 
-      return reply.send({ ok: true, deleted: true, deletedRequests: reqResult.affectedRows || 0 });
+      const [rows] = await fastify.pool.query(
+        `SELECT id, login FROM organizations
+         WHERE id = ? AND deleted_at IS NOT NULL AND NOT (${staffManagerRoleSql()}) LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+
+      const { restoredRequests } = await restoreOrganizationCascade(
+        fastify.pool,
+        id,
+        rows[0].login,
+      );
+      return reply.send({ ok: true, restored: true, restoredRequests });
     },
   );
 

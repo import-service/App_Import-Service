@@ -19,6 +19,7 @@ class OrganizationsPage extends StatefulWidget {
 class _OrganizationsPageState extends State<OrganizationsPage> {
   final _searchController = TextEditingController();
   late Future<({List<Organization> items, int total})> _future;
+  bool _showDeleted = false;
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
       _future = sl<OrganizationsRepository>().list(
         limit: 100,
         query: _searchController.text.trim(),
+        onlyDeleted: _showDeleted,
       );
     });
   }
@@ -68,7 +70,15 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
             ),
           ),
           actions: [
-            if (!org.isDeleted)
+            if (org.isDeleted)
+              FilledButton.tonal(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _restoreOrg(org);
+                },
+                child: const Text('Восстановить'),
+              )
+            else
               TextButton(
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
                 onPressed: () {
@@ -126,6 +136,21 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
     }
   }
 
+  Future<void> _restoreOrg(Organization org) async {
+    try {
+      await sl<OrganizationsRepository>().restore(org.id);
+      if (!mounted) return;
+      AppSnackBars.showSuccess('Организация восстановлена');
+      _reload();
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBars.showError('Не удалось восстановить');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -148,6 +173,20 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
               const Gap(8),
               FilledButton(onPressed: _reload, child: const Text('Найти')),
             ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('Активные')),
+              ButtonSegment(value: true, label: Text('Удалённые')),
+            ],
+            selected: {_showDeleted},
+            onSelectionChanged: (sel) {
+              setState(() => _showDeleted = sel.first);
+              _reload();
+            },
           ),
         ),
         Expanded(

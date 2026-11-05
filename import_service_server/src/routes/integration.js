@@ -1,6 +1,15 @@
 const bcrypt = require('bcrypt');
 const { randomUUID } = require('crypto');
 const { verifyIntegrationBearer } = require('../util/integrationAuth');
+const {
+  softDeleteOrganizationCascade,
+} = require('../services/organizationCleanup');
+
+const STAFF_MANAGER_ROLES = new Set(['svh_manager', 'declarant_manager']);
+
+function isStaffManagerRole(role) {
+  return STAFF_MANAGER_ROLES.has(String(role || '').trim());
+}
 
 function normalize(v) {
   return String(v ?? '').trim();
@@ -64,9 +73,10 @@ async function writeIntegrationLog(fastify, payload) {
     await fastify.pool.query(
       `INSERT INTO integration_logs
        (request_id, source, endpoint, status, http_code, rows_received, rows_unique, rows_upserted, rows_soft_deleted, error_message)
-       VALUES (?, '1c', '/api/integration/organizations', ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, '1c', ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.requestId,
+        payload.endpoint || '/api/integration/organizations',
         payload.status,
         payload.httpCode,
         payload.rowsReceived || 0,
@@ -221,6 +231,102 @@ module.exports = async function integrationRoutes(fastify) {
           httpCode: 500,
           rowsReceived: 1,
           rowsUnique: 1,
+          errorMessage: e.message || 'INTERNAL_ERROR',
+        });
+        return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
+
+  fastify.post(
+    '/integration/organizations/delete',
+    {
+      preHandler: verifyIntegrationBearer,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['id_1c'],
+          properties: {
+            id_1c: { type: 'string', minLength: 1, maxLength: 255 },
+          },
+          additionalProperties: true,
+        },
+      },
+    },
+    async (request, reply) => {
+      const requestId = randomUUID();
+      const id1c = normalize(request.body?.id_1c ?? request.body?.id1c);
+
+      try {
+        const [rows] = await fastify.pool.query(
+          'SELECT id, login, role, deleted_at FROM organizations WHERE id_1c = ? LIMIT 1',
+          [id1c],
+        );
+
+        if (!rows.length) {
+          await writeIntegrationLog(fastify, {
+            requestId,
+            endpoint: '/api/integration/organizations/delete',
+            status: 'error',
+            httpCode: 404,
+            rowsReceived: 1,
+            errorMessage: 'NOT_FOUND',
+          });
+          return reply.code(404).send({ error: 'NOT_FOUND' });
+        }
+
+        const org = rows[0];
+
+        if (org.deleted_at) {
+          await writeIntegrationLog(fastify, {
+            requestId,
+            endpoint: '/api/integration/organizations/delete',
+            status: 'success',
+            httpCode: 200,
+            rowsReceived: 1,
+            rowsSoftDeleted: 0,
+          });
+          return reply.send({ ok: true, alreadyDeleted: true });
+        }
+
+        if (isStaffManagerRole(org.role)) {
+          await writeIntegrationLog(fastify, {
+            requestId,
+            endpoint: '/api/integration/organizations/delete',
+            status: 'error',
+            httpCode: 403,
+            rowsReceived: 1,
+            errorMessage: 'FORBIDDEN: служебная учётка',
+          });
+          return reply
+            .code(403)
+            .send({ error: 'FORBIDDEN', message: 'Служебную учётку удалять нельзя' });
+        }
+
+        const { deletedRequests } = await softDeleteOrganizationCascade(
+          fastify.pool,
+          org.id,
+          org.login,
+        );
+
+        await writeIntegrationLog(fastify, {
+          requestId,
+          endpoint: '/api/integration/organizations/delete',
+          status: 'success',
+          httpCode: 200,
+          rowsReceived: 1,
+          rowsSoftDeleted: 1,
+        });
+
+        return reply.send({ ok: true, deleted: true, deletedRequests });
+      } catch (e) {
+        fastify.log.error(e);
+        await writeIntegrationLog(fastify, {
+          requestId,
+          endpoint: '/api/integration/organizations/delete',
+          status: 'error',
+          httpCode: 500,
+          rowsReceived: 1,
           errorMessage: e.message || 'INTERNAL_ERROR',
         });
         return reply.code(500).send({ error: 'INTERNAL_ERROR' });

@@ -1020,7 +1020,13 @@
     "updated_at": "2026-04-27T09:00:00.000Z",
     "deleted_at": null
   }
-}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li></ul></div>
+}</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>409 LOGIN_ALREADY_EXISTS</code> — login занят другой организацией (другой <code>id_1c</code>); запись не создаётся, ошибка пишется в <code>integration_logs</code>.</li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/integration/organizations/delete</code><span class="desc">Мягкое удаление организации при удалении в 1С.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer INTEGRATION_BEARER_TOKEN</p><p>Организация помечается <code>deleted_at</code>: пропадает из списков и не может войти в МП. Каскадно мягко удаляются её заявки, отзываются сессии и push-токены.</p><p><b>Request:</b></p><pre>{
+  "id_1c": "1ecdae29-4240-11f1-9fb7-2cfda12b414c"
+}</pre><p><b>Success:</b></p><pre>{ "ok": true, "deleted": true, "deletedRequests": 3 }</pre><p>Повторный вызов по уже удалённой — идемпотентный успех:</p><pre>{ "ok": true, "alreadyDeleted": true }</pre><p><b>Errors:</b></p><ul><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>403 FORBIDDEN</code> — служебную учётку (svh/declarant) удалять нельзя</li><li><code>404 NOT_FOUND</code> — организации с таким <code>id_1c</code> не было</li></ul><p><b>Восстановление:</b> повторный <code>POST /api/integration/organizations</code> с тем же <code>id_1c</code> воскрешает организацию; вручную — кнопка «Восстановить» в админке, раздел «Удалённые».</p></div>
         </details>
         <details class="card" open>
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests/upload</code><span class="desc">Файл в заявку из 1С (JSON + base64) или multipart.</span></summary>
@@ -1627,7 +1633,7 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
         <h2>Организации из 1С (просмотр)</h2>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/organizations</code><span class="desc">Список организаций, зарегистрированных через интеграцию.</span></summary>
-          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p><b>Query:</b> <code>limit</code>, <code>offset</code>, <code>q</code> (поиск), <code>includeDeleted</code></p><p><b>Success:</b></p><pre>{
+          <div class="body"><p><b>Auth:</b> Bearer admin accessToken</p><p><b>Query:</b> <code>limit</code>, <code>offset</code>, <code>q</code> (поиск), <code>includeDeleted</code>, <code>onlyDeleted</code> (только удалённые)</p><p><b>Success:</b></p><pre>{
   "items": [
     {
       "id": 10,
@@ -1665,6 +1671,14 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
     "deletedAt": null
   }
 }</pre><p><b>Errors:</b></p><ul><li><code>404 NOT_FOUND</code></li></ul></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method delete">DELETE</span><code class="path">/api/admin/organizations/:id</code><span class="desc">Мягкое удаление организации.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Организация помечается <code>deleted_at</code>; каскадно мягко удаляются её заявки, отзываются сессии и push-токены. Служебные учётки (svh/declarant) не затрагиваются — <code>404</code>.</p><p><b>Success:</b> <code>{ "ok": true, "deleted": true, "deletedRequests": 2 }</code></p><p><b>Errors:</b> <code>400</code>, <code>404 NOT_FOUND</code></p></div>
+        </details>
+        <details class="card">
+          <summary class="summary"><span class="method post">POST</span><code class="path">/api/admin/organizations/:id/restore</code><span class="desc">Восстановить удалённую организацию.</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Снимает <code>deleted_at</code> с организации и её заявок. Сессии и push-токены не восстанавливаются — пользователь войдёт заново.</p><p><b>Success:</b> <code>{ "ok": true, "restored": true, "restoredRequests": 2 }</code></p><p><b>Errors:</b> <code>400</code>, <code>404 NOT_FOUND</code></p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/svh-managers</code><span class="desc">Список менеджеров СВХ (МП).</span></summary>

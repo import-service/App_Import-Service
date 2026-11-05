@@ -13,11 +13,13 @@ class OrganizationsRepositoryImpl implements OrganizationsRepository {
     int offset = 0,
     String? query,
     bool includeDeleted = false,
+    bool onlyDeleted = false,
   }) => _remote.list(
     limit: limit,
     offset: offset,
     query: query,
     includeDeleted: includeDeleted,
+    onlyDeleted: onlyDeleted,
   );
 
   @override
@@ -29,4 +31,7 @@ class OrganizationsRepositoryImpl implements OrganizationsRepository {
 
   @override
   Future<void> delete(int id) => _remote.delete(id);
+
+  @override
+  Future<void> restore(int id) => _remote.restore(id);
 }

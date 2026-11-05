@@ -455,6 +455,7 @@ Query:
 | `offset` | смещение, по умолчанию 0 |
 | `q` | поиск по login, companyName, inn, id_1c, phone (подстрока) |
 | `includeDeleted` | `true` / `1` — включить мягко удалённые |
+| `onlyDeleted` | `true` / `1` — **только** мягко удалённые (раздел «Удалённые» в админке) |
 
 Успех:
 
@@ -496,6 +497,16 @@ Query:
 Успех: `{ "ok": true, "deleted": true, "deletedRequests": 2 }`.
 
 Ошибки: `400`, `401`, `404 NOT_FOUND` (нет такой активной организации или это служебная учётка `svh_manager`/`declarant_manager` — они удаляются своими endpoint'ами).
+
+### POST /api/admin/organizations/:id/restore
+
+Восстановление мягко удалённой организации: снимает `deleted_at` с неё и с её заявок. Сессии и push-токены не восстанавливаются — пользователь войдёт заново.
+
+Заголовок: `Authorization: Bearer <admin accessToken>`.
+
+Успех: `{ "ok": true, "restored": true, "restoredRequests": 2 }`.
+
+Ошибки: `400`, `401`, `404 NOT_FOUND` (нет удалённой организации с таким id или это служебная учётка).
 
 ### GET /api/admin/settings/one-c-request-create
 
