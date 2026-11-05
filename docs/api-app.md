@@ -487,6 +487,16 @@ Query:
 
 Карточка одной организации (те же поля, что в элементе `items` списка). Ошибки: `400`, `401`, `404 NOT_FOUND`.
 
+### DELETE /api/admin/organizations/:id
+
+**Мягкое удаление** клиентской организации (`deleted_at` в `organizations`): пропадает из списка и не может войти в МП. Каскадно мягко удаляются её заявки (`customs_requests WHERE legal_email = login`), отзываются сессии (`user_sessions.revoked_at`) и push-токены (`user_push_tokens`).
+
+Заголовок: `Authorization: Bearer <admin accessToken>`.
+
+Успех: `{ "ok": true, "deleted": true, "deletedRequests": 2 }`.
+
+Ошибки: `400`, `401`, `404 NOT_FOUND` (нет такой активной организации или это служебная учётка `svh_manager`/`declarant_manager` — они удаляются своими endpoint'ами).
+
 ### GET /api/admin/settings/one-c-request-create
 
 Текущие настройки **исходящих** вызовов в 1С: создание заявки и обновление файлов.

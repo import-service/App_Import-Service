@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:import_service_admin/core/di/injection_container.dart';
+import 'package:import_service_admin/core/error/exceptions.dart';
+import 'package:import_service_admin/core/ui/app_snackbars.dart';
 import 'package:import_service_admin/core/ui/server_error_ui.dart';
 import 'package:import_service_admin/domain/entities/organization.dart';
 import 'package:import_service_admin/domain/repositories/organizations_repository.dart';
@@ -48,9 +50,7 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(
-            org.companyName.isNotEmpty ? org.companyName : org.login,
-          ),
+          title: Text(org.companyName.isNotEmpty ? org.companyName : org.login),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,6 +68,15 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
             ),
           ),
           actions: [
+            if (!org.isDeleted)
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _deleteOrg(org);
+                },
+                child: const Text('Удалить'),
+              ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Закрыть'),
@@ -76,6 +85,45 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
         );
       },
     );
+  }
+
+  Future<void> _deleteOrg(Organization org) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить организацию?'),
+        content: Text(
+          'Организация, её заявки и сессии будут удалены.\n'
+          '${org.companyName.isNotEmpty ? '${org.companyName}\n' : ''}'
+          '${org.login}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await sl<OrganizationsRepository>().delete(org.id);
+      if (!mounted) return;
+      AppSnackBars.showSuccess('Организация удалена');
+      _reload();
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      AppSnackBars.showError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBars.showError('Не удалось удалить');
+    }
   }
 
   @override
@@ -160,8 +208,10 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
                                 '${org.effectiveRoles.join(', ')} · ${org.inn} · ${org.login}',
                               ),
                               trailing: org.isDeleted
-                                  ? const Icon(Icons.archive_outlined,
-                                      color: Colors.grey)
+                                  ? const Icon(
+                                      Icons.archive_outlined,
+                                      color: Colors.grey,
+                                    )
                                   : const Icon(Icons.chevron_right),
                               onTap: () => _openDetail(org),
                             ),
@@ -195,10 +245,7 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 88,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
           ),
           Expanded(child: Text(value)),
         ],

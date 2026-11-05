@@ -13,13 +13,12 @@ class OrganizationsRepositoryImpl implements OrganizationsRepository {
     int offset = 0,
     String? query,
     bool includeDeleted = false,
-  }) =>
-      _remote.list(
-        limit: limit,
-        offset: offset,
-        query: query,
-        includeDeleted: includeDeleted,
-      );
+  }) => _remote.list(
+    limit: limit,
+    offset: offset,
+    query: query,
+    includeDeleted: includeDeleted,
+  );
 
   @override
   Future<Organization> getById(int id) => _remote.getById(id);
@@ -27,4 +26,7 @@ class OrganizationsRepositoryImpl implements OrganizationsRepository {
   @override
   Future<Organization> updateRoles(int id, List<String> roles) =>
       _remote.updateRoles(id, roles);
+
+  @override
+  Future<void> delete(int id) => _remote.delete(id);
 }

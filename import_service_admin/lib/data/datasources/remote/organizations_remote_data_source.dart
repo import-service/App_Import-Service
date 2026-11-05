@@ -36,10 +36,10 @@ class OrganizationsRemoteDataSource {
           : int.tryParse('${data['total']}') ?? 0;
       final items = raw is List
           ? raw
-              .whereType<Map<String, dynamic>>()
-              .map(OrganizationModel.fromJson)
-              .map((m) => m.toEntity())
-              .toList(growable: false)
+                .whereType<Map<String, dynamic>>()
+                .map(OrganizationModel.fromJson)
+                .map((m) => m.toEntity())
+                .toList(growable: false)
           : <Organization>[];
       return (items: items, total: total);
     } on DioException catch (e) {
@@ -59,6 +59,14 @@ class OrganizationsRemoteDataSource {
         throw const NotFoundException();
       }
       return OrganizationModel.fromJson(item).toEntity();
+    } on DioException catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<void> delete(int id) async {
+    try {
+      await _dio.delete<dynamic>('admin/organizations/$id');
     } on DioException catch (e) {
       throw ErrorHandler.handle(e);
     }

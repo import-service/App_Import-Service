@@ -503,6 +503,48 @@ module.exports = async function adminRoutes(fastify) {
     },
   );
 
+  fastify.delete(
+    '/admin/organizations/:id',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Некорректный id' });
+      }
+
+      const [rows] = await fastify.pool.query(
+        `SELECT id, login, role FROM organizations
+         WHERE id = ? AND deleted_at IS NULL AND NOT (${staffManagerRoleSql()}) LIMIT 1`,
+        [id],
+      );
+      if (!rows.length) {
+        return reply.code(404).send({ error: 'NOT_FOUND' });
+      }
+      const login = rows[0].login;
+
+      await fastify.pool.query(
+        `UPDATE organizations SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+         WHERE id = ?`,
+        [id],
+      );
+      const [reqResult] = await fastify.pool.query(
+        `UPDATE customs_requests SET deleted_at = CURRENT_TIMESTAMP(3)
+         WHERE legal_email = ? AND deleted_at IS NULL`,
+        [login],
+      );
+      await fastify.pool.query(
+        'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP(3) WHERE user_id = ? AND revoked_at IS NULL',
+        [id],
+      );
+      await fastify.pool.query(
+        'UPDATE user_push_tokens SET deleted_at = CURRENT_TIMESTAMP(3) WHERE org_id = ? AND deleted_at IS NULL',
+        [id],
+      );
+
+      return reply.send({ ok: true, deleted: true, deletedRequests: reqResult.affectedRows || 0 });
+    },
+  );
+
   fastify.get(
     '/admin/settings/one-c-request-create',
     { onRequest: [fastify.authenticateAdmin] },

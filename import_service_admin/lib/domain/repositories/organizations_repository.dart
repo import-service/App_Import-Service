@@ -11,4 +11,6 @@ abstract class OrganizationsRepository {
   Future<Organization> getById(int id);
 
   Future<Organization> updateRoles(int id, List<String> roles);
+
+  Future<void> delete(int id);
 }
