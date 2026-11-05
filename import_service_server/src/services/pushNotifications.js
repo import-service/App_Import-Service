@@ -118,12 +118,6 @@ function buildStateChangeSummary({
   return clipText(`${req}: ${parts.join('. ')}`);
 }
 
-function buildStatePushTitle({ requestId, status, statusSubType }) {
-  const req = requestRef(requestId);
-  const sub = String(statusSubType ?? '').trim();
-  if (sub === 'primary_documents_sent' || sub === 'signature_revision_required') {
-    return clipText('Документы на подпись', MAX_TITLE_LEN);
-  }
 function buildStatePushTitle({
   requestId,
   status,
@@ -174,6 +168,12 @@ function buildFilesChangeSummary({
     ownerFullName,
     requestId,
   });
+  const statusPhrase = formatStatusPhrase(status);
+  const { types, categories } = classifyChangedFiles(changedDocTypes);
+
+  if (!types.length) {
+    return clipText(`${req}: появились новые файлы`);
+  }
 
   const signingTypes = types.filter(
     (t) => !t.endsWith('_sign') && (docTypeCategory(t) === 'signing' || t === 'contract'),
@@ -214,12 +214,6 @@ function buildFilesChangeSummary({
   return clipText(`${req}: новые документы — ${names}${suffix}`);
 }
 
-function buildFilesPushTitle({ requestId, changedDocTypes }) {
-  const { types } = classifyChangedFiles(changedDocTypes);
-  const signingTypes = types.filter(
-    (t) => !t.endsWith('_sign') && (docTypeCategory(t) === 'signing' || t === 'contract'),
-  );
-  if (signingTypes.length) {
 function buildFilesPushTitle({
   requestId,
   changedDocTypes,
@@ -240,6 +234,12 @@ function buildFilesPushTitle({
     personOrRequestRef({ individualFullName, ownerFullName, requestId }),
     MAX_TITLE_LEN,
   );
+}
+
+let app = null;
+
+function ensureFirebaseApp(config) {
+  if (app) return app;
   const fcm = config?.push?.fcm || {};
   if (!fcm.projectId || !fcm.clientEmail || !fcm.privateKey) {
     return null;
@@ -272,12 +272,6 @@ async function fetchOrgPushTokens(pool, orgId) {
 }
 
 async function resolveOrgIdByRequestId(pool, requestId) {
-  const [rows] = await pool.query(
-    `SELECT o.id
-     FROM customs_requests r
-     JOIN organizations o ON o.login = r.legal_email AND o.deleted_at IS NULL
-     WHERE r.id = ? AND r.deleted_at IS NULL
-     LIMIT 1`,
   const ctx = await resolveRequestPushContext(pool, requestId);
   return ctx?.orgId ?? null;
 }
@@ -301,6 +295,12 @@ async function resolveRequestPushContext(pool, requestId) {
     individualFullName: String(row.individual_full_name || '').trim(),
     ownerFullName: String(row.owner_full_name || '').trim(),
   };
+}
+
+async function markTokensDeleted(pool, tokens) {
+  if (!Array.isArray(tokens) || !tokens.length) return;
+  await pool.query(
+    `UPDATE user_push_tokens
      SET deleted_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
      WHERE token IN (?) AND deleted_at IS NULL`,
     [tokens],
@@ -352,12 +352,6 @@ async function sendPushToOrganization(fastify, orgId, message) {
 }
 
 async function notifyFilesChangedFrom1C(fastify, dto) {
-  const orgId = await resolveOrgIdByRequestId(fastify.pool, dto.requestId);
-  const requestId = String(dto.requestId || '');
-  const changed = Array.isArray(dto.changedDocTypes) ? dto.changedDocTypes : [];
-  const changeSummary =
-    dto.changeSummary ||
-    buildFilesChangeSummary({
   const ctx = await resolveRequestPushContext(fastify.pool, dto.requestId);
   const orgId = ctx?.orgId ?? null;
   const requestId = String(dto.requestId || '');
@@ -452,6 +446,12 @@ async function notifyMessageFrom1C(fastify, dto) {
     ownerFullName: ctx?.ownerFullName,
     requestId,
   });
+  return sendPushToOrganization(fastify, orgId, {
+    title: 'Сообщение от менеджера',
+    body: clipText(dto.text || `${req}: новое сообщение в чате`),
+    data: {
+      type: 'new_message',
+      requestId,
       request_id: requestId,
       id: requestId,
       external1cId: dto.external1cId || '',

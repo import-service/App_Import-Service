@@ -22,7 +22,7 @@ module.exports = async function authRoutes(fastify) {
       const { login, password } = request.body;
 
       const [rows] = await fastify.pool.query(
-        'SELECT id, role, roles, password_hash FROM organizations WHERE login = ? AND deleted_at IS NULL LIMIT 1',
+        'SELECT id, role, roles, password_hash FROM organizations WHERE login = ? AND deleted_at IS NULL ORDER BY id LIMIT 1',
         [login],
       );
 

@@ -131,6 +131,25 @@ module.exports = async function integrationRoutes(fastify) {
       }
 
       try {
+        const [loginRows] = await fastify.pool.query(
+          'SELECT id FROM organizations WHERE login = ? AND deleted_at IS NULL AND id_1c <> ? LIMIT 1',
+          [payload.login, payload.id1c],
+        );
+        if (loginRows.length) {
+          const message = 'Пользователь с таким логином уже существует';
+          await writeIntegrationLog(fastify, {
+            requestId,
+            status: 'error',
+            httpCode: 409,
+            rowsReceived: 1,
+            rowsUnique: 0,
+            errorMessage: `LOGIN_ALREADY_EXISTS: ${message}`,
+          });
+          return reply
+            .code(409)
+            .send({ error: 'LOGIN_ALREADY_EXISTS', message });
+        }
+
         const passwordHash = await bcrypt.hash(payload.password, 10);
         await fastify.pool.query(
           `INSERT INTO organizations
