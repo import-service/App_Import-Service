@@ -1681,6 +1681,10 @@ Authorization: Bearer &lt;INTEGRATION_BEARER_TOKEN&gt;</pre>
           <div class="body"><p><b>Auth:</b> Bearer admin</p><p>Снимает <code>deleted_at</code> с организации и её заявок. Сессии и push-токены не восстанавливаются — пользователь войдёт заново.</p><p><b>Success:</b> <code>{ "ok": true, "restored": true, "restoredRequests": 2 }</code></p><p><b>Errors:</b> <code>400</code>, <code>404 NOT_FOUND</code></p></div>
         </details>
         <details class="card">
+          <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/auth-attempts</code><span class="desc">Журнал попыток входа в МП (30 дней).</span></summary>
+          <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Query:</b> <code>limit</code>, <code>offset</code>, <code>q</code> (поиск по login / компании)</p><p>Пишутся успешные входы и отказы <code>INVALID_CREDENTIALS</code> (нет логина или неверный пароль): <code>created_at</code>, <code>login</code>, <code>organization_id</code>, <code>success</code>, <code>error_code</code>, <code>ip</code>, <code>user_agent</code>, <code>company_name</code>.</p><p><b>Success:</b> <code>{ "items": […], "total": N, "limit": 50, "offset": 0 }</code></p></div>
+        </details>
+        <details class="card">
           <summary class="summary"><span class="method get">GET</span><code class="path">/api/admin/svh-managers</code><span class="desc">Список менеджеров СВХ (МП).</span></summary>
           <div class="body"><p><b>Auth:</b> Bearer admin</p><p><b>Query:</b> <code>limit</code>, <code>offset</code>, <code>includeDisabled=1</code>.</p><p><b>Success:</b></p><pre>{
   "items": [{ "id": 12, "login": "svh1@site.ru", "fullName": "Иванов И.И.", "phone": "+7999…", "active": true, "createdAt": "…", "updatedAt": "…" }],

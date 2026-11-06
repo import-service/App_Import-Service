@@ -21,6 +21,7 @@ import 'package:import_service_admin/data/datasources/remote/storage_remote_data
 import 'package:import_service_admin/data/datasources/remote/store_versions_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/android_apk_remote_data_source.dart';
 import 'package:import_service_admin/data/datasources/remote/client_errors_remote_data_source.dart';
+import 'package:import_service_admin/data/datasources/remote/auth_attempts_remote_data_source.dart';
 import 'package:import_service_admin/data/repositories/admin_users_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/svh_managers_repository_impl.dart';
 import 'package:import_service_admin/data/repositories/admin_settings_repository_impl.dart';
@@ -48,8 +49,9 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<MockJsonLoader>(MockJsonLoader.new);
 
   final session = sl<AuthSessionController>();
-  final restoredToken =
-      await sl<SecureStorageService>().read(AuthStorageKeys.accessToken);
+  final restoredToken = await sl<SecureStorageService>().read(
+    AuthStorageKeys.accessToken,
+  );
   session.restore(
     restoredToken != null && restoredToken.trim().isNotEmpty
         ? restoredToken
@@ -57,9 +59,8 @@ Future<void> initDependencies() async {
   );
 
   sl.registerLazySingleton<DioClient>(
-    () => DioClient(
-      tokenProvider: () => sl<AuthSessionController>().accessToken,
-    ),
+    () =>
+        DioClient(tokenProvider: () => sl<AuthSessionController>().accessToken),
   );
   sl.registerLazySingleton<Dio>(() => sl<DioClient>().dio);
 
@@ -80,6 +81,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<ClientErrorsRemoteDataSource>(
     () => ClientErrorsRemoteDataSource(sl<Dio>()),
+  );
+  sl.registerLazySingleton<AuthAttemptsRemoteDataSource>(
+    () => AuthAttemptsRemoteDataSource(sl<Dio>()),
   );
   sl.registerLazySingleton<BroadcastRemoteDataSource>(
     () => BroadcastRemoteDataSource(sl<Dio>()),
@@ -146,8 +150,7 @@ Future<void> initDependencies() async {
 
   sl<Dio>().interceptors.add(
     SessionExpiredInterceptor(
-      onSessionExpired: () =>
-          sl<AuthService>().logout(sessionExpired: true),
+      onSessionExpired: () => sl<AuthService>().logout(sessionExpired: true),
     ),
   );
 }

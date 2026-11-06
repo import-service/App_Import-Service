@@ -17,6 +17,7 @@ class AdminShellPage extends StatelessWidget {
     (icon: Icons.business_outlined, label: 'Организации'),
     (icon: Icons.admin_panel_settings_outlined, label: 'Админы'),
     (icon: Icons.local_shipping_outlined, label: 'Менеджеры'),
+    (icon: Icons.login, label: 'Входы'),
     (icon: Icons.campaign_outlined, label: 'Рассылка'),
     (icon: Icons.bug_report_outlined, label: 'Ошибки'),
     (icon: Icons.sd_storage_outlined, label: 'Хранилище'),
@@ -62,7 +63,9 @@ class AdminShellPage extends StatelessWidget {
               onDestinationSelected: navigationShell.goBranch,
               labelType: NavigationRailLabelType.all,
               backgroundColor: Colors.white,
-              selectedIconTheme: const IconThemeData(color: AppTheme.primaryBlue),
+              selectedIconTheme: const IconThemeData(
+                color: AppTheme.primaryBlue,
+              ),
               selectedLabelTextStyle: const TextStyle(
                 color: AppTheme.primaryBlue,
                 fontWeight: FontWeight.w600,

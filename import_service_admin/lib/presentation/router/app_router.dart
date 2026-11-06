@@ -9,6 +9,7 @@ import 'package:import_service_admin/presentation/pages/svh_managers_page.dart';
 import 'package:import_service_admin/presentation/pages/broadcast_page.dart';
 import 'package:import_service_admin/presentation/pages/client_errors_page.dart';
 import 'package:import_service_admin/presentation/pages/apk_release_history_page.dart';
+import 'package:import_service_admin/presentation/pages/auth_attempts_page.dart';
 import 'package:import_service_admin/presentation/pages/dashboard_page.dart';
 import 'package:import_service_admin/presentation/pages/login_page.dart';
 import 'package:import_service_admin/presentation/pages/organizations_page.dart';
@@ -35,14 +36,8 @@ final GoRouter appRouter = GoRouter(
     return null;
   },
   routes: [
-    GoRoute(
-      path: '/home',
-      redirect: (context, state) => '/dashboard',
-    ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginPage(),
-    ),
+    GoRoute(path: '/home', redirect: (context, state) => '/dashboard'),
+    GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return AdminShellPage(navigationShell: navigationShell);
@@ -72,9 +67,8 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: ':id',
                   parentNavigatorKey: rootNavigatorKey,
-                  builder: (context, state) => RequestDetailPage(
-                    requestId: state.pathParameters['id']!,
-                  ),
+                  builder: (context, state) =>
+                      RequestDetailPage(requestId: state.pathParameters['id']!),
                 ),
               ],
             ),
@@ -124,6 +118,14 @@ final GoRouter appRouter = GoRouter(
                   },
                 ),
               ],
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/auth-attempts',
+              builder: (context, state) => const AuthAttemptsPage(),
             ),
           ],
         ),

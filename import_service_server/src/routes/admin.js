@@ -568,6 +568,50 @@ module.exports = async function adminRoutes(fastify) {
   );
 
   fastify.get(
+    '/admin/auth-attempts',
+    { onRequest: [fastify.authenticateAdmin] },
+    async (request, reply) => {
+      const limit = Math.min(Math.max(Number(request.query.limit) || 50, 1), 200);
+      const offset = Math.max(Number(request.query.offset) || 0, 0);
+      const q = String(request.query.q || '').trim();
+
+      const where = [];
+      const args = [];
+      if (q) {
+        where.push('(a.login LIKE ? OR o.company_name LIKE ?)');
+        const like = `%${q}%`;
+        args.push(like, like);
+      }
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+      try {
+        const [countRows] = await fastify.pool.query(
+          `SELECT COUNT(*) AS total FROM auth_attempts a
+           LEFT JOIN organizations o ON o.id = a.organization_id ${whereSql}`,
+          args,
+        );
+        const total = Number(countRows[0]?.total || 0);
+        const [rows] = await fastify.pool.query(
+          `SELECT a.id, a.created_at, a.login, a.organization_id, a.success, a.error_code,
+                  a.ip, a.user_agent, o.company_name
+           FROM auth_attempts a
+           LEFT JOIN organizations o ON o.id = a.organization_id
+           ${whereSql}
+           ORDER BY a.id DESC
+           LIMIT ? OFFSET ?`,
+          [...args, limit, offset],
+        );
+        return reply.send({ items: rows, total, limit, offset });
+      } catch (e) {
+        if (e && e.code === 'ER_NO_SUCH_TABLE') {
+          return reply.send({ items: [], total: 0, limit, offset });
+        }
+        throw e;
+      }
+    },
+  );
+
+  fastify.get(
     '/admin/settings/one-c-request-create',
     { onRequest: [fastify.authenticateAdmin] },
     async (_request, reply) => {

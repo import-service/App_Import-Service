@@ -508,6 +508,37 @@ Query:
 
 Ошибки: `400`, `401`, `404 NOT_FOUND` (нет удалённой организации с таким id или это служебная учётка).
 
+### GET /api/admin/auth-attempts
+
+Журнал попыток входа в МП (успехи и отказы `INVALID_CREDENTIALS`). Хранение — 30 дней (daily purge).
+
+Query: `limit`, `offset`, `q` (поиск по login и названию компании).
+
+Успех:
+
+```json
+{
+  "items": [
+    {
+      "id": 12,
+      "created_at": "2026-11-06T05:13:35.644Z",
+      "login": "mail@org.ru",
+      "organization_id": 58,
+      "success": 0,
+      "error_code": "INVALID_CREDENTIALS",
+      "ip": "88.204.50.93",
+      "user_agent": "Dart/3.x (dart:io)",
+      "company_name": "ООО Ромашка"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+`success=0` + `error_code` — отказ (нет логина или неверный пароль); `success=1` — вход выполнен.
+
 ### GET /api/admin/settings/one-c-request-create
 
 Текущие настройки **исходящих** вызовов в 1С: создание заявки и обновление файлов.

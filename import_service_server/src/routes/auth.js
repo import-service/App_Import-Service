@@ -3,6 +3,26 @@ const { v4: uuidv4 } = require('uuid');
 const { expiresInToMs } = require('../util/time');
 const { rolesFromRow, pickPrimaryRole } = require('../util/organizationRoles');
 
+async function logAuthAttempt(fastify, request, login, { success, organizationId = null, errorCode = null }) {
+  try {
+    await fastify.pool.query(
+      `INSERT INTO auth_attempts (login, organization_id, success, error_code, ip, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        String(login || '').slice(0, 255),
+        organizationId,
+        success ? 1 : 0,
+        errorCode,
+        String(request.ip || '').slice(0, 64) || null,
+        String(request.headers['user-agent'] || '').slice(0, 255) || null,
+      ],
+    );
+  } catch (e) {
+    if (e && e.code === 'ER_NO_SUCH_TABLE') return;
+    fastify.log.error(e, 'Не удалось записать auth_attempts');
+  }
+}
+
 module.exports = async function authRoutes(fastify) {
   fastify.post(
     '/auth/login',
@@ -27,12 +47,18 @@ module.exports = async function authRoutes(fastify) {
       );
 
       if (!rows.length) {
+        await logAuthAttempt(fastify, request, login, { success: false, errorCode: 'INVALID_CREDENTIALS' });
         return reply.code(401).send({ error: 'INVALID_CREDENTIALS' });
       }
 
       const user = rows[0];
       const match = await bcrypt.compare(password, user.password_hash);
       if (!match) {
+        await logAuthAttempt(fastify, request, login, {
+          success: false,
+          organizationId: user.id,
+          errorCode: 'INVALID_CREDENTIALS',
+        });
         return reply.code(401).send({ error: 'INVALID_CREDENTIALS' });
       }
 
@@ -51,6 +77,8 @@ module.exports = async function authRoutes(fastify) {
         'INSERT INTO user_sessions (user_id, jti, expires_at) VALUES (?, ?, ?)',
         [userId, jti, expiresAt],
       );
+
+      await logAuthAttempt(fastify, request, login, { success: true, organizationId: userId });
 
       const token = fastify.jwt.sign(
         { sub: String(userId), jti, role, roles },

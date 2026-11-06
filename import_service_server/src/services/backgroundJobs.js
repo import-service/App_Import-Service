@@ -155,6 +155,16 @@ async function runDailyClientErrorsPurge(fastify) {
     if (result.deleted) {
       fastify.log.info(result, 'client errors retention purge');
     }
+    try {
+      const [r] = await fastify.pool.query(
+        'DELETE FROM auth_attempts WHERE created_at < (NOW(3) - INTERVAL 30 DAY)',
+      );
+      if (r.affectedRows) {
+        fastify.log.info({ deleted: r.affectedRows }, 'auth attempts retention purge');
+      }
+    } catch (e) {
+      if (!e || e.code !== 'ER_NO_SUCH_TABLE') throw e;
+    }
     return result;
   } catch (e) {
     if (e && e.code === 'ER_NO_SUCH_TABLE') {
