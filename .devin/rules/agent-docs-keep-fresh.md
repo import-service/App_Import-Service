@@ -20,6 +20,7 @@ trigger: always_on
 | Флоу заявки, upload, статусы, docType | `docs/request-lifecycle.md` + при смене смысла платформы `project-concept.md` |
 | Ловушка / регрессия | `pitfalls-and-regression-guards.md` |
 | Админка / сервер флоу | соответствующие `*.md` в admin/server |
+| Изменил payload/контракт для 1С (поле, формат, валидация) | в том же коммите `docs/api-1c.md` + `api.html` |
 
 Даже «только UI» (кнопка, кэш, профиль, QR) — **короткий абзац** в runtime/map, чтобы следующий агент не гадал по коду.
 

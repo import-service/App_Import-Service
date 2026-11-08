@@ -81,6 +81,7 @@ function mapAttachmentsClientFileUrls(attachments, publicBaseUrl) {
 
 /** Ответ upload для 1С (заявка и чат). */
 function integrationFileUploadPayload(file, extra = {}) {
+  const uploadedAt = file.uploadedAt ?? new Date().toISOString();
   const payload = {
     ok: true,
     file: {
@@ -88,6 +89,8 @@ function integrationFileUploadPayload(file, extra = {}) {
       fileName: file.fileName,
       mimeType: file.mimeType,
       fileSizeBytes: file.fileSizeBytes,
+      uploadedAt,
+      createdAt: uploadedAt,
     },
   };
   if (file.docType != null && String(file.docType).trim()) {

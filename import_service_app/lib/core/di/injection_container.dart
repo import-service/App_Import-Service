@@ -54,7 +54,10 @@ Future<void> initDependencies() async {
     () => RequestFileSeenStore(sl()),
   );
 
-  final requestDraftCubit = RequestDraftCubit(prefs);
+  final requestDraftCubit = RequestDraftCubit(
+    prefs,
+    ownerIdProvider: () => sl<AuthSessionController>().userId,
+  );
   sl.registerSingleton<RequestDraftCubit>(requestDraftCubit);
   requestDraftCubit.reloadFromDisk();
   sl.registerSingleton<RequestAttentionCubit>(RequestAttentionCubit());
@@ -73,9 +76,7 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<PushNotificationsService>(
     PushNotificationsService.new,
   );
-  sl.registerLazySingleton<AppUpdateService>(
-    () => AppUpdateService(sl<Dio>()),
-  );
+  sl.registerLazySingleton<AppUpdateService>(() => AppUpdateService(sl<Dio>()));
 
   sl.registerLazySingleton<SecureStorageService>(SecureStorageService.new);
   sl.registerLazySingleton<RecentAccountsService>(
@@ -189,6 +190,7 @@ Future<void> initDependencies() async {
       await sl<AuthService>().clearLocalSession();
     }
   }
+  await requestDraftCubit.bindToCurrentOwner();
 
   // Как только FCM-токен получен — сразу POST на сервер (если есть сессия).
   sl<PushNotificationsService>().onFcmTokenReady = (token) {

@@ -48,7 +48,10 @@
 - `role` — `admin` или `user`
 - `orgType` — `ИП`, `ООО` или `Физическое лицо`
 - `companyName` — название (для `ООО`) или ФИО (для `ИП` / `Физическое лицо`)
-- `inn`, `phone` — обязательны; ИНН: ООО — 10 цифр, ИП и физлицо — 12
+- `inn` — ИНН: **10 или 12 цифр** (некорректное значение игнорируется — см. `warnings` ниже)
+- `phone` — телефон
+
+`inn` и `phone` необязательны. Если `inn` непустой, но после удаления нецифровых символов не соответствует правилу «10 или 12 цифр» — значение **не сохраняется** (трактуется как пустое), организация создаётся/обновляется как обычно, а в успешный ответ добавляется `warnings: ["INVALID_INN_IGNORED"]`. Ответы без проблем поля `warnings` не содержат.
 
 Успешный ответ:
 
@@ -63,6 +66,28 @@
     "orgType": "ООО",
     "companyName": "ООО Ромашка",
     "inn": "7701234567",
+    "phone": "+79990000000",
+    "created_at": "2026-04-27T07:00:00.000Z",
+    "updated_at": "2026-04-27T07:00:00.000Z",
+    "deleted_at": null
+  }
+}
+```
+
+Успешный ответ с некорректным ИНН (ИНН проигнорирован, в `item.inn` пусто):
+
+```json
+{
+  "ok": true,
+  "warnings": ["INVALID_INN_IGNORED"],
+  "item": {
+    "id": 10,
+    "id_1c": "org-001",
+    "login": "mail@org.ru",
+    "role": "user",
+    "orgType": "ООО",
+    "companyName": "ООО Ромашка",
+    "inn": "",
     "phone": "+79990000000",
     "created_at": "2026-04-27T07:00:00.000Z",
     "updated_at": "2026-04-27T07:00:00.000Z",
@@ -124,18 +149,64 @@
 | Поле | Описание |
 |------|----------|
 | `requestId` | number — id заявки у нас |
-| `legalEntityName`, `legalEmail`, `legalPhone`, `legalInn` | данные организации из анкеты |
+| `legalEntityName`, `legalEmail`, `legalPhone` | данные организации из анкеты |
+| `legalInn`, `inn` | ИНН организации (дубли — одно значение); **может быть `null`**: ИНН организации необязателен, некорректный ИНН профиля игнорируется |
 | `individualFullName`, `individualPhone`, `individualSnils`, `individualInn` | физлицо «кому везут»; `individualInn` — строго 12 цифр |
-| `organizationId`, `organizationLogin`, `organizationName` | пользователь/организация приложения (логин в МП) |
-| `individualFullName`, `individualPhone`, `individualSnils` | … |
-| `carMake`, `carModel`, `vin` | … |
+| `organizationId1c` | **`id_1c` организации — стабильный ключ, не меняется никогда; использовать его** |
+| `organizationId` | внутренний id организации на сервере; для 1С устарел — не использовать как ключ |
+| `organizationLogin` | логин организации в МП (может меняться — не использовать как ключ) |
+| `organizationName` | название организации из профиля (`organizations.company_name`, пришло из 1С), подставляет сервер |
+| `legalEntityName` vs `organizationName` | в норме совпадают: форма заявки заполняет `legalEntityName` из профиля. Различаются, если название в заявке правили вручную или профиль изменился после создания заявки |
+| `carMake`, `carModel`, `vin` | авто |
 | `hasSunroof`, `hasAllWheelDrive` | boolean |
 | `importedLast12Months`, `ownsOtherCars` | boolean, **выводятся из списков**: есть даты → ввоз был; есть авто → есть другие авто |
 | `previousImportDates` | `string[]` дат `YYYY-MM-DD` — даты ввоза предыдущих авто (пусто = не ввозили) |
 | `ownedVehicles` | `{ name: string, year: number }[]` — авто в собственности (для пояснения); пусто = нет |
 | `commentText` | string \| null |
 | `isTest` | boolean |
-| `files[]` | `docType`, `fileName`, `mimeType`, `fileUrl` — `fileUrl` при необходимости с `PUBLIC_BASE_URL` (в карточке МП также `previewUrl` для превью) |
+| `files[]` | `docType`, `fileName`, `mimeType`, `fileUrl`, `uploadedAt`, `createdAt` — `fileUrl` при необходимости с `PUBLIC_BASE_URL` (в карточке МП также `previewUrl` для превью); `uploadedAt` — ISO 8601 UTC, когда файл был получен сервером МП (не дата записи в 1С; для чеков оплаты — дата выгрузки чека); `createdAt` — дубль `uploadedAt` (то же значение), для удобства парсеров 1С |
+
+Пример тела (реальная заявка):
+
+```json
+{
+  "requestId": 72,
+  "legalEntityName": "ИП Иванов Иван Иванович",
+  "legalEmail": "ivanov@example.com",
+  "legalPhone": "+79990001122",
+  "legalInn": "123456789012",
+  "inn": "123456789012",
+  "individualFullName": "Иванов Иван Иванович",
+  "individualPhone": "+79990001122",
+  "individualSnils": "12345678901",
+  "individualInn": "123456789012",
+  "organizationId": 10,
+  "organizationId1c": "1ecdae29-4240-11f1-9fb7-2cfda12b414c",
+  "organizationLogin": "ivanov@example.com",
+  "organizationName": "ИП Иванов Иван Иванович",
+  "carMake": "Toyota",
+  "carModel": "Land Cruiser",
+  "vin": "JT111111111111111",
+  "hasSunroof": true,
+  "hasAllWheelDrive": true,
+  "importedLast12Months": true,
+  "ownsOtherCars": true,
+  "previousImportDates": ["2025-03-14"],
+  "ownedVehicles": [{ "name": "Kia Rio", "year": 2019 }],
+  "commentText": "Повторный ввоз. Даты предшествующего ввоза: 2025-03-14\nАвто в собственности: Kia Rio, 2019",
+  "isTest": false,
+  "files": [
+    {
+      "docType": "passport_front",
+      "fileName": "passport_front.jpg",
+      "mimeType": "image/jpeg",
+      "fileUrl": "https://app.import-service.su/api/customs-requests/files/GUID__passport_front.jpg",
+      "uploadedAt": "2026-11-08T09:15:23.456Z",
+      "createdAt": "2026-11-08T09:15:23.456Z"
+    }
+  ]
+}
+```
 
 **Ответ 1С** (успех, JSON):
 
@@ -237,6 +308,8 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
     "mimeType": "application/pdf",
     "fileSizeBytes": 12345,
     "fileUrl": "/api/customs-requests/files/GUID__contract.pdf",
+    "uploadedAt": "2026-11-08T09:15:23.456Z",
+    "createdAt": "2026-11-08T09:15:23.456Z",
     "previewUrl": null,
     "replaced": false
   }
@@ -346,13 +419,16 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
       "docType": "contract_sign",
       "fileName": "contract_sign.pdf",
       "mimeType": "application/pdf",
-      "fileUrl": "https://app.import-service.su/api/customs-requests/files/GUID__contract_sign.pdf"
+      "fileUrl": "https://app.import-service.su/api/customs-requests/files/GUID__contract_sign.pdf",
+      "uploadedAt": "2026-11-08T12:40:05.789Z",
+      "createdAt": "2026-11-08T12:40:05.789Z"
     }
   ]
 }
 ```
 
 - `files[]` — только **новые или изменённые** файлы от клиента (подписи, чеки, доп. документы).
+- `uploadedAt` в `files[]` — ISO 8601 UTC, когда файл был получен сервером МП (не дата записи в 1С; для чеков оплаты — дата выгрузки чека). `createdAt` — дубль `uploadedAt` (то же значение), для удобства парсеров 1С.
 - Статусы и суммы 1С получает **входящим** `state` (1С → сервер), не через update.
 
 Минимально: `external1cId` + непустой `files[]`.

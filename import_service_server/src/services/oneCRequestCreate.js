@@ -2,6 +2,7 @@ const { getAppSettings } = require('./appSettings');
 const { ensureDisplayFileName } = require('../util/displayFileName');
 const { normalizeIntegrationFileUrl } = require('../util/integrationFileUrl');
 const { questionnaireFromBody, questionnaireFromRow } = require('../util/customsRequestQuestionnaire');
+const { toIso } = require('../util/customsRequestDto');
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_ONE_C_BODY_CHARS = 4000;
@@ -53,6 +54,7 @@ function buildCreatePayloadFromBody(requestId, body, orgMeta = {}) {
     String(body.individualInn ?? body.individual_inn ?? body.personInn ?? '').replace(/\D/g, ''),
   );
   const q = questionnaireFromBody(body);
+  const uploadedNow = new Date().toISOString();
   return {
     requestId,
     legalEntityName: normalize(body.legalEntityName),
@@ -65,6 +67,7 @@ function buildCreatePayloadFromBody(requestId, body, orgMeta = {}) {
     individualSnils: normalize(body.individualSnils),
     individualInn: individualInn || null,
     organizationId: orgMeta.organizationId ?? body.organizationId ?? null,
+    organizationId1c: orgMeta.organizationId1c ?? null,
     organizationLogin: orgMeta.organizationLogin ?? body.organizationLogin ?? null,
     organizationName: orgMeta.organizationName ?? body.organizationName ?? null,
     carMake: normalize(body.carMake),
@@ -83,6 +86,8 @@ function buildCreatePayloadFromBody(requestId, body, orgMeta = {}) {
       fileName: normalize(f.fileName),
       mimeType: normalize(f.mimeType) || 'application/octet-stream',
       fileUrl: normalize(f.fileUrl),
+      uploadedAt: uploadedNow,
+      createdAt: uploadedNow,
     })),
   };
 }
@@ -103,6 +108,7 @@ function buildCreatePayloadFromRow(requestId, row, fileRows, orgMeta = {}) {
     individualSnils: normalize(row.individual_snils),
     individualInn: individualInn || null,
     organizationId: orgMeta.organizationId ?? row.organization_id ?? null,
+    organizationId1c: orgMeta.organizationId1c ?? null,
     organizationLogin: orgMeta.organizationLogin ?? null,
     organizationName: orgMeta.organizationName ?? null,
     carMake: normalize(row.car_make),
@@ -126,6 +132,8 @@ function buildCreatePayloadFromRow(requestId, row, fileRows, orgMeta = {}) {
       }),
       mimeType: normalize(f.mime_type) || 'application/octet-stream',
       fileUrl: normalize(f.file_url),
+      uploadedAt: toIso(f.created_at),
+      createdAt: toIso(f.created_at),
     })),
   };
 }
@@ -286,13 +294,14 @@ async function submitCustomsRequestTo1C(fastify, requestId, payloadBuilder) {
 async function loadOrganizationMeta(pool, organizationId) {
   if (organizationId == null) return {};
   const [orgRows] = await pool.query(
-    `SELECT id, login, company_name, inn FROM organizations WHERE id = ? LIMIT 1`,
+    `SELECT id, id_1c, login, company_name, inn FROM organizations WHERE id = ? LIMIT 1`,
     [organizationId],
   );
   if (!orgRows.length) return { organizationId };
   const o = orgRows[0];
   return {
     organizationId: o.id,
+    organizationId1c: o.id_1c != null ? String(o.id_1c) : null,
     organizationLogin: o.login != null ? String(o.login) : null,
     organizationName: o.company_name != null ? String(o.company_name) : null,
     organizationInn: o.inn != null ? String(o.inn).replace(/\D/g, '') : null,
@@ -316,7 +325,7 @@ async function submitCustomsRequestTo1CFromDb(fastify, requestId) {
     return { ok: false, error: 'NOT_FOUND' };
   }
   const [fileRows] = await fastify.pool.query(
-    `SELECT doc_type, original_name, stored_name, mime_type, file_url
+    `SELECT doc_type, original_name, stored_name, mime_type, file_url, created_at
      FROM customs_request_files WHERE request_id = ? AND deleted_at IS NULL ORDER BY id ASC`,
     [requestId],
   );

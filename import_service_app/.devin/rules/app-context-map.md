@@ -22,7 +22,7 @@ trigger: always_on
 | Enum `docType` / подстатус / сделка | `lib/domain/entities/customs_doc_type.dart`, `request_status_sub_type.dart`, `deal_type.dart`, `finance_line_type.dart` |
 | Форма заявки (DTO + JSON) | `lib/data/models/request_form_model.dart` |
 | Черновик заявки | `lib/data/models/request_draft.dart` |
-| Хранилище черновиков (SharedPreferences) | `lib/data/local/request_draft_store.dart` |
+| Хранилище черновиков (SharedPreferences, ключ `request_drafts_v1:<userId>`) | `lib/presentation/bloc/request_draft/request_draft_cubit.dart` |
 | Папка вложений на черновик (`request_draft_attachments/<id>/`) | `lib/data/local/request_draft_attachments_space.dart` |
 | Демо-авто | `lib/presentation/models/demo_car.dart`, `lib/data/demo/demo_cars_remote_mock.dart` |
 | Статусы фильтра (enum) | `lib/presentation/models/demo_car_filter_status.dart` |

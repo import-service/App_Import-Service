@@ -5,7 +5,8 @@ param(
   [Parameter(Mandatory = $true)][string]$ApkPath,
   [Parameter(Mandatory = $true)][int]$VersionCode,
   [string]$VersionName = '',
-  [string]$Changelog = ''
+  [string]$Changelog = '',
+  [switch]$NoEmail
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,7 +40,8 @@ if ($Changelog.Trim().Length -gt 0) {
   $b64 = [Convert]::ToBase64String($bytes)
   $clArg = " --changelogBase64 $b64"
 }
-$cmd = "cd '$RemoteRoot' && node scripts/publish-android-apk.js --file '$RemoteApk' --versionCode $VersionCode$vnArg$clArg"
+$neArg = if ($NoEmail) { ' --noEmail' } else { '' }
+$cmd = "cd '$RemoteRoot' && node scripts/publish-android-apk.js --file '$RemoteApk' --versionCode $VersionCode$vnArg$clArg$neArg"
 Write-Host 'Publish manifest...'
 & ssh @SshOpts $SshHost $cmd
 if ($LASTEXITCODE -ne 0) { throw "publish-android-apk failed: $LASTEXITCODE" }

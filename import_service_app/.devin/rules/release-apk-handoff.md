@@ -15,11 +15,15 @@ trigger: model_decision
 cd D:\Projects\import_servis
 # APK на наш сервер (flavor server):
 .\scripts\build-release-android.ps1 -UploadApk
+# то же, но БЕЗ email-уведомления о публикации:
+.\scripts\build-release-android.ps1 -UploadApk -NoEmail
 # + AAB для сторов (flavor store):
 .\scripts\build-release-android.ps1 -AlsoStoreAab -UploadApk
 # + APK для RuStore (flavor store):
 .\scripts\build-release-android.ps1 -AlsoStoreAab -AlsoStoreApk
 ```
+
+**`-NoEmail`:** по умолчанию после публикации уходит email (`notifyAndroidApkPublished`, вывод `EMAIL_OK`/`EMAIL_WARN`). С `-NoEmail` скрипт `publish-android-apk.js` письмо пропускает (вывод `EMAIL_SKIPPED`). Флаг пробрасывается: `build-release-android.ps1` → `upload-android-apk.ps1` → `--noEmail` у node-скрипта.
 
 Скрипт:
 

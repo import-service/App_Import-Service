@@ -52,7 +52,10 @@ function normalizeOrgPayload(raw) {
     companyNameRaw.includes('@')
       ? ''
       : companyNameRaw;
-  const inn = normalize(raw.inn ?? raw.INN ?? raw.legalInn);
+  const innRaw = normalize(raw.inn ?? raw.INN ?? raw.legalInn);
+  const innDigits = innRaw.replace(/\D/g, '');
+  const innIgnored = Boolean(innRaw) && !/^\d{10}(\d{2})?$/.test(innDigits);
+  const inn = innIgnored ? '' : innDigits;
   const phone = normalize(
     raw.phone ??
       raw.telephone ??
@@ -65,7 +68,7 @@ function normalizeOrgPayload(raw) {
   if (!login) throw new Error('VALIDATION_ERROR: login обязателен');
   if (!password) throw new Error('VALIDATION_ERROR: password обязателен');
 
-  return { id1c, login, password, role, orgType, companyName, inn, phone };
+  return { id1c, login, password, role, orgType, companyName, inn, innIgnored, phone };
 }
 
 async function writeIntegrationLog(fastify, payload) {
@@ -197,6 +200,12 @@ module.exports = async function integrationRoutes(fastify) {
         );
 
         const o = rows[0];
+        if (payload.innIgnored) {
+          fastify.log.warn(
+            { requestId, id1c: payload.id1c },
+            'INVALID_INN_IGNORED: inn отклонён (нужно 10 или 12 цифр)',
+          );
+        }
         await writeIntegrationLog(fastify, {
           requestId,
           status: 'success',
@@ -205,10 +214,12 @@ module.exports = async function integrationRoutes(fastify) {
           rowsUnique: 1,
           rowsUpserted: 1,
           rowsSoftDeleted: 0,
+          errorMessage: payload.innIgnored ? 'INVALID_INN_IGNORED' : null,
         });
 
         return reply.send({
           ok: true,
+          ...(payload.innIgnored ? { warnings: ['INVALID_INN_IGNORED'] } : {}),
           item: {
             id: o.id,
             id_1c: o.id_1c,

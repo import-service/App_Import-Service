@@ -134,7 +134,7 @@
 }
 ```
 
-МП в create шлёт **`individualInn`** (физлицо «кому везут»). **`legalInn`** / **`inn`** опциональны: если нет — сервер подставляет ИНН из `organizations.inn`. Не путать с `docType: "inn"` — скан в `files[]`.
+МП в create шлёт **`individualInn`** (физлицо «кому везут»). **`legalInn`** / **`inn`** опциональны: если нет — сервер подставляет ИНН из `organizations.inn`. ИНН организации вообще необязателен: некорректный ИНН в профиле (не 10/12 цифр) игнорируется и заявку **не блокирует** — в create уйдёт `null`. Не путать с `docType: "inn"` — скан в `files[]`.
 
 **Ввоз за 12 мес. / другие авто:** не галочки. Списки `previousImportDates` (`YYYY-MM-DD`) и `ownedVehicles` (`name` + `year`). Пустой список = нет. Сервер выставляет `importedLast12Months` / `ownsOtherCars` сам.
 

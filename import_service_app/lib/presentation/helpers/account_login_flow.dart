@@ -19,11 +19,18 @@ import 'package:import_service_app/presentation/bloc/request_chat_unread/request
 import 'package:import_service_app/presentation/bloc/request_draft/request_draft_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Сброс prefs при выходе: язык + last email. История аккаунтов в secure storage.
+/// Сброс prefs при выходе: язык + last email + черновики. История аккаунтов в secure storage.
 Future<void> clearSessionPrefsKeepLanguage() async {
   final prefs = sl<SharedPreferences>();
   final lang = prefs.getString('app_language');
   final lastEmail = prefs.getString(SessionPreferencesKeys.authLastEmail);
+  final draftEntries = <String, String>{};
+  for (final key in prefs.getKeys()) {
+    if (RequestDraftCubit.isDraftsPrefsKey(key)) {
+      final value = prefs.getString(key);
+      if (value != null) draftEntries[key] = value;
+    }
+  }
   await prefs.clear();
   if (lang != null) {
     await prefs.setString('app_language', lang);
@@ -31,11 +38,14 @@ Future<void> clearSessionPrefsKeepLanguage() async {
   if (lastEmail != null) {
     await prefs.setString(SessionPreferencesKeys.authLastEmail, lastEmail);
   }
+  for (final entry in draftEntries.entries) {
+    await prefs.setString(entry.key, entry.value);
+  }
 }
 
 Future<void> resetLocalStateAfterLogout() async {
   await clearSessionPrefsKeepLanguage();
-  await sl<RequestDraftCubit>().clearAll();
+  sl<RequestDraftCubit>().reset();
   await sl<CarInventoryCubit>().reloadFromDisk();
   sl<RequestChatUnreadCubit>().clearAll();
   sl<ChatListCubit>().reset();
@@ -49,7 +59,7 @@ Future<void> completeCredentialLogin({
   required String password,
 }) async {
   await sl<AuthService>().login(login: login, password: password);
-  await sl<RequestDraftCubit>().clearAll();
+  await sl<RequestDraftCubit>().bindToCurrentOwner();
   await sl<CarInventoryCubit>().replaceAll(const <CarListItem>[]);
   final session = sl<AuthSessionController>();
   if (!isSvhManagerSession(session)) {
@@ -60,10 +70,9 @@ Future<void> completeCredentialLogin({
   await prefs.remove(SessionPreferencesKeys.authLastPassword);
   if (!context.mounted) return;
   final strings = sl<JsonStringsService>();
-  final roleLine = strings.text('sessionRoleSignedInAs').replaceAll(
-        '{role}',
-        roleDisplayLabel(session.role ?? kUserRole),
-      );
+  final roleLine = strings
+      .text('sessionRoleSignedInAs')
+      .replaceAll('{role}', roleDisplayLabel(session.role ?? kUserRole));
   context.go(homeLocationForSession(session));
   sl<AppFeedbackService>().show(roleLine, kind: AppFeedbackKind.success);
   AppUpdateBootstrap.scheduleAfterLogin();
@@ -75,7 +84,9 @@ Future<void> switchToRecentAccount({
   required RecentAccount account,
 }) async {
   final session = sl<AuthSessionController>();
-  final currentLogin = (session.login ?? session.email ?? '').trim().toLowerCase();
+  final currentLogin = (session.login ?? session.email ?? '')
+      .trim()
+      .toLowerCase();
   if (session.isAuthenticated && currentLogin == account.email) {
     return;
   }

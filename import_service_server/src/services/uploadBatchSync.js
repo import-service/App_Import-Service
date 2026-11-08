@@ -2,6 +2,7 @@ const { normalizeDocType, REQUIRED_DOCUMENT_TYPES_ON_CREATE, satisfiesRequiredOn
 const { ensureDisplayFileName } = require('../util/displayFileName');
 const { storageKeyForRequest, renameRequestFilesToExternal1cId } = require('../util/requestFileStorage');
 const { submitCustomsRequestTo1CFromDb } = require('./oneCRequestCreate');
+const { toIso } = require('../util/customsRequestDto');
 const { pushCustomsRequestCreateTo1C } = require('./oneCCreateSync');
 const { pushCustomsRequestUpdateTo1C } = require('./oneCUpdateSync');
 const { notifyFilesChangedFrom1C } = require('./pushNotifications');
@@ -242,7 +243,7 @@ async function syncAfterBatchComplete(fastify, requestId, source, changedDocType
 
 async function fetchAllFilesForOneC(pool, requestId) {
   const [rows] = await pool.query(
-    `SELECT doc_type, original_name, stored_name, mime_type, file_url
+    `SELECT doc_type, original_name, stored_name, mime_type, file_url, created_at
      FROM customs_request_files
      WHERE request_id = ? AND deleted_at IS NULL`,
     [requestId],
@@ -257,6 +258,8 @@ async function fetchAllFilesForOneC(pool, requestId) {
     }),
     mimeType: r.mime_type,
     fileUrl: r.file_url,
+    uploadedAt: toIso(r.created_at),
+    createdAt: toIso(r.created_at),
   }));
 }
 

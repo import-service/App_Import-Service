@@ -1,5 +1,6 @@
 const { normalizeDocType } = require('../constants/customsCatalog');
 const { ensureDisplayFileName } = require('./displayFileName');
+const { toIso } = require('./customsRequestDto');
 
 function isSignedDocType(docType) {
   return String(docType || '').trim().endsWith('_sign');
@@ -23,6 +24,9 @@ function toIntegrationFileRef(file) {
   const dt = normalizeDocType(docType);
   const storedName = file.storedName ?? file.stored_name ?? '';
   const clientName = file.fileName ?? file.original_name ?? file.originalName ?? '';
+  const uploadedAt =
+    toIso(file.uploadedAt ?? file.createdAt ?? file.created_at) ||
+    new Date().toISOString();
   return {
     docType: dt,
     fileName: ensureDisplayFileName({
@@ -33,6 +37,8 @@ function toIntegrationFileRef(file) {
     }),
     mimeType: file.mimeType ?? file.mime_type ?? null,
     fileUrl: file.fileUrl ?? file.file_url ?? '',
+    uploadedAt,
+    createdAt: uploadedAt,
   };
 }
 

@@ -195,10 +195,10 @@ class _LoginPageState extends State<LoginPage> {
                     label: strings.demoLoginButton,
                     onPressed: () async {
                       AppLog.trace('demo: enableDemo + bootstrap', tag: 'Auth');
-                      await sl<RequestDraftCubit>().clearAll();
                       sl<AuthSessionController>().enableDemo();
-                      final boot =
-                          await sl<CarsRepository>().bootstrapDemoRequests();
+                      await sl<RequestDraftCubit>().clearAll();
+                      final boot = await sl<CarsRepository>()
+                          .bootstrapDemoRequests();
                       if (!context.mounted) return;
                       boot.fold(
                         (f) {

@@ -358,6 +358,7 @@ module.exports = {
   moneyAmountToJsonPayload,
   normalizeMoneyAmount,
   computeRefundAmount,
+  toIso,
   readLegalInnFromBody,
   validateLegalInnDigits,
   resolveLegalInnFromBody,

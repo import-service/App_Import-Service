@@ -44,6 +44,11 @@ trigger: always_on
 - **Правило:** в `ApiConfig.chatWebsocketUrl` / `orgChatWebsocketUrl` всегда явный порт `443`/`80` (или порт из `API_BASE_URL`).
 - **Сервер:** upgrade МП `/ws/{requestId}/` — СВХ/декларант должны проходить (как REST), не только `organization_id === sub`. Иначе nginx `upstream prematurely closed` / 502.
 
+## 10. Черновики заявки и смена аккаунта
+- **Запрещено** `RequestDraftCubit().clearAll()` при логине/логауте — стирает черновики пользователя (была регрессия). На logout — только `reset()` (память), на login — `bindToCurrentOwner()`.
+- Ключ хранилища — `request_drafts_v1:<userId>` (без сессии — `…:anon`). `prefs.clear()` обязан сохранять ключи `isDraftsPrefsKey` (см. `clearSessionPrefsKeepLanguage`).
+- `RequestDraftAttachmentsSpace.deleteAll()` при выходе не вызывать — удалит вложения чужих черновиков; чистить только директорию удаляемого черновика. `clearAll()` чистит только бакет текущего владельца (демо → `anon`).
+
 ## Чек-лист
 - [ ] Порядок `await` / сессия / `go` проверен (+ трассы на время отладки)
 - [ ] `Stack`+`Expanded` — не `loose`+`shrink` в ловушку

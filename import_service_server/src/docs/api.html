@@ -157,10 +157,12 @@
     "mimeType": "image/jpeg",
     "fileSizeBytes": 12345,
     "fileUrl": "/api/customs-requests/files/r12__passport_front.jpg",
+    "uploadedAt": "2026-11-08T09:15:23.456Z",
+    "createdAt": "2026-11-08T09:15:23.456Z",
     "previewUrl": "/api/customs-requests/files/r12__passport_front_preview.jpg",
     "replaced": false
   }
-}</pre><p><code>fileUrl</code> — полный файл; <code>previewUrl</code> — JPEG-превью для списков МП (только фото). После последнего файла при создании заявки сервер отправит её в 1С.</p></div>
+}</pre><p><code>fileUrl</code> — полный файл; <code>uploadedAt</code> — ISO 8601 UTC, когда файл получен сервером МП; <code>createdAt</code> — дубль <code>uploadedAt</code> (то же значение), для удобства парсеров 1С; <code>previewUrl</code> — JPEG-превью для списков МП (только фото). После последнего файла при создании заявки сервер отправит её в 1С.</p></div>
         </details>
         <details class="card">
           <summary class="summary"><span class="method post">POST</span><code class="path">/api/customs-requests</code><span class="desc">Создать заявку (без files в теле).</span></summary>
@@ -177,8 +179,8 @@
   "vin": "VIN12345678901234",
   "previousImportDates": ["2025-11-02"],
   "ownedVehicles": [{ "name": "Toyota Camry", "year": 2018 }]
-}</pre><p><b>ИНН в create:</b> МП шлёт только <code>individualInn</code> (физлицо «кому везут», строго 12 цифр). <code>legalInn</code> / <code>inn</code> в теле <b>не обязательны</b> — сервер подставляет ИНН организации из профиля (<code>organizations.inn</code>), если поле не передано. <code>docType: inn</code> — скан ИНН при upload, не путать с полем анкеты.</p>
-<p><b>Ввоз за 12 мес. и другие авто:</b> не галочки. Массивы <code>previousImportDates</code> (<code>YYYY-MM-DD</code>) и <code>ownedVehicles</code> (<code>name</code>, <code>year</code>). Пустой массив = нет. Сервер выставляет <code>importedLast12Months</code> / <code>ownsOtherCars</code> сам. В create в 1С также уходят <code>organizationId</code> / <code>organizationLogin</code> (пользователь приложения).</p>
+}</pre><p><b>ИНН в create:</b> МП шлёт только <code>individualInn</code> (физлицо «кому везут», строго 12 цифр). <code>legalInn</code> / <code>inn</code> в теле <b>не обязательны</b> — сервер подставляет ИНН организации из профиля (<code>organizations.inn</code>), если поле не передано; некорректный ИНН профиля (не 10/12 цифр) игнорируется и заявку не блокирует — в create в 1С уйдёт <code>null</code>. <code>docType: inn</code> — скан ИНН при upload, не путать с полем анкеты.</p>
+<p><b>Ввоз за 12 мес. и другие авто:</b> не галочки. Массивы <code>previousImportDates</code> (<code>YYYY-MM-DD</code>) и <code>ownedVehicles</code> (<code>name</code>, <code>year</code>). Пустой массив = нет. Сервер выставляет <code>importedLast12Months</code> / <code>ownsOtherCars</code> сам. В create в 1С также уходят <code>organizationId1c</code> (стабильный ключ <code>id_1c</code> организации — использовать его), <code>organizationId</code> (внутренний id сервера, для 1С устарел), <code>organizationLogin</code> (может меняться) и <code>organizationName</code> (название организации из профиля, пришло из 1С; сервер подставляет сам). <code>legalEntityName</code> — название из заявки: в норме совпадает с <code>organizationName</code>, различается, если его правили вручную или профиль изменился после создания заявки.</p>
 <p><b>Дальше (МП):</b> N× <code>POST /api/customs-requests/upload</code> с <code>requestId</code>, <code>docType</code>, <code>file</code>, <code>uploadIndex</code>, <code>uploadTotal</code>. На последнем файле сервер создаёт заявку в 1С.</p><p><b>Success:</b></p><pre>{
   "id": "1",
   "status": "new",
@@ -628,9 +630,11 @@
               <tr><th>Поле</th><th>Обяз.</th><th>Назначение</th></tr>
               <tr><td><code>requestId</code></td><td>да</td><td>Id заявки на сервере после <code>POST /api/customs-requests</code>.</td></tr>
               <tr><td><code>legalEntityName</code>, контакты, ФЛ, авто, <code>vin</code></td><td>да*</td><td>Данные заявки из МП (*как в API приложения).</td></tr>
+              <tr><td><code>legalInn</code>, <code>inn</code></td><td>нет</td><td>ИНН организации (дубли — одно значение). Может быть <code>null</code>: ИНН необязателен, некорректный ИНН профиля игнорируется.</td></tr>
+              <tr><td><code>organizationId1c</code></td><td>нет</td><td><b>Стабильный ключ организации</b> (<code>organizations.id_1c</code>) — использовать его. <code>organizationId</code> — внутренний id сервера (для 1С устарел), <code>organizationLogin</code> может меняться.</td></tr>
               <tr><td><code>previousImportDates</code></td><td>нет</td><td>Массив дат <code>YYYY-MM-DD</code> предыдущего ввоза. Пусто = не ввозили. <code>importedLast12Months</code> = длина &gt; 0.</td></tr>
               <tr><td><code>ownedVehicles</code></td><td>нет</td><td>Массив <code>{ name, year }</code> авто в собственности (для пояснения). Пусто = нет. <code>ownsOtherCars</code> = длина &gt; 0.</td></tr>
-              <tr><td><code>files[]</code></td><td>да</td><td>Документы при создании: паспорт, ИНН, инвойс, фото авто и т.д. (<code>docType</code> без <code>_sign</code>).</td></tr>
+              <tr><td><code>files[]</code></td><td>да</td><td>Документы при создании: паспорт, ИНН, инвойс, фото авто и т.д. (<code>docType</code> без <code>_sign</code>). Элемент: <code>docType</code>, <code>fileName</code>, <code>mimeType</code>, <code>fileUrl</code>, <code>uploadedAt</code> (ISO 8601 UTC — когда файл получен сервером МП, не дата записи в 1С), <code>createdAt</code> (дубль <code>uploadedAt</code>, то же значение — для удобства парсеров 1С).</td></tr>
             </table>
             <p><b>Ответ 1С:</b> <code>requestId</code>, <code>external1cId</code> (GUID заявки в 1С).</p>
             <p><b>Request (пример):</b></p><pre>{
@@ -644,6 +648,10 @@
   "individualPhone": "+79991112233",
   "individualSnils": "123-456-789 00",
   "individualInn": "500100732259",
+  "organizationId": 14,
+  "organizationId1c": "1ecdae29-4240-11f1-9fb7-2cfda12b414c",
+  "organizationLogin": "mail@org.ru",
+  "organizationName": "ООО Вектор",
   "carMake": "Toyota",
   "carModel": "Crown",
   "vin": "VIN12345678901234",
@@ -661,7 +669,9 @@
       "docType": "passport_front",
       "fileName": "passport-front.jpg",
       "mimeType": "image/jpeg",
-      "fileUrl": "https://app.import-service.su/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg"
+      "fileUrl": "https://app.import-service.su/api/customs-requests/files/5e173f68-22f4-4d3b-95bf-2cf8188ee8b7.jpg",
+      "uploadedAt": "2026-11-08T09:15:23.456Z",
+      "createdAt": "2026-11-08T09:15:23.456Z"
     }
   ]
 }</pre><p><b>Success (ответ 1С):</b></p><pre>{
@@ -693,7 +703,7 @@
               <li>подтверждения оплаты (фото/скан): <code>payment_recycling_fee</code>, <code>payment_customs_duty</code></li>
               <li>доп. документы: <code>add_doc1</code>, <code>add_doc2</code></li>
             </ul>
-            <p><b>Элемент <code>files[]</code>:</b> <code>docType</code>, <code>fileName</code>, <code>mimeType</code>, <code>fileUrl</code> — 1С скачивает по URL и сохраняет у себя.</p>
+            <p><b>Элемент <code>files[]</code>:</b> <code>docType</code>, <code>fileName</code>, <code>mimeType</code>, <code>fileUrl</code>, <code>uploadedAt</code>, <code>createdAt</code> — 1С скачивает по URL и сохраняет у себя. <code>uploadedAt</code> — ISO 8601 UTC, когда файл получен сервером МП (не дата записи в 1С; для чеков оплаты — дата выгрузки чека). <code>createdAt</code> — дубль <code>uploadedAt</code> (то же значение), для удобства парсеров 1С.</p>
             <p><b>Когда вызывается:</b> после батча <code>POST /api/customs-requests/upload</code> из МП (<code>uploadIndex === uploadTotal</code>). В <code>files[]</code> — только изменённые <code>docType</code> этого батча.</p>
             <p><b>Request (пример):</b></p><pre>{
   "requestId": 123,
@@ -703,7 +713,9 @@
       "docType": "contract_sign",
       "fileName": "contract_sign.pdf",
       "mimeType": "application/pdf",
-      "fileUrl": "/api/customs-requests/files/uuid.pdf"
+      "fileUrl": "/api/customs-requests/files/uuid.pdf",
+      "uploadedAt": "2026-11-08T12:40:05.789Z",
+      "createdAt": "2026-11-08T12:40:05.789Z"
     }
   ]
 }</pre>
@@ -987,7 +999,7 @@
               <tr><td><code>role</code></td><td>нет</td><td><code>user</code> или <code>admin</code> (по умолчанию <code>user</code>).</td></tr>
               <tr><td><code>orgType</code></td><td>нет</td><td><code>ИП</code>, <code>ООО</code> или <code>Физическое лицо</code> (по умолчанию <code>ООО</code>).</td></tr>
               <tr><td><code>companyName</code></td><td>нет</td><td>Наименование ЮЛ/ИП/ФИО. Если пусто — <code>fullCompanyName</code> / <code>fullName</code> / <code>name</code>. <b>Не</b> подставляем login (email).</td></tr>
-              <tr><td><code>inn</code></td><td>нет</td><td>ИНН.</td></tr>
+              <tr><td><code>inn</code></td><td>нет</td><td>ИНН: <b>10 или 12 цифр</b>. Некорректное значение не сохраняется (трактуется как пустое) — в ответ добавляется <code>warnings: ["INVALID_INN_IGNORED"]</code>.</td></tr>
               <tr><td><code>phone</code></td><td>нет</td><td>Телефон (также <code>telephone</code> / <code>phoneNumber</code>). Править в 1С.</td></tr>
             </table>
             <p>Пустые <code>inn</code>/<code>phone</code>/<code>companyName</code> при <b>обновлении</b> существующей org не затирают уже сохранённые значения. Исключение: если в БД в <code>company_name</code> ошибочно лежит email (содержит <code>@</code>) — при пустом имени из 1С поле очищается.</p>
@@ -1020,6 +1032,10 @@
     "updated_at": "2026-04-27T09:00:00.000Z",
     "deleted_at": null
   }
+}</pre><p>При проигнорированном ИНН в успешный ответ добавляется <code>warnings</code> (у ответов без проблем поля нет):</p><pre>{
+  "ok": true,
+  "warnings": ["INVALID_INN_IGNORED"],
+  "item": { "id": 10, "id_1c": "org-001", "inn": "", … }
 }</pre><p><b>Errors:</b></p><ul><li><code>400 VALIDATION_ERROR</code></li><li><code>401 INVALID_INTEGRATION_TOKEN</code></li><li><code>409 LOGIN_ALREADY_EXISTS</code> — login занят другой организацией (другой <code>id_1c</code>); запись не создаётся, ошибка пишется в <code>integration_logs</code>.</li></ul></div>
         </details>
         <details class="card">

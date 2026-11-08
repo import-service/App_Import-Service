@@ -39,6 +39,7 @@ async function main() {
   const versionName = argValue('--versionName') || undefined;
   const changelog = resolveChangelog();
   const file = argValue('--file') || apkPath();
+  const noEmail = process.argv.includes('--noEmail');
 
   if (!Number.isFinite(versionCode) || versionCode < 1) {
     console.error('Need --versionCode <int>');
@@ -54,25 +55,29 @@ async function main() {
   const dto = await getStatusDto(publicBase);
   console.log(JSON.stringify({ ok: true, manifest, status: dto }, null, 2));
 
-  try {
-    const mail = await notifyAndroidApkPublished(
-      config.smtp,
-      {
-        versionCode: dto.versionCode,
-        versionName: dto.versionName,
-        apkUrl: dto.apkUrl,
-        sizeBytes: dto.sizeBytes ?? dto.fileSizeBytes,
-        changelog: dto.changelog || changelog || '',
-      },
-      console,
-    );
-    if (!mail?.success) {
-      console.error('EMAIL_WARN', mail?.error || 'send failed');
-    } else {
-      console.log('EMAIL_OK', mail.messageId || '');
+  if (noEmail) {
+    console.log('EMAIL_SKIPPED');
+  } else {
+    try {
+      const mail = await notifyAndroidApkPublished(
+        config.smtp,
+        {
+          versionCode: dto.versionCode,
+          versionName: dto.versionName,
+          apkUrl: dto.apkUrl,
+          sizeBytes: dto.sizeBytes ?? dto.fileSizeBytes,
+          changelog: dto.changelog || changelog || '',
+        },
+        console,
+      );
+      if (!mail?.success) {
+        console.error('EMAIL_WARN', mail?.error || 'send failed');
+      } else {
+        console.log('EMAIL_OK', mail.messageId || '');
+      }
+    } catch (e) {
+      console.error('EMAIL_WARN', e.message || e);
     }
-  } catch (e) {
-    console.error('EMAIL_WARN', e.message || e);
   }
 }
 

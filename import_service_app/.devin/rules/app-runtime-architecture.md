@@ -109,7 +109,7 @@ LoginPage._login() / тап по «Недавние входы»
   → session.setToken + SecureStorage + role
   → RecentAccountsService.upsert(email, password, role)  // secure storage, без лимита
   → registerPushTokenIfNeeded()
-  → clear inventory/drafts
+  → clear inventory; RequestDraftCubit.bindToCurrentOwner()  // черновики НЕ стираются
   → prefs: только last email (пароль формы не в prefs; пароль — в recent accounts)
   → если клиент: CarsRepository.listVehicles()
   → context.go(homeLocationForSession(session))
@@ -160,9 +160,11 @@ LoginPage._login() / тап по «Недавние входы»
 Блок «кому везут» **не** префиллится из профиля org.  
 Подпись поля ИНН везде **«ИНН»**.
 
+**Черновики заявки:** `RequestDraftCubit` (GetIt, SharedPreferences). Ключ хранилища — `request_drafts_v1:<userId>` текущей сессии (`AuthSessionController.userId`); без сессии — `request_drafts_v1:anon` (демо). Черновики **не** стираются при logout/login и `prefs.clear()` (ключи сохраняются в `clearSessionPrefsKeepLanguage`). При входе `bindToCurrentOwner()` мигрирует старый общий ключ `request_drafts_v1` на вошедшего пользователя и грузит только его черновики. Удаляются при `delete(id)` (вместе с вложениями); `clearAll()` — только бакет текущего владельца (вход в демо чистит `anon`).
+
 ```text
 Home → RequestCreatePage (форма + черновик)
-  RequestDraftCubit / RequestDraftStore (SharedPreferences)
+  RequestDraftCubit (SharedPreferences, ключ по userId)
   RequestFormModel — поля + List<String> путей к файлам на диске
 
   Кнопка «Файлы» → RequestFilesUploadPage (Navigator)

@@ -168,8 +168,8 @@ function validateCreateBody(body) {
   resolveIndividualInnFromBody(body, { required: true });
 }
 
-/** ИНН ЮЛ/ИП: из тела заявки, иначе из organizations.inn профиля. */
-async function resolveLegalInnForCreate(pool, orgId, body) {
+/** ИНН ЮЛ/ИП: из тела заявки, иначе из organizations.inn профиля. Некорректный ИНН профиля не блокирует заявку. */
+async function resolveLegalInnForCreate(pool, orgId, body, log) {
   const fromBody = resolveLegalInnFromBody(body, { required: false });
   if (fromBody) return fromBody;
   if (!orgId) return null;
@@ -181,7 +181,13 @@ async function resolveLegalInnForCreate(pool, orgId, body) {
   const digits = String(rows[0].inn ?? '').replace(/\D/g, '');
   if (!digits) return null;
   if (digits.length !== 10 && digits.length !== 12) {
-    throw new Error('VALIDATION_ERROR: ИНН в профиле организации должен содержать 10 или 12 цифр');
+    if (log && typeof log.warn === 'function') {
+      log.warn(
+        { orgId, innDigitsLength: digits.length },
+        'ИНН в профиле организации не 10/12 цифр, игнорируется при создании заявки',
+      );
+    }
+    return null;
   }
   return digits;
 }
@@ -583,7 +589,7 @@ module.exports = async function customsRequestsRoutes(fastify) {
       }
       let legalInn;
       try {
-        legalInn = await resolveLegalInnForCreate(fastify.pool, orgId, request.body);
+        legalInn = await resolveLegalInnForCreate(fastify.pool, orgId, request.body, fastify.log);
       } catch (e) {
         return reply.code(400).send({ error: 'VALIDATION_ERROR', message: e.message });
       }
