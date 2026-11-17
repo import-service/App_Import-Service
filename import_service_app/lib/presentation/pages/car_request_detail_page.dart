@@ -175,15 +175,21 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         setState(() {});
         final updated = _itemFromInventory(item.id);
         final code = normalizeDocType(docType);
-        final uploadedDespiteError = updated != null &&
+        final uploadedDespiteError =
+            updated != null &&
             updated.files.any((f) => normalizeDocType(f.docType) == code);
         if (uploadedDespiteError) {
           await _onAttachSucceeded(docType: docType, itemId: item.id);
         } else {
-          final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
+          final sizeMsg = resolveRequestFileSizeLimitMessage(
+            failure.message,
+            s,
+          );
           feedback.show(
             sizeMsg ?? requestAttachFailureMessage(failure.message, s),
-            kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+            kind: sizeMsg != null
+                ? AppFeedbackKind.warning
+                : AppFeedbackKind.error,
           );
         }
       },
@@ -245,8 +251,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       final compressed =
           await RequestDraftAttachmentsSpace.prepareImageForUpload(paths[i]);
       if (!mounted) return;
-      final sizeKey =
-          requestFileSizeLimitMessageKey(compressed, docType: docType);
+      final sizeKey = requestFileSizeLimitMessageKey(
+        compressed,
+        docType: docType,
+      );
       if (sizeKey != null) {
         sl<AppFeedbackService>().show(
           s.text(sizeKey),
@@ -282,10 +290,12 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         if (!mounted) return;
         setState(() {});
         final updated = _itemFromInventory(item.id);
-        final anyUploaded = updated != null &&
+        final anyUploaded =
+            updated != null &&
             entries.any(
               (e) => updated.files.any(
-                (f) => normalizeDocType(f.docType) == normalizeDocType(e.docType),
+                (f) =>
+                    normalizeDocType(f.docType) == normalizeDocType(e.docType),
               ),
             );
         if (anyUploaded) {
@@ -302,7 +312,9 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
         feedback.show(
           sizeMsg ?? requestAttachFailureMessage(failure.message, s),
-          kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+          kind: sizeMsg != null
+              ? AppFeedbackKind.warning
+              : AppFeedbackKind.error,
         );
       },
       (_) async {
@@ -342,10 +354,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       AppLog.trace('svh video pick cancelled/empty', tag: 'SvhUpload');
       return;
     }
-    AppLog.trace(
-      'svh video picked count=${paths.length}',
-      tag: 'SvhUpload',
-    );
+    AppLog.trace('svh video picked count=${paths.length}', tag: 'SvhUpload');
 
     final s = sl<JsonStringsService>();
     final videoPaths = paths.where(looksLikeLocalVideoFile).toList();
@@ -419,10 +428,12 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         if (!mounted) return;
         setState(() {});
         final updated = _itemFromInventory(item.id);
-        final anyUploaded = updated != null &&
+        final anyUploaded =
+            updated != null &&
             entries.any(
               (e) => updated.files.any(
-                (f) => normalizeDocType(f.docType) == normalizeDocType(e.docType),
+                (f) =>
+                    normalizeDocType(f.docType) == normalizeDocType(e.docType),
               ),
             );
         if (anyUploaded) {
@@ -439,7 +450,9 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
         feedback.show(
           sizeMsg ?? requestAttachFailureMessage(failure.message, s),
-          kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+          kind: sizeMsg != null
+              ? AppFeedbackKind.warning
+              : AppFeedbackKind.error,
         );
       },
       (_) async {
@@ -456,7 +469,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     if (item.isArchivedOffline) return;
     if (_anyUploadBusy) return;
 
-    final remaining = kTransitArchiveMaxPhotos -
+    final remaining =
+        kTransitArchiveMaxPhotos -
         occupiedUploadSlotCount(
           slots: kSvhTransitUploadDocTypes,
           existingDocTypes: item.files.map((f) => f.docType),
@@ -522,7 +536,9 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
         feedback.show(
           sizeMsg ?? requestAttachFailureMessage(failure.message, s),
-          kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+          kind: sizeMsg != null
+              ? AppFeedbackKind.warning
+              : AppFeedbackKind.error,
         );
       },
       (_) async {
@@ -534,7 +550,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     );
   }
 
-  Future<void> _deleteSvhMediaFile(CarListItem item, CustomsRequestFile file) async {
+  Future<void> _deleteSvhMediaFile(
+    CarListItem item,
+    CustomsRequestFile file,
+  ) async {
     if (!isSvhManagerSession(sl<AuthSessionController>())) return;
     if (!isSvhCarMediaDocType(file.docType)) return;
     final fileId = file.id?.trim() ?? '';
@@ -628,15 +647,21 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         setState(() {});
         final updated = _itemFromInventory(item.id);
         final code = normalizeDocType(docType);
-        final uploadedDespiteError = updated != null &&
+        final uploadedDespiteError =
+            updated != null &&
             updated.files.any((f) => normalizeDocType(f.docType) == code);
         if (uploadedDespiteError) {
           await _onAttachSucceeded(docType: docType, itemId: item.id);
         } else {
-          final sizeMsg = resolveRequestFileSizeLimitMessage(failure.message, s);
+          final sizeMsg = resolveRequestFileSizeLimitMessage(
+            failure.message,
+            s,
+          );
           feedback.show(
             sizeMsg ?? requestAttachFailureMessage(failure.message, s),
-            kind: sizeMsg != null ? AppFeedbackKind.warning : AppFeedbackKind.error,
+            kind: sizeMsg != null
+                ? AppFeedbackKind.warning
+                : AppFeedbackKind.error,
           );
         }
       },
@@ -668,6 +693,19 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     await sl<CarsRepository>().getVehicle(itemId);
     if (!mounted) return;
     setState(() {});
+
+    final refreshedItem = _itemFromInventory(itemId);
+    if (refreshedItem != null) {
+      await sl<RequestAttentionCubit>().markUploadedDocSeen(
+        itemId,
+        docType,
+        refreshedItem.files,
+      );
+      if (!hasPendingClientUploadActions(refreshedItem)) {
+        sl<RequestAttentionCubit>().clearDocsAction(itemId);
+      }
+    }
+    if (!mounted) return;
 
     // СВХ / подписи / чеки / архив: несколько файлов подряд — не pop в список.
     if (_stayOnDetailAfterAttach(docType)) {
@@ -728,7 +766,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final isVideo = isRequestFileVideo(f);
     final showPdfIcon = isRequestFilePdf(f);
     final rawPath = requestFileFullUrl(f);
-    final localFile = !isVideo &&
+    final localFile =
+        !isVideo &&
             rawPath != null &&
             rawPath.isNotEmpty &&
             !rawPath.startsWith('http') &&
@@ -738,7 +777,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final thumbUrl = localFile == null
         ? _resolveFileUrl(requestFileThumbnailUrl(f))
         : null;
-    final hasOpenTarget = (rawPath != null && rawPath.isNotEmpty) ||
+    final hasOpenTarget =
+        (rawPath != null && rawPath.isNotEmpty) ||
         (isVideo &&
             ((_resolveFileUrl(requestFileFullUrl(f)) ?? '').isNotEmpty));
     final showThumbImage =
@@ -747,14 +787,14 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
 
     final borderColor = (highlight || isNew || isChanged)
         ? (isChanged && !isNew
-            ? const Color(0xFFE6A817).withValues(alpha: 0.7)
-            : AppTheme.accentRed.withValues(alpha: 0.55))
+              ? const Color(0xFFE6A817).withValues(alpha: 0.7)
+              : AppTheme.accentRed.withValues(alpha: 0.55))
         : AppTheme.requestCardBorder;
     final bg = (highlight || isNew)
         ? AppTheme.accentRed.withValues(alpha: 0.06)
         : isChanged
-            ? const Color(0xFFE6A817).withValues(alpha: 0.08)
-            : AppTheme.cardBackground;
+        ? const Color(0xFFE6A817).withValues(alpha: 0.08)
+        : AppTheme.cardBackground;
 
     const outerRadius = 12.0;
     const thumbRadius = 8.0;
@@ -996,7 +1036,11 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
                 ] else if (attentionState.hasStatusUpdate(item.id)) ...[
                   const Gap(6),
                   Text(
-                    attentionState.statusUpdateSummaryFor(item.id)?.trim().isNotEmpty == true
+                    attentionState
+                                .statusUpdateSummaryFor(item.id)
+                                ?.trim()
+                                .isNotEmpty ==
+                            true
                         ? attentionState.statusUpdateSummaryFor(item.id)!.trim()
                         : s.requestCardStatusUpdatedHint,
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -1037,7 +1081,10 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       out.add(const Gap(20));
     }
 
-    final urgentHints = requestDetailUrgentActionHints(item, s).toSet().toList();
+    final urgentHints = requestDetailUrgentActionHints(
+      item,
+      s,
+    ).toSet().toList();
     // После успешной загрузки подписей сбрасываем «красная точка» docsAction от push.
     if (!signingSectionNeedsAction(item, groupedFilesForItem(item)) &&
         attentionState.hasDocsAction(item.id)) {
@@ -1047,7 +1094,9 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     }
     for (var i = 0; i < urgentHints.length; i++) {
       if (i > 0) out.add(const Gap(10));
-      out.add(RequestDetailActionHintBanner(message: urgentHints[i], urgent: true));
+      out.add(
+        RequestDetailActionHintBanner(message: urgentHints[i], urgent: true),
+      );
     }
 
     final infoHint = requestStatusActionHint(item, s);
@@ -1063,11 +1112,13 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     final svh = isSvhManagerSession(sl<AuthSessionController>());
 
     out
-      ..add(RequestDetailOwnerSection(
-        requestId: widget.requestId,
-        item: item,
-        strings: s,
-      ))
+      ..add(
+        RequestDetailOwnerSection(
+          requestId: widget.requestId,
+          item: item,
+          strings: s,
+        ),
+      )
       ..add(const Gap(16));
 
     out
@@ -1087,27 +1138,28 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
           onUploadDocType: svh
               ? null
               : (docType) => _attachDocType(docType, item),
-          buildFileRow: (
-            f, {
-            required highlight,
-            badge,
-            embedded = false,
-            onDelete,
-            isNew = false,
-            isChanged = false,
-          }) {
-            return _buildServerFileRow(
-              theme: theme,
-              f: f,
-              highlight: highlight,
-              badge: badge,
-              embedded: embedded,
-              onDelete: onDelete,
-              isNew: isNew,
-              isChanged: isChanged,
-              onTap: () => _openRequestFile(f),
-            );
-          },
+          buildFileRow:
+              (
+                f, {
+                required highlight,
+                badge,
+                embedded = false,
+                onDelete,
+                isNew = false,
+                isChanged = false,
+              }) {
+                return _buildServerFileRow(
+                  theme: theme,
+                  f: f,
+                  highlight: highlight,
+                  badge: badge,
+                  embedded: embedded,
+                  onDelete: onDelete,
+                  isNew: isNew,
+                  isChanged: isChanged,
+                  onTap: () => _openRequestFile(f),
+                );
+              },
         ),
       )
       ..add(const Gap(16));
@@ -1142,18 +1194,17 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
           uploadingOtherDocsGallery: _uploadingOtherDocsGallery,
           svhUploadMode: svh,
           onUploadDocType: (docType) => _attachDocType(docType, item),
-          onUploadSvhCarGallery:
-              svh ? () => _attachSvhCarGallery(item) : null,
-          onUploadSvhCarVideos:
-              svh ? () => _attachSvhCarVideos(item) : null,
+          onUploadSvhCarGallery: svh ? () => _attachSvhCarGallery(item) : null,
+          onUploadSvhCarVideos: svh ? () => _attachSvhCarVideos(item) : null,
           onUploadTransitArchiveGallery: item.isArchivedOffline
               ? null
               : () => _attachTransitArchiveGallery(item),
           onUploadOtherDocsGallery: item.isArchivedOffline
               ? null
               : () => _attachOtherDocsGallery(item),
-          onDeleteSvhMediaFile:
-              svh ? (f) => _deleteSvhMediaFile(item, f) : null,
+          onDeleteSvhMediaFile: svh
+              ? (f) => _deleteSvhMediaFile(item, f)
+              : null,
           onTransitPhotoTap: (url) => _openExternalUrl(url),
           buildDeliverableRow: (d) => RequestDetailDeliverableDocRow(
             title: d.title,
@@ -1174,27 +1225,28 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
               _onDocumentOpenFailed();
             },
           ),
-          buildFileRow: (
-            f, {
-            required highlight,
-            badge,
-            embedded = false,
-            onDelete,
-            isNew = false,
-            isChanged = false,
-          }) {
-            return _buildServerFileRow(
-              theme: theme,
-              f: f,
-              highlight: highlight,
-              badge: badge,
-              embedded: embedded,
-              onDelete: onDelete,
-              isNew: isNew,
-              isChanged: isChanged,
-              onTap: () => _openRequestFile(f),
-            );
-          },
+          buildFileRow:
+              (
+                f, {
+                required highlight,
+                badge,
+                embedded = false,
+                onDelete,
+                isNew = false,
+                isChanged = false,
+              }) {
+                return _buildServerFileRow(
+                  theme: theme,
+                  f: f,
+                  highlight: highlight,
+                  badge: badge,
+                  embedded: embedded,
+                  onDelete: onDelete,
+                  isNew: isNew,
+                  isChanged: isChanged,
+                  onTap: () => _openRequestFile(f),
+                );
+              },
         ),
       );
 
@@ -1208,11 +1260,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     //     ),
     //   );
 
-    out.add(
-      SizedBox(
-        height: 40 + MediaQuery.viewPaddingOf(context).bottom,
-      ),
-    );
+    out.add(SizedBox(height: 40 + MediaQuery.viewPaddingOf(context).bottom));
     return out;
   }
 
@@ -1230,7 +1278,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
   }
 
   Future<void> _openRequestFile(CustomsRequestFile file) async {
-    final demoMode = sl<AuthSessionController>().isDemo ||
+    final demoMode =
+        sl<AuthSessionController>().isDemo ||
         isDemoRequestFileUrl(file.fileUrl);
     if (demoMode) {
       await _openDemoGeneratedPdf(file);
@@ -1266,10 +1315,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       final title = docTypeLabel(file, sl<JsonStringsService>());
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => RequestVideoPlayerPage(
-            filePath: localPath,
-            title: title,
-          ),
+          builder: (_) =>
+              RequestVideoPlayerPage(filePath: localPath, title: title),
         ),
       );
       return;
@@ -1314,10 +1361,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       final title = docTypeLabel(file, sl<JsonStringsService>());
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => RequestPdfViewerPage(
-            filePath: localPath,
-            title: title,
-          ),
+          builder: (_) =>
+              RequestPdfViewerPage(filePath: localPath, title: title),
         ),
       );
       return;
@@ -1343,10 +1388,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       if (!mounted) return;
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => RequestPdfViewerPage(
-            filePath: path,
-            title: title,
-          ),
+          builder: (_) => RequestPdfViewerPage(filePath: path, title: title),
         ),
       );
     } catch (_) {
@@ -1361,8 +1403,7 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
       final f = images[i];
       final fullUrl = _resolveFileUrl(requestFileFullUrl(f));
       if (fullUrl == null || fullUrl.isEmpty) continue;
-      final thumbUrl =
-          _resolveFileUrl(requestFileThumbnailUrl(f)) ?? fullUrl;
+      final thumbUrl = _resolveFileUrl(requestFileThumbnailUrl(f)) ?? fullUrl;
       prepared.add(
         _CarouselPhotoItem(
           fullUrl: fullUrl,
@@ -1433,7 +1474,8 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
         ? 'svh:${item.id}:${sl<AuthSessionController>().userId ?? ''}'
         : item.id;
     final sub = RequestStatusSubType.tryParse(item.statusSubType);
-    final shouldFocusDocs = sub == RequestStatusSubType.primaryDocumentsSent ||
+    final shouldFocusDocs =
+        sub == RequestStatusSubType.primaryDocumentsSent ||
         sub == RequestStatusSubType.signatureRevisionRequired;
     if (shouldFocusDocs || widget.focusDocumentsOnOpen) {
       _focusDocumentsIfPossible();
@@ -1442,62 +1484,66 @@ class _CarRequestDetailPageState extends State<CarRequestDetailPage> {
     }
     return BlocBuilder<RequestAttentionCubit, RequestAttentionState>(
       bloc: sl<RequestAttentionCubit>(),
-      builder: (context, attentionState) => BlocBuilder<RequestChatUnreadCubit, RequestChatUnreadState>(
-        bloc: sl<RequestChatUnreadCubit>(),
-        builder: (context, unreadState) {
-          final hasUnreadChat = unreadState.has(chatUnreadKey);
-          return Scaffold(
-      backgroundColor: AppTheme.pageBackground,
-      appBar: BrandPrimaryAppBar(title: title),
-      floatingActionButton: showChatFab
-          ? FloatingActionButton(
-              onPressed: () {
-                sl<RequestChatUnreadCubit>().clearUnread(chatUnreadKey);
-                if (isSvhViewer) {
-                  context.pushSvhRequestChat(item.id);
-                } else {
-                  context.pushRequestChat(item.id);
-                }
-              },
-              backgroundColor: AppTheme.accentRed,
-              foregroundColor: AppTheme.white,
-              shape: const CircleBorder(),
-              tooltip: s.requestDetailChatA11y,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.chat_bubble_outline_rounded),
-                  if (hasUnreadChat)
-                    const Positioned(
-                      right: -1,
-                      top: -1,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppTheme.white,
-                          shape: BoxShape.circle,
+      builder: (context, attentionState) =>
+          BlocBuilder<RequestChatUnreadCubit, RequestChatUnreadState>(
+            bloc: sl<RequestChatUnreadCubit>(),
+            builder: (context, unreadState) {
+              final hasUnreadChat = unreadState.has(chatUnreadKey);
+              return Scaffold(
+                backgroundColor: AppTheme.pageBackground,
+                appBar: BrandPrimaryAppBar(title: title),
+                floatingActionButton: showChatFab
+                    ? FloatingActionButton(
+                        onPressed: () {
+                          sl<RequestChatUnreadCubit>().clearUnread(
+                            chatUnreadKey,
+                          );
+                          if (isSvhViewer) {
+                            context.pushSvhRequestChat(item.id);
+                          } else {
+                            context.pushRequestChat(item.id);
+                          }
+                        },
+                        backgroundColor: AppTheme.accentRed,
+                        foregroundColor: AppTheme.white,
+                        shape: const CircleBorder(),
+                        tooltip: s.requestDetailChatA11y,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(Icons.chat_bubble_outline_rounded),
+                            if (hasUnreadChat)
+                              const Positioned(
+                                right: -1,
+                                top: -1,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: SizedBox(width: 8, height: 8),
+                                ),
+                              ),
+                          ],
                         ),
-                        child: SizedBox(width: 8, height: 8),
-                      ),
-                    ),
-                ],
-              ),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      body: ListView(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-        children: _buildScrollChildren(
-          context: context,
-          s: s,
-          theme: theme,
-          item: item,
-          attentionState: attentionState,
-        ),
-      ),
-          );
-        },
-      ),
+                      )
+                    : null,
+                floatingActionButtonLocation:
+                    FloatingActionButtonLocation.endFloat,
+                body: ListView(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  children: _buildScrollChildren(
+                    context: context,
+                    s: s,
+                    theme: theme,
+                    item: item,
+                    attentionState: attentionState,
+                  ),
+                ),
+              );
+            },
+          ),
     );
   }
 }
@@ -1550,7 +1596,8 @@ class _RequestPhotoCarouselPage extends StatefulWidget {
   final String? authToken;
 
   @override
-  State<_RequestPhotoCarouselPage> createState() => _RequestPhotoCarouselPageState();
+  State<_RequestPhotoCarouselPage> createState() =>
+      _RequestPhotoCarouselPageState();
 }
 
 class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
@@ -1581,8 +1628,11 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
     final segments = urlPath.split('/').where((e) => e.isNotEmpty).toList();
     final last = segments.isEmpty ? '' : segments.last;
     final urlExt = last.contains('.') ? '.${last.split('.').last}' : '';
-    final ext = RegExp(r'\.(jpe?g|png|webp|gif|heic|bmp)$', caseSensitive: false)
-            .hasMatch(urlExt)
+    final ext =
+        RegExp(
+          r'\.(jpe?g|png|webp|gif|heic|bmp)$',
+          caseSensitive: false,
+        ).hasMatch(urlExt)
         ? urlExt.toLowerCase()
         : '.jpg';
     final base = item.title
@@ -1807,8 +1857,9 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed:
-                          _busy ? null : () => _shareOrSave(asDownload: true),
+                      onPressed: _busy
+                          ? null
+                          : () => _shareOrSave(asDownload: true),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: Colors.white54),
@@ -1820,8 +1871,9 @@ class _RequestPhotoCarouselPageState extends State<_RequestPhotoCarouselPage> {
                   const Gap(10),
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed:
-                          _busy ? null : () => _shareOrSave(asDownload: false),
+                      onPressed: _busy
+                          ? null
+                          : () => _shareOrSave(asDownload: false),
                       icon: const Icon(Icons.ios_share_rounded, size: 18),
                       label: Text(s.requestMediaShareButton),
                     ),
@@ -1867,11 +1919,9 @@ class _NotFoundBody extends StatelessWidget {
   }
 }
 
-
 CarListItem? _findItem(List<CarListItem> items, String id) {
   for (final e in items) {
     if (e.id == id) return e;
   }
   return null;
 }
-

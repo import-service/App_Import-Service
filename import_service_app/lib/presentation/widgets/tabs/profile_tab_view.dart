@@ -27,6 +27,7 @@ import 'package:import_service_app/presentation/widgets/profile/profile_meta_row
 import 'package:import_service_app/presentation/widgets/profile/profile_placeholder_avatar.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileTabView extends StatefulWidget {
   const ProfileTabView({
@@ -49,11 +50,13 @@ class ProfileTabView extends StatefulWidget {
     this.phone,
     this.email,
     this.managerName,
+
     /// Вкладка сейчас видима (IndexedStack). При каждом показе — refresh версии APK.
     this.isActive = true,
   });
 
   final bool isDemo;
+
   /// Заголовок под аватаром: наименование орг / демо-имя (не email).
   final String headlineTitle;
   final String managerLabel;
@@ -63,12 +66,16 @@ class ProfileTabView extends StatefulWidget {
   final String innLabel;
   final String logoutLabel;
   final VoidCallback onLogout;
+
   /// Заявитель — физическое лицо: без строки «Название компании».
   final bool isPersonApplicant;
+
   /// Скрыть ИНН (профиль менеджера СВХ).
   final bool showInn;
+
   /// Скрыть строку менеджера 1С.
   final bool showManager;
+
   /// Показать название компании (для юрлица клиента).
   final bool showCompany;
   final String? companyName;
@@ -83,6 +90,9 @@ class ProfileTabView extends StatefulWidget {
 }
 
 class _ProfileTabViewState extends State<ProfileTabView> {
+  static const _privacyUrl = 'https://app.import-service.su/privacy';
+  static const _termsUrl = 'https://app.import-service.su/terms';
+
   String? _versionLabel;
   String? _serverVersionLabel;
   String? _googlePlayVersionLabel;
@@ -211,6 +221,18 @@ class _ProfileTabViewState extends State<ProfileTabView> {
     return v;
   }
 
+  Future<void> _openLegalUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      sl<AppFeedbackService>().show(
+        sl<JsonStringsService>().text('requestDocumentOpenFailed'),
+        kind: AppFeedbackKind.error,
+      );
+    }
+  }
+
   Future<void> _onThemeMode(Set<ThemeMode> selection) async {
     if (selection.isEmpty) return;
     await setAppThemeMode(sl<SharedPreferences>(), selection.first);
@@ -230,9 +252,9 @@ class _ProfileTabViewState extends State<ProfileTabView> {
           const SizedBox(height: 12),
           Text(
             widget.headlineTitle,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -279,10 +301,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                                   !widget.isPersonApplicant)
                                 ProfileMetaRow(
                                   label: widget.companyLabel,
-                                  value: _displayOrEmpty(
-                                    widget.companyName,
-                                    s,
-                                  ),
+                                  value: _displayOrEmpty(widget.companyName, s),
                                 ),
                               if (widget.showInn &&
                                   (widget.inn ?? '').trim().isNotEmpty)
@@ -290,7 +309,8 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                                   label: widget.innLabel,
                                   value: InnInputFormatter.formatDigits(
                                     widget.inn!.trim(),
-                                    maxDigits: widget.inn!
+                                    maxDigits:
+                                        widget.inn!
                                                 .trim()
                                                 .replaceAll(RegExp(r'\D'), '')
                                                 .length ==
@@ -330,8 +350,8 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                     child: Text(
                       s.text('profileThemeLabel'),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -375,8 +395,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: AppPrimaryOutlinedWideButton(
                         label: s.text('appUpdateServerProfileButton'),
-                        onPressed:
-                            _serverUpdateBusy ? null : _onServerUpdate,
+                        onPressed: _serverUpdateBusy ? null : _onServerUpdate,
                       ),
                     ),
                   AppPrimaryOutlinedWideButton(
@@ -433,14 +452,23 @@ class _ProfileTabViewState extends State<ProfileTabView> {
                     label: widget.logoutLabel,
                     onPressed: widget.onLogout,
                   ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: () => _openLegalUrl(_privacyUrl),
+                    child: Text(s.text('profilePrivacyPolicy')),
+                  ),
+                  TextButton(
+                    onPressed: () => _openLegalUrl(_termsUrl),
+                    child: Text(s.text('profileUserAgreement')),
+                  ),
                   if (_versionLabel != null) ...[
                     const SizedBox(height: 12),
                     Text(
                       _buildVersionFooter(s),
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -455,9 +483,7 @@ class _ProfileTabViewState extends State<ProfileTabView> {
 
   String _buildVersionFooter(JsonStringsService s) {
     final local = _versionLabel ?? '—';
-    final parts = <String>[
-      '${s.text('profileAppVersionLabel')} $local',
-    ];
+    final parts = <String>['${s.text('profileAppVersionLabel')} $local'];
     if (_isAndroid) {
       final server = _serverVersionLabel?.trim();
       if (server != null && server.isNotEmpty) {
@@ -481,7 +507,9 @@ class _ProfileTabViewState extends State<ProfileTabView> {
       final appStore = _appStoreVersionLabel?.trim();
       if (appStore != null && appStore.isNotEmpty) {
         parts.add(
-          s.text('profileAppStoreVersionParen').replaceAll('{version}', appStore),
+          s
+              .text('profileAppStoreVersionParen')
+              .replaceAll('{version}', appStore),
         );
       }
     }

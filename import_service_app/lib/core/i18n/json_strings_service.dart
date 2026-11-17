@@ -128,7 +128,8 @@ final class JsonStringsService {
   String get requestFilesSectionCreation => text('requestFilesSectionCreation');
   String get requestFilesSectionSigning => text('requestFilesSectionSigning');
   String get requestFilesSectionPayment => text('requestFilesSectionPayment');
-  String get requestFilesSectionTransitArchive => text('requestFilesSectionTransitArchive');
+  String get requestFilesSectionTransitArchive =>
+      text('requestFilesSectionTransitArchive');
   String get requestFilesSectionFinal => text('requestFilesSectionFinal');
   String get requestFilesSectionIssueHandover =>
       text('requestFilesSectionIssueHandover');
@@ -137,6 +138,7 @@ final class JsonStringsService {
   String get requestFilesSectionOther => text('requestFilesSectionOther');
   String get requestDetailDocumentsTitle => text('requestDetailDocumentsTitle');
   String get requestFileNeedsSignature => text('requestFileNeedsSignature');
+  String get requestFileUploadHint => text('requestFileUploadHint');
   String get requestFileUpdated => text('requestFileUpdated');
   String get requestUploadSignedButton => text('requestUploadSignedButton');
   String get requestUploadSignedAgain => text('requestUploadSignedAgain');
@@ -144,17 +146,22 @@ final class JsonStringsService {
   String requestUploadDocFile(String doc) =>
       text('requestUploadDocFile').replaceAll('{doc}', doc);
   String get requestFileAttachSuccess => text('requestFileAttachSuccess');
-  String get requestFileAttachFailedGeneric => text('requestFileAttachFailedGeneric');
+  String get requestFileAttachFailedGeneric =>
+      text('requestFileAttachFailedGeneric');
   String get requestFileTooLargePhoto => text('requestFileTooLargePhoto');
   String get requestFileTooLargeVideo => text('requestFileTooLargeVideo');
   String requestFileAttachFailed(String docs) =>
       text('requestFileAttachFailed').replaceAll('{docs}', docs);
-  String get requestHintSignatureRevision => text('requestHintSignatureRevision');
+  String get requestHintSignatureRevision =>
+      text('requestHintSignatureRevision');
   String get requestHintSignDocuments => text('requestHintSignDocuments');
   String get requestHintUploadReceipt => text('requestHintUploadReceipt');
-  String get requestHintUploadReceiptShort => text('requestHintUploadReceiptShort');
-  String get requestHintOriginalsToOffice => text('requestHintOriginalsToOffice');
-  String get requestHintProcessingAtCustoms => text('requestHintProcessingAtCustoms');
+  String get requestHintUploadReceiptShort =>
+      text('requestHintUploadReceiptShort');
+  String get requestHintOriginalsToOffice =>
+      text('requestHintOriginalsToOffice');
+  String get requestHintProcessingAtCustoms =>
+      text('requestHintProcessingAtCustoms');
   String get requestHintIssuedToClient => text('requestHintIssuedToClient');
   String get requestHintRequestClosed => text('requestHintRequestClosed');
   String get requestDocumentOpenFailed => text('requestDocumentOpenFailed');
@@ -165,7 +172,8 @@ final class JsonStringsService {
   String get requestMediaShareButton => text('requestMediaShareButton');
   String get requestMediaActionFailed => text('requestMediaActionFailed');
   String get requestMediaSaved => text('requestMediaSaved');
-  String get requestMediaPermissionDenied => text('requestMediaPermissionDenied');
+  String get requestMediaPermissionDenied =>
+      text('requestMediaPermissionDenied');
   String get requestPickDocumentTitle => text('requestPickDocumentTitle');
   String get requestPickDocumentPhoto => text('requestPickDocumentPhoto');
   String get requestPickDocumentPdf => text('requestPickDocumentPdf');
@@ -177,11 +185,11 @@ final class JsonStringsService {
       text('statusSubType_${sub.apiCode}');
 
   String dealTypeLabel(DealType type) => switch (type) {
-        DealType.bilateral => text('dealType_bilateral'),
-        DealType.cash => text('dealType_cash'),
-        DealType.tripartite => text('dealType_tripartite'),
-        DealType.quadripartite => text('dealType_quadripartite'),
-      };
+    DealType.bilateral => text('dealType_bilateral'),
+    DealType.cash => text('dealType_cash'),
+    DealType.tripartite => text('dealType_tripartite'),
+    DealType.quadripartite => text('dealType_quadripartite'),
+  };
   String get requestDetailNotFound => text('requestDetailNotFound');
   String get requestDetailStatusLabel => text('requestDetailStatusLabel');
   String get requestDocumentPack => text('requestDocumentPack');
@@ -198,20 +206,26 @@ final class JsonStringsService {
   String get requestDetailPhoto => text('requestDetailPhoto');
   String get requestDetailServerFiles => text('requestDetailServerFiles');
   String get requestDetailUploadReceipt => text('requestDetailUploadReceipt');
-  String get requestDetailUploadReceiptAgain => text('requestDetailUploadReceiptAgain');
+  String get requestDetailUploadReceiptAgain =>
+      text('requestDetailUploadReceiptAgain');
   String get requestDetailOpenReceipt => text('requestDetailOpenReceipt');
   String get requestDetailReceiptCaption => text('requestDetailReceiptCaption');
-  String get requestDetailTransitSubStatusLoading => text('requestDetailTransitSubStatusLoading');
-  String get requestDetailDeliveredSubStatusSw => text('requestDetailDeliveredSubStatusSw');
+  String get requestDetailTransitSubStatusLoading =>
+      text('requestDetailTransitSubStatusLoading');
+  String get requestDetailDeliveredSubStatusSw =>
+      text('requestDetailDeliveredSubStatusSw');
   String get requestDetailFinanceDuty => text('requestDetailFinanceDuty');
-  String get requestDetailFinanceRecycling => text('requestDetailFinanceRecycling');
-  String get requestDetailPhotoPlaceholderA11y => text('requestDetailPhotoPlaceholderA11y');
+  String get requestDetailFinanceRecycling =>
+      text('requestDetailFinanceRecycling');
+  String get requestDetailPhotoPlaceholderA11y =>
+      text('requestDetailPhotoPlaceholderA11y');
   String get requestDetailChatA11y => text('requestDetailChatA11y');
   String requestArchivedOffline(String? name) {
     final n = name?.trim() ?? '';
     if (n.isEmpty) return text('requestArchivedOfflineUnknown');
     return text('requestArchivedOffline').replaceAll('{name}', n);
   }
+
   String get demoActionUnavailable => text('demoActionUnavailable');
 
   String requestDetailStatusSince(String date) =>
@@ -233,13 +247,13 @@ final class JsonStringsService {
   String get pushToastRequestUpdated => text('pushToastRequestUpdated');
   String get requestCardNewMessageHint => text('requestCardNewMessageHint');
   String get requestCardDocsActionHint => text('requestCardDocsActionHint');
-  String get requestCardStatusUpdatedHint => text('requestCardStatusUpdatedHint');
+  String get requestCardStatusUpdatedHint =>
+      text('requestCardStatusUpdatedHint');
   String requestCardChangeNewStatus(String status) =>
       text('requestCardChangeNewStatus').replaceAll('{status}', status);
-  String requestCardChangeStatusTransition(String from, String to) =>
-      text('requestCardChangeStatusTransition')
-          .replaceAll('{from}', from)
-          .replaceAll('{to}', to);
+  String requestCardChangeStatusTransition(String from, String to) => text(
+    'requestCardChangeStatusTransition',
+  ).replaceAll('{from}', from).replaceAll('{to}', to);
   String requestCardChangeFiles(String files) =>
       text('requestCardChangeFiles').replaceAll('{files}', files);
   String get appFeatureInDevelopment => text('appFeatureInDevelopment');

@@ -634,6 +634,7 @@
               <tr><td><code>organizationId1c</code></td><td>нет</td><td><b>Стабильный ключ организации</b> (<code>organizations.id_1c</code>) — использовать его. <code>organizationId</code> — внутренний id сервера (для 1С устарел), <code>organizationLogin</code> может меняться.</td></tr>
               <tr><td><code>previousImportDates</code></td><td>нет</td><td>Массив дат <code>YYYY-MM-DD</code> предыдущего ввоза. Пусто = не ввозили. <code>importedLast12Months</code> = длина &gt; 0.</td></tr>
               <tr><td><code>ownedVehicles</code></td><td>нет</td><td>Массив <code>{ name, year }</code> авто в собственности (для пояснения). Пусто = нет. <code>ownsOtherCars</code> = длина &gt; 0.</td></tr>
+              <tr><td><code>commentText</code></td><td>нет</td><td>Комментарий клиента, <b>всегда обогащённый сервером</b> при отправке в 1С (создание, ретрай, повторная отправка): дописываются <code>Повторный ввоз. Даты предшествующего ввоза: …</code> (из <code>previousImportDates</code>) и <code>Авто в собственности: &lt;name&gt;, &lt;year&gt;</code> (из <code>ownedVehicles</code>). Идемпотентно — секции не дублируются, если уже есть.</td></tr>
               <tr><td><code>files[]</code></td><td>да</td><td>Документы при создании: паспорт, ИНН, инвойс, фото авто и т.д. (<code>docType</code> без <code>_sign</code>). Элемент: <code>docType</code>, <code>fileName</code>, <code>mimeType</code>, <code>fileUrl</code>, <code>uploadedAt</code> (ISO 8601 UTC — когда файл получен сервером МП, не дата записи в 1С), <code>createdAt</code> (дубль <code>uploadedAt</code>, то же значение — для удобства парсеров 1С).</td></tr>
             </table>
             <p><b>Ответ 1С:</b> <code>requestId</code>, <code>external1cId</code> (GUID заявки в 1С).</p>
@@ -873,9 +874,10 @@
             <p><b>Архив перед транзитом (1С → МП, только скачивание):</b></p>
             <table class="enum">
               <tr><th>docType</th><th>Что это</th></tr>
-              <tr><td><code>transit_archive_photo_1</code></td><td>Фото авто №1 (при нескольких — <code>_2</code>, <code>_3</code>, …)</td></tr>
-              <tr><td><code>transit_archive_video</code></td><td>Видео перед транзитом</td></tr>
+              <tr><td><code>transit_archive_photo_1</code></td><td>Фото архива перед транзитом (от 1С/СВХ; при нескольких — <code>_2</code>, <code>_3</code>, …)</td></tr>
+              <tr><td><code>transit_archive_video</code></td><td>Видео архива перед транзитом</td></tr>
             </table>
+            <p>Чтобы фото/видео архива появились в МП, 1С должна слать именно эти docType через <code>POST /api/customs-requests/upload</code> (<code>transit_archive_photo_1</code>, <code>_2</code>, … и <code>transit_archive_video</code>).</p>
             <p><b>Галерея «Фото машины» (менеджер СВХ → сервер, <b>на любом статусе</b>):</b></p>
             <table class="enum">
               <tr><th>docType</th><th>Что это</th></tr>
@@ -911,6 +913,7 @@
       <div class="panel-intro">
         <strong>Направление: 1С → сервер.</strong> Эндпоинты на <code>{{BASE_URL}}</code> с интеграционным Bearer.
         <p><b>Файлы (заявка и чат):</b> upload — JSON + <code>fileBase64</code>; в ответе <code>file.fileUrl</code> = <code>/api/customs-requests/files/…</code>. Скачивание — один GET с тем же path и Bearer <code>INTEGRATION_BEARER_TOKEN</code>. Метаданные заявки — <code>state</code> (без файлов). <b>Файлы МП → 1С</b> — роут на стороне 1С (вкладка <a href="/docs/onec">API 1С (внешний HTTP)</a>).</p>
+        <p><b>Публичные страницы (без авторизации, HTML):</b> <code>GET /privacy</code> — политика конфиденциальности, <code>GET /terms</code> — пользовательское соглашение (для Google Play / RuStore / App Store и ссылок из профиля МП). <code>/agreement</code> редиректит на <code>/terms</code>. Ссылки в карточках: <code>https://app.import-service.su/privacy</code>, <code>https://app.import-service.su/terms</code>.</p>
       </div>
 
       <section class="group">

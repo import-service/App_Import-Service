@@ -24,12 +24,12 @@ function enrichCommentTextForOneC(commentText, q) {
   const dates = Array.isArray(q?.previousImportDates)
     ? q.previousImportDates.map((d) => normalize(d)).filter(Boolean)
     : [];
-  if (dates.length) {
+  if (dates.length && !base.includes('Повторный ввоз')) {
     parts.push(`Повторный ввоз. Даты предшествующего ввоза: ${dates.join(', ')}`);
   }
 
   const cars = Array.isArray(q?.ownedVehicles) ? q.ownedVehicles : [];
-  if (cars.length) {
+  if (cars.length && !base.includes('Авто в собственности:')) {
     const lines = cars
       .map((c) => {
         if (c == null) return '';
@@ -120,7 +120,7 @@ function buildCreatePayloadFromRow(requestId, row, fileRows, orgMeta = {}) {
     ownsOtherCars: q.ownsOtherCars,
     previousImportDates: q.previousImportDates,
     ownedVehicles: q.ownedVehicles,
-    commentText: normalize(row.comment_text) || null,
+    commentText: enrichCommentTextForOneC(row.comment_text, q),
     isTest: Boolean(row.is_test),
     files: fileRows.map((f) => ({
       docType: normalize(f.doc_type),

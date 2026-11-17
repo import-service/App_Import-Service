@@ -108,7 +108,7 @@ trigger: always_on
 | `presentation/widgets/navigation/home_bottom_nav_bar.dart` | Нижняя навигация главной |
 | `presentation/widgets/tabs/cars_tab_view.dart` | Вкладка «Мои авто»: один UI для демо и прод (список из мока или пусто + черновики) |
 | `presentation/widgets/tabs/svh_cars_tab_view.dart` | Список авто для менеджера СВХ (+ VIN search) |
-| `presentation/widgets/tabs/profile_tab_view.dart` | Профиль; `isActive` → refresh версии APK; недавние входы → switch |
+| `presentation/widgets/tabs/profile_tab_view.dart` | Профиль; `isActive` → refresh версии APK; недавние входы → switch; ссылки /privacy и /terms (`_openLegalUrl`) |
 | `presentation/widgets/auth/recent_accounts_list.dart` | Список недавних входов (email + роль) |
 | `presentation/helpers/account_login_flow.dart` | login / switch account (logout + POST auth/login) |
 | `core/auth/recent_accounts_service.dart` | Secure storage истории входов (+ merge QA-сидов) |

@@ -16,11 +16,12 @@ String? requestStatusActionHint(CarListItem item, JsonStringsService s) {
     case RequestStatusSubType.signatureRevisionRequired:
     case RequestStatusSubType.primaryDocumentsSent:
       return null;
-    case RequestStatusSubType.originalsPartialNoTransit:
     case RequestStatusSubType.originalsCompleteNoTransit:
+    case RequestStatusSubType.originalsCompleteTransit:
+      return null;
+    case RequestStatusSubType.originalsPartialNoTransit:
     case RequestStatusSubType.originalsMissingTransit:
     case RequestStatusSubType.originalsPartialTransit:
-    case RequestStatusSubType.originalsCompleteTransit:
       return s.requestHintOriginalsToOffice;
     case RequestStatusSubType.svhNoOriginalsNoRecycling:
     case RequestStatusSubType.svhPartialDocsNoRecycling:
@@ -45,24 +46,33 @@ String? requestStatusActionHint(CarListItem item, JsonStringsService s) {
 
 bool requestNeedsPaymentReceiptAction(CarListItem item) {
   final hasRecyclingFee = item.files.any(
-    (f) => CustomsDocType.tryParse(f.docType) == CustomsDocType.paymentRecyclingFee,
+    (f) =>
+        CustomsDocType.tryParse(f.docType) ==
+        CustomsDocType.paymentRecyclingFee,
   );
   final hasRecyclingReceipt = item.files.any(
     (f) =>
-        CustomsDocType.tryParse(f.docType) == CustomsDocType.paymentRecyclingFeeReceipt,
+        CustomsDocType.tryParse(f.docType) ==
+        CustomsDocType.paymentRecyclingFeeReceipt,
   );
   final hasDutyFee = item.files.any(
-    (f) => CustomsDocType.tryParse(f.docType) == CustomsDocType.paymentCustomsDuty,
+    (f) =>
+        CustomsDocType.tryParse(f.docType) == CustomsDocType.paymentCustomsDuty,
   );
   final hasDutyReceipt = item.files.any(
-    (f) => CustomsDocType.tryParse(f.docType) == CustomsDocType.paymentCustomsDutyReceipt,
+    (f) =>
+        CustomsDocType.tryParse(f.docType) ==
+        CustomsDocType.paymentCustomsDutyReceipt,
   );
   if (hasRecyclingFee && !hasRecyclingReceipt) return true;
   if (hasDutyFee && !hasDutyReceipt) return true;
   return false;
 }
 
-bool requestDetailShouldShowDocumentsBlock(CarListItem item, JsonStringsService s) {
+bool requestDetailShouldShowDocumentsBlock(
+  CarListItem item,
+  JsonStringsService s,
+) {
   if (item.files.isNotEmpty) return true;
   if (requestStatusActionHint(item, s) != null) return true;
   if (requestNeedsPaymentReceiptAction(item)) return true;

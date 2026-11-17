@@ -49,6 +49,14 @@ trigger: always_on
 - Ключ хранилища — `request_drafts_v1:<userId>` (без сессии — `…:anon`). `prefs.clear()` обязан сохранять ключи `isDraftsPrefsKey` (см. `clearSessionPrefsKeepLanguage`).
 - `RequestDraftAttachmentsSpace.deleteAll()` при выходе не вызывать — удалит вложения чужих черновиков; чистить только директорию удаляемого черновика. `clearAll()` чистит только бакет текущего владельца (демо → `anon`).
 
+## 11. Напоминания/подсветка по файлам (п.8/9/10/12 тестов)
+- **Пустой слот подписи** (нет оригинала и нет `*_sign`, нужна подпись клиента) — hint `requestFileUploadHint` («Загрузить»), **не** `requestFileNeedsSignature`. «Требуется подпись» — только бейдж у пришедшего оригинала.
+- **`requestStatusActionHint`**: `originals_complete_*` → `null`; напоминание «Передайте оригиналы» — только `originals_partial_*`/`originals_missing_*`.
+- **Блок оплаты**: красная рамка — только пока нет чека (`fee && !receipt`) либо чек «new/changed». `isHighlighted(fee)` при загруженном чеке **не** красит — «квитанция оплачена» не должна гореть вечно от сохранённого внимания.
+- **`markDocsAction` по push** — только если `hasPendingClientUploadActions(item)`; иначе любой push при подстатусе `primary_documents_sent` заново зажигает «Требуются подписи» после того, как всё подписано.
+- **Собственная загрузка** клиента: после успешного attach — `markUploadedDocSeen` (снять «new/changed» + seen-база), иначе свои же файлы горят «новыми» до переоткрытия секции.
+- Секция «Финансы» вызывает `onSectionOpened` с payment-кодами — как остальные файловые секции.
+
 ## Чек-лист
 - [ ] Порядок `await` / сессия / `go` проверен (+ трассы на время отладки)
 - [ ] `Stack`+`Expanded` — не `loose`+`shrink` в ловушку

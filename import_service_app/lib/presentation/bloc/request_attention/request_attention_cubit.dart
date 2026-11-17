@@ -50,12 +50,7 @@ final class RequestAttentionCubit extends Cubit<RequestAttentionState> {
     final next = {...state.statusUpdatedIds}..remove(id);
     final nextSummaries = Map<String, String>.from(state.statusUpdateSummaries)
       ..remove(id);
-    emit(
-      _copy(
-        statusUpdatedIds: next,
-        statusUpdateSummaries: nextSummaries,
-      ),
-    );
+    emit(_copy(statusUpdatedIds: next, statusUpdateSummaries: nextSummaries));
   }
 
   void markDocsAction(String requestId) {
@@ -147,6 +142,26 @@ final class RequestAttentionCubit extends Cubit<RequestAttentionState> {
     );
   }
 
+  /// Сам клиент загрузил файл — не считать его «новым/изменённым».
+  Future<void> markUploadedDocSeen(
+    String requestId,
+    String docType,
+    Iterable<CustomsRequestFile> allFiles,
+  ) async {
+    final id = requestId.trim();
+    final code = docType.trim().toLowerCase();
+    if (id.isEmpty || code.isEmpty) return;
+    final news = {...state.newDocTypesFor(id)}..remove(code);
+    final changed = {...state.changedDocTypesFor(id)}..remove(code);
+    emit(
+      _copy(
+        newDocTypes: _withRequestSet(state.newDocTypes, id, news),
+        changedDocTypes: _withRequestSet(state.changedDocTypes, id, changed),
+      ),
+    );
+    await _mergeSeen(id, {code}, allFiles);
+  }
+
   /// Открыли секцию: сразу гасим «новые», жёлтый «!» — через [clearAfter].
   void onSectionOpened({
     required String requestId,
@@ -192,7 +207,9 @@ final class RequestAttentionCubit extends Cubit<RequestAttentionState> {
     Iterable<CustomsRequestFile> allFiles,
   ) async {
     final store = sl<RequestFileSeenStore>();
-    final baseline = Map<String, String>.from(store.readBaseline(requestId) ?? {});
+    final baseline = Map<String, String>.from(
+      store.readBaseline(requestId) ?? {},
+    );
     final current = store.fingerprintsFromFiles(allFiles);
     for (final code in codes) {
       final fp = current[code];

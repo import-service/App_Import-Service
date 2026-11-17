@@ -12,6 +12,12 @@
 
 - `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`
 
+## Публичные страницы (без авторизации)
+
+- `GET /privacy` — политика конфиденциальности (HTML)
+- `GET /terms` — пользовательское соглашение (HTML); `/agreement` редиректит на `/terms`
+- Для Google Play / RuStore / App Store и ссылок из профиля МП: `https://app.import-service.su/privacy`, `https://app.import-service.su/terms`
+
 ## GET /api/customs-requests/files/:storedName
 
 Скачать двоичное содержимое файла по имени из `fileUrl` в заявке (например `/api/customs-requests/files/<uuid>.jpg`). Заголовок такой же, как для остальных методов интеграции: `Authorization: Bearer <INTEGRATION_BEARER_TOKEN>`. Альтернативы — JWT пользователя МП или JWT админки (`aud: admin`).
@@ -162,7 +168,7 @@
 | `importedLast12Months`, `ownsOtherCars` | boolean, **выводятся из списков**: есть даты → ввоз был; есть авто → есть другие авто |
 | `previousImportDates` | `string[]` дат `YYYY-MM-DD` — даты ввоза предыдущих авто (пусто = не ввозили) |
 | `ownedVehicles` | `{ name: string, year: number }[]` — авто в собственности (для пояснения); пусто = нет |
-| `commentText` | string \| null |
+| `commentText` | string \| null — **всегда обогащается сервером** при отправке в 1С (создание, ретрай, повторная отправка): к тексту клиента добавляются строки `Повторный ввоз. Даты предшествующего ввоза: …` (из `previousImportDates`) и `Авто в собственности: <name>, <year>` (из `ownedVehicles`). Идемпотентно: секции не дублируются, если уже есть в тексте. Структурные поля `previousImportDates`/`ownedVehicles` также приходят отдельно |
 | `isTest` | boolean |
 | `files[]` | `docType`, `fileName`, `mimeType`, `fileUrl`, `uploadedAt`, `createdAt` — `fileUrl` при необходимости с `PUBLIC_BASE_URL` (в карточке МП также `previewUrl` для превью); `uploadedAt` — ISO 8601 UTC, когда файл был получен сервером МП (не дата записи в 1С; для чеков оплаты — дата выгрузки чека); `createdAt` — дубль `uploadedAt` (то же значение), для удобства парсеров 1С |
 
@@ -460,7 +466,7 @@ Auth: 1С — `INTEGRATION_BEARER_TOKEN`, МП — `accessToken`.
 - **Подпись:** оригинал `docType` + подпись `docType_sign` (см. пакет по `dealType` выше).
 - **Оплаты:** `payment_recycling_fee`, `payment_recycling_fee_receipt`, `payment_customs_duty`, `payment_customs_duty_receipt`.
 - **Итог:** `epts`, `sbkts`.
-- **Архив транзита:** `transit_archive_photo_1`, …, `transit_archive_video`.
+- **Архив транзита:** `transit_archive_photo_1`, …, `transit_archive_video` — фото/видео архива перед транзитом (от 1С/СВХ; при нескольких фото — `_2`, `_3`, …). Чтобы файлы появились в МП, 1С должна слать именно эти docType через `POST /api/customs-requests/upload`.
 
 Полные таблицы: `docs/catalog-reference.md`, вкладка **Справочники** на `/docs`.
 

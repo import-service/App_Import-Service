@@ -17,17 +17,19 @@ import 'package:import_service_app/presentation/widgets/requests/request_detail_
 import 'package:import_service_app/presentation/widgets/requests/request_detail_doc_upload_group.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_payment_groups.dart';
 
-typedef RequestFileRowBuilder = Widget Function(
-  CustomsRequestFile file, {
-  required bool highlight,
-  String? badge,
-  bool embedded,
-  VoidCallback? onDelete,
-  bool isNew,
-  bool isChanged,
-});
+typedef RequestFileRowBuilder =
+    Widget Function(
+      CustomsRequestFile file, {
+      required bool highlight,
+      String? badge,
+      bool embedded,
+      VoidCallback? onDelete,
+      bool isNew,
+      bool isChanged,
+    });
 
-typedef RequestDeliverableRowBuilder = Widget Function(DeliveredVehicleDocument doc);
+typedef RequestDeliverableRowBuilder =
+    Widget Function(DeliveredVehicleDocument doc);
 
 /// Пять секций документов заявки (концепция §13), сворачиваемые.
 class RequestDetailFilesSections extends StatelessWidget {
@@ -63,14 +65,19 @@ class RequestDetailFilesSections extends StatelessWidget {
   final RequestFileRowBuilder buildFileRow;
   final RequestDeliverableRowBuilder buildDeliverableRow;
   final void Function(String docType)? onUploadDocType;
+
   /// Мультизагрузка фото в галерею «Фото машины» (СВХ).
   final VoidCallback? onUploadSvhCarGallery;
+
   /// Мультизагрузка видео (до 3).
   final VoidCallback? onUploadSvhCarVideos;
+
   /// Галерея архива транзита: загруженные + «Добавить» (лимит 3).
   final VoidCallback? onUploadTransitArchiveGallery;
+
   /// Галерея прочих файлов: загруженные + «Добавить» (лимит 2).
   final VoidCallback? onUploadOtherDocsGallery;
+
   /// Удаление фото/видео машины — только менеджер СВХ.
   final void Function(CustomsRequestFile file)? onDeleteSvhMediaFile;
   final String? uploadingDocType;
@@ -84,8 +91,10 @@ class RequestDetailFilesSections extends StatelessWidget {
   final Set<String> highlightedDocTypes;
   final Set<String> newDocTypes;
   final Set<String> changedDocTypes;
+
   /// Менеджер СВХ: галерея / архив, без подписей/оплат.
   final bool svhUploadMode;
+
   /// false — секция «Оплата» не показывается (уже в блоке «Финансы и оплата»).
   final bool includePaymentSection;
 
@@ -213,11 +222,7 @@ class RequestDetailFilesSections extends StatelessWidget {
       title: s.requestFilesSectionCreation,
       needsAction: false,
       sectionFiles: grouped.creation,
-      rows: _buildCreationRows(
-        grouped: grouped,
-        s: s,
-        theme: theme,
-      ),
+      rows: _buildCreationRows(grouped: grouped, s: s, theme: theme),
     );
 
     final signingRows = <Widget>[];
@@ -238,7 +243,8 @@ class RequestDetailFilesSections extends StatelessWidget {
       if (hasOriginal && hasSigned && canUpload) {
         signingRows.add(
           RequestDetailDocUploadGroup(
-            highlight: pair.highlightSignature ||
+            highlight:
+                pair.highlightSignature ||
                 _isHighlighted(pair.original!) ||
                 _isHighlighted(pair.signed!) ||
                 _isNew(pair.original!) ||
@@ -266,7 +272,8 @@ class RequestDetailFilesSections extends StatelessWidget {
       if (hasOriginal && hasSigned) {
         signingRows.add(
           RequestDetailDocUploadGroup(
-            highlight: pair.highlightSignature ||
+            highlight:
+                pair.highlightSignature ||
                 _isHighlighted(pair.original!) ||
                 _isHighlighted(pair.signed!) ||
                 _isNew(pair.original!) ||
@@ -291,7 +298,8 @@ class RequestDetailFilesSections extends StatelessWidget {
       if (hasOriginal && !hasSigned && canUpload) {
         signingRows.add(
           RequestDetailDocUploadGroup(
-            highlight: pair.highlightSignature ||
+            highlight:
+                pair.highlightSignature ||
                 _isHighlighted(pair.original!) ||
                 _isNew(pair.original!) ||
                 _isChanged(pair.original!),
@@ -317,16 +325,15 @@ class RequestDetailFilesSections extends StatelessWidget {
       if (!hasOriginal && hasSigned && canUpload) {
         signingRows.add(
           RequestDetailDocUploadGroup(
-            highlight: pair.highlightSignature ||
+            highlight:
+                pair.highlightSignature ||
                 _isHighlighted(pair.signed!) ||
                 _isNew(pair.signed!) ||
                 _isChanged(pair.signed!),
             uploadLabel: uploadLabel,
             uploadBusy: uploadBusy,
             onUpload: onUpload,
-            children: [
-              _fileRow(pair.signed!, embedded: true),
-            ],
+            children: [_fileRow(pair.signed!, embedded: true)],
           ),
         );
         continue;
@@ -343,7 +350,7 @@ class RequestDetailFilesSections extends StatelessWidget {
               _missingSignPlaceholder(
                 theme: theme,
                 label: docTypeLabelForType(pair.baseDocType, s),
-                hint: s.requestFileNeedsSignature,
+                hint: s.requestFileUploadHint,
                 embedded: true,
               ),
             ],
@@ -371,7 +378,7 @@ class RequestDetailFilesSections extends StatelessWidget {
           _missingSignPlaceholder(
             theme: theme,
             label: docTypeLabelForType(pair.baseDocType, s),
-            hint: s.requestFileNeedsSignature,
+            hint: s.requestFileUploadHint,
           ),
         );
       }
@@ -396,8 +403,15 @@ class RequestDetailFilesSections extends StatelessWidget {
       addPaymentPairGroups(
         out: paymentRows,
         allFiles: item.files,
-        buildFileRow: (f, {required highlight, badge, embedded = false, isNew = false, isChanged = false}) =>
-            buildFileRow(
+        buildFileRow:
+            (
+              f, {
+              required highlight,
+              badge,
+              embedded = false,
+              isNew = false,
+              isChanged = false,
+            }) => buildFileRow(
               f,
               highlight: highlight,
               badge: badge,
@@ -417,7 +431,9 @@ class RequestDetailFilesSections extends StatelessWidget {
       addSection(
         sectionKey: RequestDetailSectionKeys.filesPayment,
         title: s.requestFilesSectionPayment,
-        needsAction: svhUploadMode ? false : paymentSectionNeedsAction(item, grouped),
+        needsAction: svhUploadMode
+            ? false
+            : paymentSectionNeedsAction(item, grouped),
         sectionFiles: grouped.payment,
         rows: paymentRows,
       );
@@ -438,11 +454,7 @@ class RequestDetailFilesSections extends StatelessWidget {
             .replaceAll('{max}', '$kSvhCarGalleryMaxPhotos'),
         needsAction: false,
         sectionFiles: photos,
-        rows: _buildSvhCarPhotoRows(
-          photos: photos,
-          s: s,
-          theme: theme,
-        ),
+        rows: _buildSvhCarPhotoRows(photos: photos, s: s, theme: theme),
       );
       addSection(
         sectionKey: RequestDetailSectionKeys.filesSvhCarVideos,
@@ -452,11 +464,7 @@ class RequestDetailFilesSections extends StatelessWidget {
             .replaceAll('{max}', '$kSvhCarGalleryMaxVideos'),
         needsAction: false,
         sectionFiles: videos,
-        rows: _buildSvhCarVideoRows(
-          videos: videos,
-          s: s,
-          theme: theme,
-        ),
+        rows: _buildSvhCarVideoRows(videos: videos, s: s, theme: theme),
       );
     }
 
@@ -466,11 +474,7 @@ class RequestDetailFilesSections extends StatelessWidget {
       title: s.requestFilesSectionIssueHandover,
       needsAction: false,
       sectionFiles: issueFiles,
-      rows: _buildIssueHandoverRows(
-        grouped: grouped,
-        s: s,
-        theme: theme,
-      ),
+      rows: _buildIssueHandoverRows(grouped: grouped, s: s, theme: theme),
     );
 
     final otherSlotCount = occupiedUploadSlotCount(
@@ -529,7 +533,9 @@ class RequestDetailFilesSections extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             s.text('requestFilesSectionSvhCarGalleryClientHint'),
-            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
           ),
         ),
       );
@@ -544,7 +550,9 @@ class RequestDetailFilesSections extends StatelessWidget {
             full
                 ? s.text('requestFilesSectionSvhCarGalleryFull')
                 : s.text('requestFilesSectionSvhCarGalleryHint'),
-            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
           ),
         ),
       );
@@ -595,7 +603,9 @@ class RequestDetailFilesSections extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             s.text('requestFilesSectionSvhCarVideoClientHint'),
-            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
           ),
         ),
       );
@@ -610,7 +620,9 @@ class RequestDetailFilesSections extends StatelessWidget {
             full
                 ? s.text('requestFilesSectionSvhCarVideoFull')
                 : s.text('requestFilesSectionSvhCarVideoHint'),
-            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
           ),
         ),
       );

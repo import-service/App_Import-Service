@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:import_service_app/core/constants/customs_catalog.dart';
+import 'package:import_service_app/core/di/injection_container.dart';
+import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/core/i18n/json_strings_service.dart';
 import 'package:import_service_app/core/themes/app_theme.dart';
 import 'package:import_service_app/data/local/request_detail_section_prefs.dart';
@@ -120,14 +122,17 @@ class RequestDetailFinancesBlock extends StatelessWidget {
             receiptCaption: strings.requestDetailReceiptCaption,
             uploadLabel: onUploadReceipt == null
                 ? null
-                : ((line.receiptUrl != null && line.receiptUrl!.trim().isNotEmpty)
-                    ? strings.requestDetailUploadReceiptAgain
-                    : strings.requestDetailUploadReceipt),
+                : ((line.receiptUrl != null &&
+                          line.receiptUrl!.trim().isNotEmpty)
+                      ? strings.requestDetailUploadReceiptAgain
+                      : strings.requestDetailUploadReceipt),
             openReceiptLabel: strings.requestDetailOpenReceipt,
             onUploadTap: onUploadReceipt == null
                 ? null
                 : () {
-                    final docType = receiptDocTypeForFinanceLineType(line.lineType);
+                    final docType = receiptDocTypeForFinanceLineType(
+                      line.lineType,
+                    );
                     if (docType == null) return;
                     onUploadReceipt!(docType);
                   },
@@ -144,8 +149,15 @@ class RequestDetailFinancesBlock extends StatelessWidget {
       addPaymentPairGroups(
         out: paymentRows,
         allFiles: item.files,
-        buildFileRow: (f, {required highlight, badge, embedded = false, isNew = false, isChanged = false}) =>
-            buildFileRow!(
+        buildFileRow:
+            (
+              f, {
+              required highlight,
+              badge,
+              embedded = false,
+              isNew = false,
+              isChanged = false,
+            }) => buildFileRow!(
               f,
               highlight: highlight,
               badge: badge,
@@ -197,6 +209,15 @@ class RequestDetailFinancesBlock extends StatelessWidget {
       title: strings.requestDetailFinances,
       needsAction: needsAction,
       subtitle: refundPreview,
+      onOpened: () {
+        sl<RequestAttentionCubit>().onSectionOpened(
+          requestId: requestId,
+          sectionDocTypes: grouped.payment.map(
+            (f) => normalizeDocType(f.docType ?? ''),
+          ),
+          allFiles: item.files,
+        );
+      },
       children: children.isEmpty
           ? [
               Text(
@@ -270,7 +291,9 @@ class _AmountTile extends StatelessWidget {
         children: [
           Text(
             label,
-            style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
           ),
           const Gap(4),
           Text(

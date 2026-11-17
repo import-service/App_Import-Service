@@ -6,14 +6,15 @@ import 'package:import_service_app/domain/services/request_files_grouper.dart';
 import 'package:import_service_app/presentation/helpers/request_file_uploaded_indicator.dart';
 import 'package:import_service_app/presentation/widgets/requests/request_detail_doc_upload_group.dart';
 
-typedef RequestDetailFileRowBuilder = Widget Function(
-  CustomsRequestFile file, {
-  required bool highlight,
-  String? badge,
-  bool embedded,
-  bool isNew,
-  bool isChanged,
-});
+typedef RequestDetailFileRowBuilder =
+    Widget Function(
+      CustomsRequestFile file, {
+      required bool highlight,
+      String? badge,
+      bool embedded,
+      bool isNew,
+      bool isChanged,
+    });
 
 /// Один блок «квитанция + чек + загрузить» — тот же паттерн, что «На подпись».
 void addPaymentPairGroups({
@@ -55,14 +56,17 @@ void addPaymentPairGroups({
     final receiptCode = receiptType.apiCode;
     final hasReceipt = receipt != null;
     final needsReceipt = fee != null && !hasReceipt;
-    final highlight = (fee != null && paymentFileNeedsReceiptHighlight(fee, allFiles)) ||
-        (fee != null && isHighlighted(fee)) ||
+    // Красная рамка fee — только пока чека нет («квитанция оплачена» при
+    // загруженном чеке не горит даже если fee остался в «new/changed»).
+    final highlight =
+        (fee != null && !hasReceipt) ||
         (receipt != null && isHighlighted(receipt));
 
     final uploadLabel = paymentReceiptUploadLabel(
       hasReceipt: hasReceipt,
       uploadAgain: strings.requestDetailUploadReceiptAgain,
-      uploadFirst: uploadReceiptLabelOverride ?? strings.requestDetailUploadReceipt,
+      uploadFirst:
+          uploadReceiptLabelOverride ?? strings.requestDetailUploadReceipt,
     );
 
     final groupChildren = <Widget>[];
@@ -122,8 +126,9 @@ void _appendStandalonePaymentFiles({
     out.add(
       buildFileRow(
         feeFile,
-        highlight: paymentFileNeedsReceiptHighlight(feeFile, allFiles) ||
-            isHighlighted(feeFile),
+        highlight:
+            paymentFileNeedsReceiptHighlight(feeFile, allFiles) ||
+            (receiptFile == null && isHighlighted(feeFile)),
         embedded: false,
         badge: paymentFileNeedsReceiptHighlight(feeFile, allFiles)
             ? strings.requestHintUploadReceiptShort

@@ -13,6 +13,7 @@ import 'package:import_service_app/presentation/bloc/car_inventory/car_inventory
 import 'package:import_service_app/presentation/bloc/chat_list/chat_list_cubit.dart';
 import 'package:import_service_app/presentation/bloc/request_attention/request_attention_cubit.dart';
 import 'package:import_service_app/presentation/helpers/push_change_summary.dart';
+import 'package:import_service_app/presentation/helpers/request_detail_pending_actions.dart';
 import 'package:import_service_app/presentation/router/app_router.dart';
 
 /// Обновление списка чатов после push в общий чат организации.
@@ -56,15 +57,20 @@ Future<void> handleRequestRemoteUpdate(RequestRemoteUpdate update) async {
   }
 
   final sub = RequestStatusSubType.tryParse(item.statusSubType);
-  if (sub == RequestStatusSubType.primaryDocumentsSent ||
-      sub == RequestStatusSubType.signatureRevisionRequired) {
+  if ((sub == RequestStatusSubType.primaryDocumentsSent ||
+          sub == RequestStatusSubType.signatureRevisionRequired) &&
+      hasPendingClientUploadActions(item)) {
     sl<RequestAttentionCubit>().markDocsAction(id);
     final encodedId = Uri.encodeComponent(id);
     appRouter.push('/request/$encodedId?focus=docs');
     return;
   }
 
-  final summary = buildPushChangeSummary(sl<JsonStringsService>(), update, item);
+  final summary = buildPushChangeSummary(
+    sl<JsonStringsService>(),
+    update,
+    item,
+  );
   sl<RequestAttentionCubit>().markStatusUpdated(id, summary: summary);
   sl<HomeCarsNavigationController>().focusCarsListForStatus(item.status);
 }
@@ -78,12 +84,15 @@ Future<void> prepareCarsTabBeforeDetailOpen(String requestId) async {
 
   final repo = sl<CarsRepository>();
   final single = await repo.getVehicle(id);
-  single.fold((_) async {
-    await repo.listVehicles();
-    syncCarsTabFromInventory(id);
-  }, (item) {
-    sl<HomeCarsNavigationController>().focusCarsListForStatus(item.status);
-  });
+  single.fold(
+    (_) async {
+      await repo.listVehicles();
+      syncCarsTabFromInventory(id);
+    },
+    (item) {
+      sl<HomeCarsNavigationController>().focusCarsListForStatus(item.status);
+    },
+  );
 }
 
 /// После выхода с деталки — таб по актуальному статусу заявки в инвентаре.
