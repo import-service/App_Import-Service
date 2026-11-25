@@ -59,7 +59,6 @@ Future<void> initDependencies() async {
     ownerIdProvider: () => sl<AuthSessionController>().userId,
   );
   sl.registerSingleton<RequestDraftCubit>(requestDraftCubit);
-  requestDraftCubit.reloadFromDisk();
   sl.registerSingleton<RequestAttentionCubit>(RequestAttentionCubit());
   sl.registerSingleton<RequestChatUnreadCubit>(RequestChatUnreadCubit());
   sl.registerSingleton<HomeCarsNavigationController>(
