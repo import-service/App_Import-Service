@@ -7,6 +7,7 @@ const {
   isCatalogStaffRequest,
 } = require('../util/requestOrganizationAccess');
 const { getPublicBaseUrl } = require('../util/customsRequestDto');
+const { sanitizeStorageKey } = require('../util/requestFileStorage');
 const {
   buildIntegrationFileUrl,
   storedNameFromIntegrationFileUrl,
@@ -114,30 +115,70 @@ async function assertMpCanAccessChatFile(pool, requestId, orgId, { allowSvh = fa
 /**
  * GET /api/customs-requests/files/:storedName — файлы заявки и вложения чата.
  */
+async function findRequestFileRows(pool, candidateStoredName) {
+  const [rows] = await pool.query(
+    `SELECT f.mime_type, f.stored_name, f.preview_stored_name, f.original_name, r.organization_id
+     FROM customs_request_files f
+     INNER JOIN customs_requests r ON r.id = f.request_id AND r.deleted_at IS NULL
+     WHERE f.deleted_at IS NULL
+       AND (f.stored_name = ? OR f.preview_stored_name = ?)
+     LIMIT 1`,
+    [candidateStoredName, candidateStoredName],
+  );
+  return rows;
+}
+
+/**
+ * Имя вида `r{requestId}__{rest}` — файл мог быть переименован в
+ * `{external_1c_id}__{rest}` после получения заявкой id_1c. Вторая попытка.
+ */
+async function resolveExternal1cStoredName(pool, storedName) {
+  const m = /^r(\d+)__(.+)$/.exec(storedName);
+  if (!m) return null;
+  const [reqRows] = await pool.query(
+    `SELECT external_1c_id
+     FROM customs_requests
+     WHERE id = ? AND deleted_at IS NULL
+     LIMIT 1`,
+    [Number(m[1])],
+  );
+  const external1cId = reqRows.length ? normalize(reqRows[0].external_1c_id) : '';
+  if (!external1cId) return null;
+  const candidate = `${sanitizeStorageKey(external1cId)}__${m[2]}`;
+  return candidate === storedName ? null : candidate;
+}
+
+/**
+ * GET /api/customs-requests/files/:storedName — файлы заявки и вложения чата.
+ */
 async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLOAD_ROOT) {
   const requestedStoredName = normalize(request.params.storedName);
   const storedName = sanitizeFileName(requestedStoredName);
-  const requestFilePath = path.join(uploadRoot, storedName);
 
   try {
-    const [rows] = await fastify.pool.query(
-      `SELECT f.mime_type, f.stored_name, f.preview_stored_name, f.original_name, r.organization_id
-       FROM customs_request_files f
-       INNER JOIN customs_requests r ON r.id = f.request_id AND r.deleted_at IS NULL
-       WHERE f.deleted_at IS NULL
-         AND (f.stored_name = ? OR f.preview_stored_name = ?)
-       LIMIT 1`,
-      [storedName, storedName],
-    );
+    let rows = await findRequestFileRows(fastify.pool, storedName);
+    let effectiveStoredName = storedName;
+
+    if (!rows.length) {
+      const altStoredName = await resolveExternal1cStoredName(fastify.pool, storedName);
+      if (altStoredName) {
+        const altRows = await findRequestFileRows(fastify.pool, altStoredName);
+        if (altRows.length) {
+          rows = altRows;
+          effectiveStoredName = altStoredName;
+        }
+      }
+    }
 
     if (rows.length) {
+      const requestFilePath = path.join(uploadRoot, effectiveStoredName);
       if (isMpJwtRequest(request) && !isCatalogStaffRequest(request)) {
         const orgId = mpOrganizationId(request);
         if (!orgId || Number(rows[0].organization_id) !== orgId) {
           return sendFileDownloadError(reply, fastify, request, 404, {
             error: 'FILE_ACCESS_DENIED',
             message: 'Нет доступа к файлу заявки (другая организация или не авторизован)',
-            storedName,
+            storedName: effectiveStoredName,
             requestedStoredName,
             fileKind: 'request',
             details: 'access_denied_for_organization',
@@ -147,7 +188,7 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
 
       const isPreview =
         rows[0].preview_stored_name &&
-        String(rows[0].preview_stored_name) === storedName;
+        String(rows[0].preview_stored_name) === effectiveStoredName;
       const mimeType = isPreview
         ? 'image/jpeg'
         : rows[0].mime_type || 'application/octet-stream';
@@ -160,7 +201,7 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
           return sendFileDownloadError(reply, fastify, request, 404, {
             error: 'FILE_NOT_ON_DISK',
             message: 'Запись о файле заявки есть, но файл отсутствует на диске сервера',
-            storedName,
+            storedName: effectiveStoredName,
             requestedStoredName,
             fileKind: 'request',
             details: 'database_record_without_binary',
@@ -173,7 +214,7 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
         return sendFileDownloadError(reply, fastify, request, 404, {
           error: 'FILE_NOT_ON_DISK',
           message: 'Путь на диске не является файлом',
-          storedName,
+          storedName: effectiveStoredName,
           requestedStoredName,
           fileKind: 'request',
           details: 'not_a_regular_file',
@@ -181,8 +222,8 @@ async function serveRequestOrChatFile(fastify, request, reply, uploadRoot = UPLO
       }
 
       const downloadName = isPreview
-        ? storedName
-        : normalize(rows[0].original_name) || storedName;
+        ? effectiveStoredName
+        : normalize(rows[0].original_name) || effectiveStoredName;
       return sendBinaryFile(reply, {
         mimeType,
         downloadFileName: downloadName,

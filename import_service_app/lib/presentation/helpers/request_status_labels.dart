@@ -35,11 +35,11 @@ bool requestStatusDeliveredTab(RequestStatus status) {
       status == RequestStatus.cancelled;
 }
 
-/// Чат доступен только после реальной инициализации заявки в 1С и назначения менеджера.
+/// Чат доступен после инициализации заявки в 1С; назначенный менеджер не обязателен.
 bool requestChatAvailable({
   required RequestStatus status,
   required String? external1cId,
-  required String? managerFullName,
+  String? managerFullName,
   bool isArchivedOffline = false,
   bool forSvhManager = false,
 }) {
@@ -49,7 +49,5 @@ bool requestChatAvailable({
     return status != RequestStatus.newRequest;
   }
   if (status == RequestStatus.newRequest) return false;
-  final hasExternal1c = external1cId != null && external1cId.trim().isNotEmpty;
-  final hasManager = managerFullName != null && managerFullName.trim().isNotEmpty;
-  return hasExternal1c && hasManager;
+  return external1cId != null && external1cId.trim().isNotEmpty;
 }
