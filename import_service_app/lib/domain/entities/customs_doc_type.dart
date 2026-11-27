@@ -62,9 +62,9 @@ enum CustomsDocType {
   static const List<CustomsDocType> optionalOnCreate = [addDoc1, addDoc2];
 
   static List<CustomsDocType> get creationTypes => [
-        ...requiredOnCreate,
-        ...optionalOnCreate,
-      ];
+    ...requiredOnCreate,
+    ...optionalOnCreate,
+  ];
 
   static const List<CustomsDocType> signingBaseTypes = [
     recyclingFeeCalc,
@@ -72,7 +72,6 @@ enum CustomsDocType {
     explanatoryNote,
     customsRepAgreement,
     fundsTransferApplication,
-    passportNotarizedCopy,
     receipt,
     additionalAgreement,
     tripartiteAgreement,
@@ -80,9 +79,7 @@ enum CustomsDocType {
     contract,
   ];
 
-  static const Set<CustomsDocType> clientSignOnlyTypes = {
-    passportNotarizedCopy,
-  };
+  static const Set<CustomsDocType> clientSignOnlyTypes = <CustomsDocType>{};
 
   /// Не показывать в секции «На подпись» МП (слот и пустой, и с файлом).
   static const Set<CustomsDocType> hiddenFromMpSigningSection = {
@@ -132,7 +129,8 @@ enum CustomsDocType {
       hiddenFromMpSigningSection.contains(this);
 
   bool get isTransitArchive =>
-      transitArchiveTypes.contains(this) || apiCode.startsWith('transit_archive_');
+      transitArchiveTypes.contains(this) ||
+      apiCode.startsWith('transit_archive_');
 
   bool get isFinal => finalTypes.contains(this);
 

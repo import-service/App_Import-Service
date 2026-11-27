@@ -788,7 +788,7 @@
             <p>Один раз на заявку, далее не меняется. Определяет состав первичного пакета на подпись.</p>
             <table class="enum">
               <tr><th>Код</th><th>Название</th><th>Документы пакета (docType)</th></tr>
-              <tr><td><code>bilateral</code></td><td>Двухсторонняя сделка</td><td><code>recycling_fee_calc</code>, <code>kuts</code>, <code>explanatory_note</code>, <code>customs_rep_agreement</code>, <code>funds_transfer_application</code>, <code>passport_notarized_copy</code>, <code>contract</code></td></tr>
+              <tr><td><code>bilateral</code></td><td>Двухсторонняя сделка</td><td><code>recycling_fee_calc</code>, <code>kuts</code>, <code>explanatory_note</code>, <code>customs_rep_agreement</code>, <code>funds_transfer_application</code>, <code>contract</code></td></tr>
               <tr><td><code>cash</code></td><td>Наличный расчёт</td><td>Как bilateral, но <b>без</b> <code>funds_transfer_application</code>; + <code>receipt</code>, <code>additional_agreement</code></td></tr>
               <tr><td><code>tripartite</code></td><td>Трёхсторонняя сделка</td><td>Как bilateral + <code>tripartite_agreement</code></td></tr>
               <tr><td><code>quadripartite</code></td><td>Четырёхсторонняя сделка</td><td>Как bilateral + <code>quadripartite_agreement</code></td></tr>
@@ -857,7 +857,6 @@
               <tr><td><code>customs_rep_agreement</code></td><td>Договор таможенного представителя</td><td>Да</td></tr>
               <tr><td><code>contract</code></td><td>Контракт (пакет на подпись)</td><td>Да</td></tr>
               <tr><td><code>funds_transfer_application</code></td><td>Заявление на перевод остатков после растаможивания</td><td><b>Нет</b> — только <code>funds_transfer_application_sign</code></td></tr>
-              <tr><td><code>passport_notarized_copy</code></td><td>Паспорт (нот. копия)</td><td><b>Нет</b> — только <code>passport_notarized_copy_sign</code></td></tr>
               <tr><td><code>receipt</code></td><td>Расписка (cash)</td><td>Да</td></tr>
               <tr><td><code>additional_agreement</code></td><td>Доп. соглашение (cash)</td><td>Да</td></tr>
               <tr><td><code>tripartite_agreement</code></td><td>Трёхсторонний договор</td><td>Да</td></tr>
@@ -1993,6 +1992,7 @@ sequenceDiagram
             <p><b>Суммы таможни:</b> 1С передаёт <code>advancePayment</code> (аванс) и <code>actualPayment</code> (факт на день таможни) в <code>state</code>; сервер отдаёт в МП три суммы, включая <code>refundAmount</code> (аванс − факт).</p>
             <p><b>Заявление на перевод:</b> <code>funds_transfer_application</code> — перевод остатков после растаможивания.</p>
             <p><b>Особые правила:</b> <code>funds_transfer_application</code>, <code>passport_notarized_copy</code> — не из 1С в МП, только <code>*_sign</code> от клиента.</p>
+            <p><b>Паспорт (нотариальная копия):</b> с 2026-11-27 — не документ «на подпись», а обычный доп. документ клиента; клиент грузит в приложении на любом этапе, docType при upload — <code>passport_notarized_copy_sign</code> (имя сохранено).</p>
           </div>
         </details>
 

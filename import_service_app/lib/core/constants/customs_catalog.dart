@@ -41,13 +41,7 @@ List<String> get kTransitArchiveDocTypes =>
 List<String> get kFinalDocTypes =>
     CustomsDocType.finalTypes.map((e) => e.apiCode).toList();
 
-enum CustomsDocCategory {
-  creation,
-  signing,
-  payment,
-  finalDoc,
-  other,
-}
+enum CustomsDocCategory { creation, signing, payment, finalDoc, other }
 
 CustomsDocCategory docCategoryFor(String? rawDocType) {
   final (type, signed) = CustomsDocType.parseWithSign(rawDocType);
@@ -125,9 +119,7 @@ List<int> nextSvhCarGalleryIndices({
     if (n != null) used.add(n);
   }
   final out = <int>[];
-  for (var i = 1;
-      i <= kSvhCarGalleryMaxPhotos && out.length < count;
-      i++) {
+  for (var i = 1; i <= kSvhCarGalleryMaxPhotos && out.length < count; i++) {
     if (!used.contains(i)) out.add(i);
   }
   return out;
@@ -147,9 +139,7 @@ List<int> nextSvhCarVideoIndices({
     if (n != null) used.add(n);
   }
   final out = <int>[];
-  for (var i = 1;
-      i <= kSvhCarGalleryMaxVideos && out.length < count;
-      i++) {
+  for (var i = 1; i <= kSvhCarGalleryMaxVideos && out.length < count; i++) {
     if (!used.contains(i)) out.add(i);
   }
   return out;
@@ -164,10 +154,7 @@ const List<String> kSvhTransitUploadDocTypes = [
 
 const int kTransitArchiveMaxPhotos = 3;
 
-const List<String> kSvhOtherUploadDocTypes = [
-  'add_doc1',
-  'add_doc2',
-];
+const List<String> kSvhOtherUploadDocTypes = ['add_doc1', 'add_doc2'];
 
 const int kOtherDocsMaxFiles = 2;
 
@@ -257,8 +244,10 @@ String? receiptDocTypeForFinanceLineType(String? lineType) {
 String? receiptDocTypeForPaymentFee(String? feeDocType) {
   final type = CustomsDocType.tryParse(feeDocType);
   return switch (type) {
-    CustomsDocType.paymentRecyclingFee => CustomsDocType.paymentRecyclingFeeReceipt.apiCode,
-    CustomsDocType.paymentCustomsDuty => CustomsDocType.paymentCustomsDutyReceipt.apiCode,
+    CustomsDocType.paymentRecyclingFee =>
+      CustomsDocType.paymentRecyclingFeeReceipt.apiCode,
+    CustomsDocType.paymentCustomsDuty =>
+      CustomsDocType.paymentCustomsDutyReceipt.apiCode,
     _ => null,
   };
 }
@@ -272,7 +261,6 @@ List<CustomsDocType> signingDocTypesForDealType(DealType dealType) {
     CustomsDocType.customsRepAgreement,
     CustomsDocType.contract,
   ];
-  types.add(CustomsDocType.passportNotarizedCopy);
   switch (dealType) {
     case DealType.cash:
       types.addAll([
@@ -300,13 +288,15 @@ const Set<RequestStatusSubType> kSigningPackageStartedSubTypes = {
   RequestStatusSubType.originalsCompleteTransit,
 };
 
-
 /// Пакет на подпись выдан: `primary_documents_sent+` или есть оригинал из 1С (не creation `contract_original`).
 bool isSigningPackageStarted({
   required String? statusSubType,
   required Iterable<String> fileDocTypes,
 }) {
-  final codes = fileDocTypes.map(CustomsDocType.normalizeCode).where((c) => c.isNotEmpty).toSet();
+  final codes = fileDocTypes
+      .map(CustomsDocType.normalizeCode)
+      .where((c) => c.isNotEmpty)
+      .toSet();
   final sub = RequestStatusSubType.tryParse(statusSubType);
   if (sub != null && kSigningPackageStartedSubTypes.contains(sub)) {
     return true;

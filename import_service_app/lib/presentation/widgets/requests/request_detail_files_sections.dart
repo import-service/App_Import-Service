@@ -509,7 +509,66 @@ class RequestDetailFilesSections extends StatelessWidget {
     required JsonStringsService s,
     required ThemeData theme,
   }) {
-    return grouped.creation.map((f) => _fileRow(f)).toList();
+    final passportBaseCode = CustomsDocType.passportNotarizedCopy.apiCode;
+    final passportSignedCode =
+        CustomsDocType.passportNotarizedCopy.signedApiCode;
+    bool isPassportCopy(CustomsRequestFile f) {
+      final c = CustomsDocType.normalizeCode(f.docType);
+      return c == passportBaseCode || c == passportSignedCode;
+    }
+
+    final rows = <Widget>[];
+    CustomsRequestFile? passportFile;
+    for (final f in grouped.creation) {
+      if (isPassportCopy(f)) {
+        if (passportFile == null ||
+            CustomsDocType.normalizeCode(f.docType) == passportSignedCode) {
+          passportFile = f;
+        }
+        continue;
+      }
+      rows.add(_fileRow(f));
+    }
+
+    // «Паспорт (нотариальная копия)» — документ клиента, не пакет на подпись:
+    // загрузка/перезагрузка доступна на любом этапе.
+    if (!svhUploadMode && onUploadDocType != null) {
+      final label = docTypeLabelForType(
+        CustomsDocType.passportNotarizedCopy,
+        s,
+      );
+      final targetType = passportSignedCode;
+      final uploadLabel = passportFile != null
+          ? s.requestUploadDocAgain
+          : s.requestUploadDocFile(label);
+      rows.add(
+        RequestDetailDocUploadGroup(
+          highlight:
+              passportFile != null &&
+              (_isHighlighted(passportFile) ||
+                  _isNew(passportFile) ||
+                  _isChanged(passportFile)),
+          uploadLabel: uploadLabel,
+          uploadBusy: uploadingDocType == targetType,
+          onUpload: () => onUploadDocType!(targetType),
+          children: [
+            if (passportFile != null)
+              _fileRow(passportFile, embedded: true)
+            else
+              _missingSignPlaceholder(
+                theme: theme,
+                label: label,
+                hint: s.requestFileUploadHint,
+                embedded: true,
+              ),
+          ],
+        ),
+      );
+    } else if (passportFile != null) {
+      rows.add(_fileRow(passportFile));
+    }
+
+    return rows;
   }
 
   bool _shouldShowSvhCarGallery(CarListItem item, RequestFilesGrouped grouped) {

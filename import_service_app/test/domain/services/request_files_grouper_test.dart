@@ -5,62 +5,64 @@ import 'package:import_service_app/domain/entities/customs_request_file.dart';
 import 'package:import_service_app/domain/services/request_files_grouper.dart';
 
 CustomsRequestFile _file(String docType) => CustomsRequestFile(
-      docType: docType,
-      fileUrl: 'https://example.test/$docType.pdf',
-    );
+  docType: docType,
+  fileUrl: 'https://example.test/$docType.pdf',
+);
 
 void main() {
   group('groupRequestFiles signing section', () {
-    test('contract_original always in creation; legacy contract when package not started', () {
-      final groupedNew = groupRequestFiles(
-        files: [_file('contract_original'), _file('passport_front')],
-        statusSubType: 'manager_execution',
-        dealType: 'bilateral',
-      );
-      expect(
-        groupedNew.creation.any((f) => f.docType == 'contract_original'),
-        isTrue,
-      );
-      expect(groupedNew.creation.any((f) => f.docType == 'contract'), isFalse);
+    test(
+      'contract_original always in creation; legacy contract when package not started',
+      () {
+        final groupedNew = groupRequestFiles(
+          files: [_file('contract_original'), _file('passport_front')],
+          statusSubType: 'manager_execution',
+          dealType: 'bilateral',
+        );
+        expect(
+          groupedNew.creation.any((f) => f.docType == 'contract_original'),
+          isTrue,
+        );
+        expect(
+          groupedNew.creation.any((f) => f.docType == 'contract'),
+          isFalse,
+        );
 
-      final groupedLegacy = groupRequestFiles(
-        files: [_file('contract'), _file('passport_front')],
-        statusSubType: 'manager_execution',
-        dealType: 'bilateral',
-      );
-      expect(
-        groupedLegacy.creation.any((f) => f.docType == 'contract'),
-        isTrue,
-      );
-    });
+        final groupedLegacy = groupRequestFiles(
+          files: [_file('contract'), _file('passport_front')],
+          statusSubType: 'manager_execution',
+          dealType: 'bilateral',
+        );
+        expect(
+          groupedLegacy.creation.any((f) => f.docType == 'contract'),
+          isTrue,
+        );
+      },
+    );
 
-    test('TC1 bilateral + only contract/kuts → 2 signing rows, no creation contract', () {
-      final files = [
-        _file('passport_front'),
-        _file('contract'),
-        _file('kuts'),
-      ];
+    test(
+      'TC1 bilateral + only contract/kuts → 2 signing rows, no creation contract',
+      () {
+        final files = [
+          _file('passport_front'),
+          _file('contract'),
+          _file('kuts'),
+        ];
 
-      final grouped = groupRequestFiles(
-        files: files,
-        statusSubType: 'primary_documents_sent',
-        dealType: 'bilateral',
-      );
+        final grouped = groupRequestFiles(
+          files: files,
+          statusSubType: 'primary_documents_sent',
+          dealType: 'bilateral',
+        );
 
-      expect(grouped.signingPairs.length, 3);
-      expect(
-        grouped.signingPairs.map((p) => p.baseDocType).toSet(),
-        {
+        expect(grouped.signingPairs.length, 2);
+        expect(grouped.signingPairs.map((p) => p.baseDocType).toSet(), {
           CustomsDocType.contract,
           CustomsDocType.kuts,
-          CustomsDocType.passportNotarizedCopy,
-        },
-      );
-      expect(
-        grouped.creation.any((f) => f.docType == 'contract'),
-        isFalse,
-      );
-    });
+        });
+        expect(grouped.creation.any((f) => f.docType == 'contract'), isFalse);
+      },
+    );
 
     test('TC2 manager_execution → signing section empty', () {
       final files = [
@@ -76,10 +78,7 @@ void main() {
       );
 
       expect(grouped.signingPairs, isEmpty);
-      expect(
-        grouped.creation.any((f) => f.docType == 'contract'),
-        isTrue,
-      );
+      expect(grouped.creation.any((f) => f.docType == 'contract'), isTrue);
     });
 
     test('dealType null → signing section empty even with signing files', () {
@@ -92,29 +91,49 @@ void main() {
       expect(grouped.signingPairs, isEmpty);
     });
 
-    test('client-only slots at primary_documents_sent; funds_transfer hidden', () {
-      final grouped = groupRequestFiles(
-        files: [_file('contract'), _file('kuts')],
-        statusSubType: 'primary_documents_sent',
-        dealType: 'bilateral',
-      );
+    test(
+      'client-only slots at primary_documents_sent; funds_transfer hidden',
+      () {
+        final grouped = groupRequestFiles(
+          files: [_file('contract'), _file('kuts')],
+          statusSubType: 'primary_documents_sent',
+          dealType: 'bilateral',
+        );
 
-      final bases = grouped.signingPairs.map((p) => p.baseDocType).toSet();
-      expect(bases.contains(CustomsDocType.recyclingFeeCalc), isFalse);
-      expect(bases.contains(CustomsDocType.fundsTransferApplication), isFalse);
-      expect(bases.contains(CustomsDocType.passportNotarizedCopy), isTrue);
-    });
+        final bases = grouped.signingPairs.map((p) => p.baseDocType).toSet();
+        expect(bases.contains(CustomsDocType.recyclingFeeCalc), isFalse);
+        expect(
+          bases.contains(CustomsDocType.fundsTransferApplication),
+          isFalse,
+        );
+        expect(bases.contains(CustomsDocType.passportNotarizedCopy), isFalse);
+      },
+    );
 
-    test('cash dealType: passport_notarized_copy slot remains', () {
-      final grouped = groupRequestFiles(
-        files: [_file('contract'), _file('kuts')],
-        statusSubType: 'primary_documents_sent',
-        dealType: 'cash',
-      );
+    test(
+      'passport_notarized_copy never in signing; files land in creation',
+      () {
+        for (final dealType in ['bilateral', 'cash']) {
+          final grouped = groupRequestFiles(
+            files: [
+              _file('contract'),
+              _file('kuts'),
+              _file('passport_notarized_copy_sign'),
+            ],
+            statusSubType: 'primary_documents_sent',
+            dealType: dealType,
+          );
 
-      final bases = grouped.signingPairs.map((p) => p.baseDocType).toSet();
-      expect(bases.contains(CustomsDocType.fundsTransferApplication), isFalse);
-      expect(bases.contains(CustomsDocType.passportNotarizedCopy), isTrue);
-    });
+          final bases = grouped.signingPairs.map((p) => p.baseDocType).toSet();
+          expect(bases.contains(CustomsDocType.passportNotarizedCopy), isFalse);
+          expect(
+            grouped.creation.any(
+              (f) => f.docType == 'passport_notarized_copy_sign',
+            ),
+            isTrue,
+          );
+        }
+      },
+    );
   });
 }

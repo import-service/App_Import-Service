@@ -38,8 +38,10 @@ final class RequestFilesGrouped {
   final List<CustomsRequestFile> payment;
   final List<CustomsRequestFile> transitArchive;
   final List<CustomsRequestFile> finalDocs;
+
   /// «Документы к выдаче»: архив СВХ + итоговые (СБКТС/ЭПТС…).
   final List<CustomsRequestFile> issueHandover;
+
   /// Галерея «Фото и видео машины» (СВХ): `svh_car_photo_N` + `svh_car_video_N`.
   final List<CustomsRequestFile> svhCarGallery;
   final List<CustomsRequestFile> other;
@@ -74,9 +76,12 @@ RequestFilesGrouped groupRequestFiles({
     fileDocTypes: files.map((f) => f.docType ?? ''),
   );
 
-  final signingContractActive = packageStarted &&
+  final signingContractActive =
+      packageStarted &&
       parsedDealType != null &&
-      signingDocTypesForDealType(parsedDealType).contains(CustomsDocType.contract) &&
+      signingDocTypesForDealType(
+        parsedDealType,
+      ).contains(CustomsDocType.contract) &&
       pick(CustomsDocType.contract.apiCode) != null;
 
   final creation = <CustomsRequestFile>[];
@@ -106,6 +111,16 @@ RequestFilesGrouped groupRequestFiles({
     }
   }
 
+  // Паспорт (нотариальная копия) — не пакет на подпись, а документ клиента:
+  // показываем в «Документах при подаче» (upload доступен там же).
+  for (final code in [
+    CustomsDocType.passportNotarizedCopy.apiCode,
+    CustomsDocType.passportNotarizedCopy.signedApiCode,
+  ]) {
+    final list = byCode[code];
+    if (list != null) creation.addAll(list);
+  }
+
   final signingPairs = <SigningDocumentPair>[];
   if (parsedDealType != null) {
     final applicable = signingDocTypesForDealType(parsedDealType);
@@ -128,10 +143,15 @@ RequestFilesGrouped groupRequestFiles({
       final clientOnly = base.isClientSignOnly;
       final needsSignature = clientOnly
           ? signed == null
-          : (original != null && signed == null) || (revision && signed == null);
+          : (original != null && signed == null) ||
+                (revision && signed == null);
       final highlight = needsSignature || revision;
       final canUpload =
-          clientOnly || original != null || signed != null || needsSignature || revision;
+          clientOnly ||
+          original != null ||
+          signed != null ||
+          needsSignature ||
+          revision;
 
       signingPairs.add(
         SigningDocumentPair(
@@ -201,14 +221,13 @@ RequestFilesGrouped groupRequestFiles({
     return ak.$2.compareTo(bk.$2);
   });
 
-  final issueHandover = <CustomsRequestFile>[
-    ...transitArchive,
-    ...finalDocs,
-  ];
+  final issueHandover = <CustomsRequestFile>[...transitArchive, ...finalDocs];
 
   final used = <String>{
     ...creation.map((e) => CustomsDocType.normalizeCode(e.docType)),
-    ...signingPairs.expand((p) => [p.baseDocType.apiCode, p.baseDocType.signedApiCode]),
+    ...signingPairs.expand(
+      (p) => [p.baseDocType.apiCode, p.baseDocType.signedApiCode],
+    ),
     ...payment.map((e) => CustomsDocType.normalizeCode(e.docType)),
     ...issueHandover.map((e) => CustomsDocType.normalizeCode(e.docType)),
     ...svhCarGallery.map((e) => CustomsDocType.normalizeCode(e.docType)),
@@ -265,13 +284,22 @@ bool _shouldShowSigningRow({
 }
 
 /// Квитанция оплаты без чека — подсветка в секции «Оплата».
-bool paymentFileNeedsReceiptHighlight(CustomsRequestFile file, List<CustomsRequestFile> all) {
+bool paymentFileNeedsReceiptHighlight(
+  CustomsRequestFile file,
+  List<CustomsRequestFile> all,
+) {
   final type = CustomsDocType.tryParse(file.docType);
   return switch (type) {
-    CustomsDocType.paymentRecyclingFee =>
-      !all.any((x) => CustomsDocType.tryParse(x.docType) == CustomsDocType.paymentRecyclingFeeReceipt),
-    CustomsDocType.paymentCustomsDuty =>
-      !all.any((x) => CustomsDocType.tryParse(x.docType) == CustomsDocType.paymentCustomsDutyReceipt),
+    CustomsDocType.paymentRecyclingFee => !all.any(
+      (x) =>
+          CustomsDocType.tryParse(x.docType) ==
+          CustomsDocType.paymentRecyclingFeeReceipt,
+    ),
+    CustomsDocType.paymentCustomsDuty => !all.any(
+      (x) =>
+          CustomsDocType.tryParse(x.docType) ==
+          CustomsDocType.paymentCustomsDutyReceipt,
+    ),
     _ => false,
   };
 }
