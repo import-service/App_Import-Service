@@ -430,5 +430,20 @@
   "requestFilesLeaveConfirm": "不保存离开",
   "requestFilesLeaveSave": "保存",
   "demoClientName": "演示客户",
-  "noDataTitle": "暂无数据"
+  "noDataTitle": "暂无数据",
+  "appUpdateServerConnecting": "正在连接服务器…",
+  "appUpdateServerDownloadingStatus": "正在下载 APK…",
+  "appUpdateServerNeedInstallPermissionTitle": "安装权限",
+  "appUpdateServerNeedInstallPermissionBody": "下载前需要允许从此应用安装。请打开设置开启权限后返回，下载将自动继续。",
+  "appUpdateServerOpenSettings": "打开设置",
+  "appUpdateServerPermissionGranted": "权限已获取，正在下载更新…",
+  "appUpdateServerSameOrOlderTitle": "相同或更旧的版本",
+  "appUpdateServerSameOrOlderBody": "服务器版本为 {server}，您当前已是 {local}。仍要下载并安装吗？",
+  "appUpdateServerSameOrOlderConfirm": "下载",
+  "appUpdateServerSameOrOlderCancel": "取消",
+  "requestMediaDownloadButton": "下载",
+  "requestMediaShareButton": "分享",
+  "requestMediaActionFailed": "无法保存或发送文件",
+  "requestMediaSaved": "已保存到相册",
+  "requestMediaPermissionDenied": "无相册访问权限，请在设置中允许保存"
 }
